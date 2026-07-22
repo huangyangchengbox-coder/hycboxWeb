@@ -5,7 +5,7 @@
 const { Client } = require('ssh2')
 const fs = require('fs')
 const path = require('path')
-const { HOST, USER, PASSWORD } = require('./ssh-env')
+const { HOST, USER, PASSWORD } = require('./ssh-env.cjs')
 
 const LOCAL_DIST = path.join(__dirname, '..', 'dist')
 const REMOTE_DIR = '/opt/hycbox-web'
@@ -75,12 +75,12 @@ async function ensureNginxWeb(conn) {
     return
   }
   console.log('写入 nginx /web/ 配置…')
-  const snippet = NGINX_WEB_BLOCK.replace(/\n/g, '\\n').replace(/'/g, "'\\''")
+  const block = NGINX_WEB_BLOCK.trim()
   await exec(conn, `python3 - <<'PY'
 from pathlib import Path
 p = Path('${confPath}')
 text = p.read_text(encoding='utf-8')
-block = '''${NGINX_WEB_BLOCK.strip()}'''
+block = '''${block}'''
 marker = '    location /uploads/ {'
 if 'location /web/' not in text:
     text = text.replace(marker, block + '\\n\\n' + marker, 2)

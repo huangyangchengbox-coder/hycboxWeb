@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "node deploy/deploy-web.js"
+    "deploy": "node deploy/deploy-web.cjs"
   },
   "dependencies": {
     "vue": "^3.5.13",
