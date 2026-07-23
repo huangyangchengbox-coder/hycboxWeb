@@ -1,21 +1,23 @@
 /**
  * 宜昌·恒大名都：地图经纬度落位。
- * 中心点为东城大道与东方大道交汇处附近近似坐标，可在地图校准中微调。
+ * 本地坐标：+x 东，+z 南（与二期总平北上一致）。
+ * 地图中心取东城大道与东方大道交汇处以北（二期御峰一侧）。
  */
-import { buildCampusLayout } from './hengdaMingduLayout'
+import { buildCampusLayout, PHASE2_PLAN_OVERLAY } from './hengdaMingduLayout'
 import { mergeLayoutOverrides } from '../utils/campusLayoutStore'
 
-/** 园区中心（WGS84），后续可用地图校准覆盖 */
+/** 园区中心（WGS84）≈ 二期水景附近，可再校准 */
 export const HENGDA_MAP_CENTER = {
-  lng: 111.3286,
-  lat: 30.7712
+  lng: 111.3292,
+  lat: 30.7730
 }
 
 const METERS_PER_DEG_LAT = 111320
 
-function metersToLngLat(dx, dz, center = HENGDA_MAP_CENTER) {
+/** 本地米制 → WGS84；+z 为南，故 lat 取减 */
+export function metersToLngLat(dx, dz, center = HENGDA_MAP_CENTER) {
   const latRad = (center.lat * Math.PI) / 180
-  const lat = center.lat + dz / METERS_PER_DEG_LAT
+  const lat = center.lat - dz / METERS_PER_DEG_LAT
   const lng = center.lng + dx / (METERS_PER_DEG_LAT * Math.cos(latRad))
   return { lng, lat }
 }
@@ -34,10 +36,28 @@ function rectRing(lng, lat, widthM, depthM) {
 }
 
 /**
+ * 二期总平图四角（MapLibre image source 顺序：左上、右上、右下、左下）
+ */
+export function phase2PlanCoordinates(center = HENGDA_MAP_CENTER) {
+  const { centerX, centerZ, widthM, heightM } = PHASE2_PLAN_OVERLAY
+  const halfW = widthM / 2
+  const halfH = heightM / 2
+  const nw = metersToLngLat(centerX - halfW, centerZ - halfH, center)
+  const ne = metersToLngLat(centerX + halfW, centerZ - halfH, center)
+  const se = metersToLngLat(centerX + halfW, centerZ + halfH, center)
+  const sw = metersToLngLat(centerX - halfW, centerZ + halfH, center)
+  return [
+    [nw.lng, nw.lat],
+    [ne.lng, ne.lat],
+    [se.lng, se.lat],
+    [sw.lng, sw.lat]
+  ]
+}
+
+/**
  * @param {Array} phases
  * @param {Record<string,{x?:number,z?:number,lng?:number,lat?:number}>|null} overrides
  * @param {{lng:number,lat:number}} center
- * @returns {GeoJSON.FeatureCollection}
  */
 export function buildCampusGeoJson(phases, overrides = null, center = HENGDA_MAP_CENTER) {
   const items = mergeLayoutOverrides(buildCampusLayout(phases), overrides)
@@ -76,7 +96,7 @@ export function buildCampusGeoJson(phases, overrides = null, center = HENGDA_MAP
 /** 地图点击处写入 lng/lat 覆盖（同时换算本地米制，兼容场景 3D） */
 export function pointOverrideFromLngLat(lng, lat, center = HENGDA_MAP_CENTER) {
   const latRad = (center.lat * Math.PI) / 180
-  const z = (lat - center.lat) * METERS_PER_DEG_LAT
+  const z = (center.lat - lat) * METERS_PER_DEG_LAT
   const x = (lng - center.lng) * METERS_PER_DEG_LAT * Math.cos(latRad)
   return {
     lng: Number(lng.toFixed(6)),

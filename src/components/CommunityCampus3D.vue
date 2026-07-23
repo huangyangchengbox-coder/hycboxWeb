@@ -27,7 +27,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
-import { buildCampusLayout } from '../data/hengdaMingduLayout'
+import { buildCampusLayout, PHASE2_PLAN_OVERLAY } from '../data/hengdaMingduLayout'
 import {
   BUILDING_TONE_COLOR,
   buildingStatusTone
@@ -264,6 +264,37 @@ function clearPlanMesh() {
   planMesh = null
 }
 
+/** 默认铺上二期总平图，便于对照拖拽 */
+function loadDefaultPhase2Plan() {
+  if (!scene) return
+  const loader = new THREE.TextureLoader()
+  loader.load(
+    PHASE2_PLAN_OVERLAY.url,
+    (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace
+      clearPlanMesh()
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        opacity: PHASE2_PLAN_OVERLAY.opacity,
+        depthWrite: false
+      })
+      planMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(PHASE2_PLAN_OVERLAY.widthM, PHASE2_PLAN_OVERLAY.heightM),
+        mat
+      )
+      planMesh.rotation.x = -Math.PI / 2
+      planMesh.position.set(PHASE2_PLAN_OVERLAY.centerX, 0.08, PHASE2_PLAN_OVERLAY.centerZ)
+      scene.add(planMesh)
+      if (groundMesh) groundMesh.visible = false
+    },
+    undefined,
+    () => {
+      console.warn('[campus3d] phase2 plan load failed')
+    }
+  )
+}
+
 function onPlanFile(event) {
   const file = event.target.files?.[0]
   event.target.value = ''
@@ -275,16 +306,18 @@ function onPlanFile(event) {
     (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace
       clearPlanMesh()
-      const size = 420
       const mat = new THREE.MeshBasicMaterial({
         map: tex,
         transparent: true,
         opacity: 0.88,
         depthWrite: false
       })
-      planMesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat)
+      planMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(PHASE2_PLAN_OVERLAY.widthM, PHASE2_PLAN_OVERLAY.heightM),
+        mat
+      )
       planMesh.rotation.x = -Math.PI / 2
-      planMesh.position.y = 0.08
+      planMesh.position.set(PHASE2_PLAN_OVERLAY.centerX, 0.08, PHASE2_PLAN_OVERLAY.centerZ)
       scene.add(planMesh)
       if (groundMesh) groundMesh.visible = false
       showToast('总平图已铺到地面（仅本次会话）')
@@ -440,6 +473,7 @@ function init() {
   window.addEventListener('resize', onResize)
 
   rebuild(true)
+  loadDefaultPhase2Plan()
   animate()
 }
 
