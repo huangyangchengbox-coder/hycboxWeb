@@ -5,19 +5,24 @@
       <form @submit.prevent="onGenerate">
         <div class="form-group">
           <label>描述 prompt <span class="req">*</span></label>
-          <textarea v-model.trim="form.prompt" placeholder="描述你想生成的图片内容…" required />
+          <textarea
+            v-model.trim="form.prompt"
+            placeholder="描述你想生成的图片内容…"
+            required
+            :disabled="submitting"
+          />
         </div>
         <div class="grid-2">
           <div class="form-group">
             <label>模型</label>
-            <select v-model="form.model">
+            <select v-model="form.model" :disabled="submitting">
               <option value="agnes-image-2.0-flash">agnes-image-2.0-flash</option>
               <option value="agnes-image-2.1-flash">agnes-image-2.1-flash</option>
             </select>
           </div>
           <div class="form-group">
             <label>尺寸 size</label>
-            <select v-model="form.size">
+            <select v-model="form.size" :disabled="submitting">
               <option value="512x512">512×512</option>
               <option value="1024x1024">1024×1024</option>
               <option value="1024x1792">1024×1792</option>
@@ -26,13 +31,13 @@
           </div>
           <div class="form-group">
             <label>数量 n</label>
-            <select v-model.number="form.n">
+            <select v-model.number="form.n" :disabled="submitting">
               <option :value="1">1</option>
               <option :value="2">2</option>
             </select>
           </div>
         </div>
-        <button class="btn" type="submit" :disabled="submitting">
+        <button class="btn" type="submit" :class="{ 'is-busy': submitting }" :disabled="submitting">
           {{ submitting ? '提交中…' : '开始生成' }}
         </button>
         <p class="hint">提交后立即返回任务，后台生成；本页最多轮询 10 分钟，下次进入可看结果。</p>
@@ -40,15 +45,19 @@
       </form>
     </section>
 
-    <section class="card history">
+    <section ref="historyEl" class="card history">
       <div class="history-head">
         <h2>历史记录</h2>
-        <button class="btn btn-secondary btn-sm" :disabled="loadingList" @click="loadHistory">刷新</button>
+        <button class="btn btn-secondary btn-sm" :disabled="loadingList || submitting" @click="loadHistory">刷新</button>
       </div>
       <p v-if="loadingList" class="muted">加载中…</p>
       <p v-else-if="!jobs.length" class="muted">暂无记录</p>
       <div v-else class="gallery">
-        <article v-for="job in jobs" :key="job.id" class="job-card">
+        <article
+          v-for="job in jobs"
+          :key="job.id"
+          :class="['job-card', { 'is-entering': job.id === enteringId }]"
+        >
           <div class="thumb-wrap">
             <img v-if="mediaUrl(job)" :src="mediaUrl(job)" :alt="job.prompt" loading="lazy" />
             <div v-else class="thumb-placeholder">{{ statusLabel(job.status) }}</div>
@@ -67,7 +76,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { createImage, getJob, listJobs, mediaUrl, statusLabel } from '../api/aiMedia'
 import { createJobPoller } from '../api/jobPoller'
 
@@ -82,12 +91,28 @@ const submitting = ref(false)
 const loadingList = ref(false)
 const error = ref('')
 const jobs = ref([])
+const historyEl = ref(null)
+const enteringId = ref('')
+let enteringTimer = 0
 
 const poller = createJobPoller(
   () => jobs.value,
   (id) => getJob(id),
   (next) => { jobs.value = next }
 )
+
+function pushJobToList(job) {
+  if (!job?.id) return
+  enteringId.value = job.id
+  jobs.value = [job, ...jobs.value.filter((j) => j.id !== job.id)]
+  clearTimeout(enteringTimer)
+  enteringTimer = setTimeout(() => {
+    enteringId.value = ''
+  }, 700)
+  nextTick(() => {
+    historyEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
 
 async function loadHistory() {
   loadingList.value = true
@@ -103,6 +128,7 @@ async function loadHistory() {
 }
 
 async function onGenerate() {
+  if (submitting.value) return
   if (!form.prompt) {
     error.value = '请输入描述'
     return
@@ -117,9 +143,7 @@ async function onGenerate() {
       n: form.n
     })
     form.prompt = ''
-    if (job) {
-      jobs.value = [job, ...jobs.value.filter((j) => j.id !== job.id)]
-    }
+    pushJobToList(job)
     poller.start()
   } catch (e) {
     error.value = e.message || '提交失败'
@@ -130,7 +154,10 @@ async function onGenerate() {
 }
 
 onMounted(loadHistory)
-onUnmounted(() => poller.stop())
+onUnmounted(() => {
+  poller.stop()
+  clearTimeout(enteringTimer)
+})
 </script>
 
 <style scoped>
