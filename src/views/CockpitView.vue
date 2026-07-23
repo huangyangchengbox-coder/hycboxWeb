@@ -35,14 +35,32 @@
               待派送 {{ deliveryMap?.pendingCount ?? 0 }} · 已配送 {{ deliveryMap?.completedCount ?? 0 }}
             </span>
           </div>
-          <div class="legend">
-            <span class="leg pending">待派送</span>
-            <span class="leg completed">已配送</span>
-            <span class="leg empty">无订单</span>
+          <div class="toolbar-right">
+            <div class="view-tabs">
+              <button
+                type="button"
+                :class="['tab-btn', { active: viewMode === 'campus' }]"
+                @click="viewMode = 'campus'"
+              >
+                园区 3D
+              </button>
+              <button
+                type="button"
+                :class="['tab-btn', { active: viewMode === 'floor' }]"
+                @click="viewMode = 'floor'"
+              >
+                楼层 2D
+              </button>
+            </div>
+            <div v-if="viewMode === 'floor'" class="legend">
+              <span class="leg pending">待派送</span>
+              <span class="leg completed">已配送</span>
+              <span class="leg empty">无订单</span>
+            </div>
           </div>
         </div>
 
-        <div class="selectors">
+        <div v-if="viewMode === 'floor'" class="selectors">
           <label>
             期数
             <select v-model="phaseId" @change="onPhaseChange">
@@ -65,7 +83,14 @@
         </div>
 
         <p v-if="error" class="error-msg">{{ error }}</p>
-        <p v-else-if="loadingMap || loadingRooms" class="muted">加载楼栋中…</p>
+        <p v-else-if="viewMode === 'floor' && (loadingMap || loadingRooms)" class="muted">加载楼栋中…</p>
+
+        <CommunityCampus3D
+          v-else-if="viewMode === 'campus'"
+          :phases="campusPhases"
+          :selected-key="selectedBuildingKey"
+          @select="onCampusSelect"
+        />
 
         <div v-else class="floor-board">
           <div v-for="floor in floorsDesc" :key="floor" class="floor-row">
@@ -92,6 +117,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { getDeliveryMap, getPhases, getRooms, listPublications } from '../api/cockpit'
+import CommunityCampus3D from '../components/CommunityCampus3D.vue'
 
 const loadingPubs = ref(false)
 const loadingMap = ref(false)
@@ -101,12 +127,17 @@ const pubs = ref([])
 const selectedId = ref('')
 const selectedPub = ref(null)
 const deliveryMap = ref(null)
+/** 楼层 2D 用（可能按发布期数过滤） */
 const phases = ref([])
+/** 园区 3D 用：整小区楼栋骨架 */
+const campusPhases = ref([])
 const phaseId = ref('')
 const buildingId = ref('')
 const unit = ref(1)
 const rooms = ref([])
 const statusByRoom = ref({})
+/** campus | floor：第一步默认园区 3D */
+const viewMode = ref('campus')
 
 const communityPubs = computed(() =>
   (pubs.value || []).filter((p) => !p.scope || p.scope === 'community')
@@ -118,6 +149,10 @@ const buildings = computed(() => {
 })
 
 const currentBuilding = computed(() => buildings.value.find((b) => b.id === buildingId.value))
+
+const selectedBuildingKey = computed(() =>
+  phaseId.value && buildingId.value ? `${phaseId.value}_${buildingId.value}` : ''
+)
 
 const unitOptions = computed(() => {
   const n = Number(currentBuilding.value?.units) || 1
@@ -182,7 +217,25 @@ async function selectPub(pub) {
   phaseId.value = ''
   buildingId.value = ''
   unit.value = 1
+  viewMode.value = 'campus'
   await Promise.all([reloadMap(), loadPhaseSkeleton(pub)])
+}
+
+/** 点击 3D 楼栋 → 切到楼层 2D */
+function onCampusSelect({ phaseId: pid, buildingId: bid }) {
+  if (!pid || !bid) return
+  // 若发布限定期数且点了其他期，仍允许用整区骨架切换（phases 可能被过滤）
+  if (!phases.value.find((p) => p.id === pid)) {
+    const full = campusPhases.value.find((p) => p.id === pid)
+    if (full) {
+      phases.value = [...phases.value, full]
+    }
+  }
+  phaseId.value = pid
+  buildingId.value = bid
+  unit.value = 1
+  viewMode.value = 'floor'
+  loadRooms()
 }
 
 async function reloadMap() {
@@ -212,12 +265,14 @@ async function loadPhaseSkeleton(pub) {
   }
   try {
     const list = await getPhases(communityId)
-    let next = list || []
+    const all = list || []
+    campusPhases.value = all
+    let next = all
     if (pub.phaseId) {
-      next = next.filter((p) => p.id === pub.phaseId)
+      next = all.filter((p) => p.id === pub.phaseId)
     }
-    phases.value = next
-    phaseId.value = next[0]?.id || ''
+    phases.value = next.length ? next : all
+    phaseId.value = phases.value[0]?.id || ''
     onPhaseChange()
   } catch (e) {
     error.value = e.message || '加载楼栋失败'
@@ -343,6 +398,35 @@ onMounted(loadPubs)
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+}
+
+.toolbar-right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.view-tabs {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tab-btn {
+  border: 0;
+  background: #fff;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.tab-btn.active {
+  background: #ecfdf5;
+  color: var(--accent-dark);
+  font-weight: 600;
 }
 
 .legend {
