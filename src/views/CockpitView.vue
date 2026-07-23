@@ -65,6 +65,14 @@
             >
               刷新状态
             </button>
+            <button
+              v-if="viewMode === 'campus'"
+              type="button"
+              :class="['btn', 'btn-sm', calibrateMode ? 'cal-on' : 'btn-secondary']"
+              @click="calibrateMode = !calibrateMode"
+            >
+              {{ calibrateMode ? '退出校准' : '校准落位' }}
+            </button>
           </div>
         </div>
 
@@ -98,6 +106,8 @@
           :phases="campusPhases"
           :selected-key="selectedBuildingKey"
           :building-stats="buildingStats"
+          :community-id="campusCommunityId"
+          :calibrate="calibrateMode"
           @select="onCampusSelect"
         />
 
@@ -148,9 +158,15 @@ const rooms = ref([])
 const statusByRoom = ref({})
 /** campus | floor：第一步默认园区 3D */
 const viewMode = ref('campus')
+/** 总平校准：拖拽楼栋落位 */
+const calibrateMode = ref(false)
 
 const communityPubs = computed(() =>
   (pubs.value || []).filter((p) => !p.scope || p.scope === 'community')
+)
+
+const campusCommunityId = computed(
+  () => selectedPub.value?.communityId || deliveryMap.value?.communityId || 'hengda_mingdu'
 )
 
 const buildings = computed(() => {
@@ -233,11 +249,13 @@ async function selectPub(pub) {
   buildingId.value = ''
   unit.value = 1
   viewMode.value = 'campus'
+  calibrateMode.value = false
   await Promise.all([reloadMap(), loadPhaseSkeleton(pub)])
 }
 
-/** 点击 3D 楼栋 → 切到楼层 2D */
+/** 点击 3D 楼栋 → 切到楼层 2D（校准模式不触发） */
 function onCampusSelect({ phaseId: pid, buildingId: bid }) {
+  if (calibrateMode.value) return
   if (!pid || !bid) return
   // 若发布限定期数且点了其他期，仍允许用整区骨架切换（phases 可能被过滤）
   if (!phases.value.find((p) => p.id === pid)) {
@@ -563,5 +581,14 @@ onMounted(loadPubs)
 .btn-sm {
   padding: 0.35rem 0.75rem;
   font-size: 0.875rem;
+}
+
+.cal-on {
+  background: #ea580c;
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
 }
 </style>

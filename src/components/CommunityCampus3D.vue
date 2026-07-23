@@ -1,12 +1,29 @@
 <template>
   <div class="campus3d">
+    <div v-if="calibrate" class="cal-bar">
+      <span class="cal-tip">校准模式：拖拽楼栋对齐总平 · 滚轮缩放 · 右键拖拽旋转视角</span>
+      <div class="cal-actions">
+        <label class="btn btn-secondary btn-sm file-btn">
+          上传总平图
+          <input type="file" accept="image/*" hidden @change="onPlanFile" />
+        </label>
+        <label class="btn btn-secondary btn-sm file-btn">
+          导入落位
+          <input type="file" accept="application/json,.json" hidden @change="onImportLayout" />
+        </label>
+        <button type="button" class="btn btn-secondary btn-sm" @click="exportLayout">导出落位</button>
+        <button type="button" class="btn btn-secondary btn-sm" @click="resetLayout">重置落位</button>
+        <button type="button" class="btn btn-sm save-btn" @click="persistLayout">保存落位</button>
+      </div>
+    </div>
     <div ref="hostEl" class="canvas-host"></div>
-    <div class="hint">拖拽旋转 · 滚轮缩放 · 点击楼栋下钻 · 黄=待派送 / 绿=已配送 / 灰=无单</div>
+    <div class="hint">{{ hintText }}</div>
+    <p v-if="toast" class="toast">{{ toast }}</p>
   </div>
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
@@ -15,22 +32,35 @@ import {
   BUILDING_TONE_COLOR,
   buildingStatusTone
 } from '../utils/campusOrderStats'
+import {
+  clearCampusLayout,
+  downloadCampusLayoutJson,
+  loadCampusLayout,
+  mergeLayoutOverrides,
+  parseCampusLayoutFile,
+  saveCampusLayout
+} from '../utils/campusLayoutStore'
 
 const props = defineProps({
-  /** 小区期数楼栋骨架（与 /community/phases 一致） */
   phases: { type: Array, default: () => [] },
-  /** 选中楼栋 key：phaseId_buildingId */
   selectedKey: { type: String, default: '' },
-  /**
-   * 楼栋订单聚合：{ [key]: { pending, completed, quantity } }
-   * 有待派送→黄，仅已配送→绿，无单→灰
-   */
-  buildingStats: { type: Object, default: () => ({}) }
+  buildingStats: { type: Object, default: () => ({}) },
+  communityId: { type: String, default: 'hengda_mingdu' },
+  /** 开启后拖拽楼栋，不触发下钻 */
+  calibrate: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['select'])
 
 const hostEl = ref(null)
+const toast = ref('')
+const overrides = ref({})
+
+const hintText = computed(() =>
+  props.calibrate
+    ? '校准：左键拖楼栋 · 右键/中键转视角 · 黄待派送/绿已配送/灰无单'
+    : '拖拽旋转 · 滚轮缩放 · 点击楼栋下钻 · 黄=待派送 / 绿=已配送 / 灰=无单'
+)
 
 let renderer = null
 let labelRenderer = null
@@ -41,14 +71,32 @@ let raycaster = null
 let pointer = null
 let animId = 0
 let buildingGroup = null
+let groundMesh = null
+let planMesh = null
+let dragMesh = null
+let dragOffset = new THREE.Vector3()
+let toastTimer = 0
 const meshByKey = new Map()
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+const intersectPoint = new THREE.Vector3()
+
+function showToast(msg) {
+  toast.value = msg
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toast.value = ''
+  }, 2200)
+}
 
 function disposeObject(obj) {
   obj.traverse((child) => {
     if (child.geometry) child.geometry.dispose()
     if (child.material) {
       const mats = Array.isArray(child.material) ? child.material : [child.material]
-      mats.forEach((m) => m.dispose?.())
+      mats.forEach((m) => {
+        if (m.map) m.map.dispose?.()
+        m.dispose?.()
+      })
     }
     if (child.element?.parentNode) {
       child.element.parentNode.removeChild(child.element)
@@ -71,11 +119,15 @@ function labelText(item, stat) {
   return `${item.name} 待${stat.pending}/已${stat.completed}`
 }
 
-function rebuild() {
+function currentItems() {
+  return mergeLayoutOverrides(buildCampusLayout(props.phases), overrides.value)
+}
+
+function rebuild(fit = true) {
   if (!scene) return
   clearBuildings()
   buildingGroup = new THREE.Group()
-  const items = buildCampusLayout(props.phases)
+  const items = currentItems()
 
   for (const item of items) {
     const stat = props.buildingStats?.[item.key]
@@ -96,7 +148,8 @@ function rebuild() {
       key: item.key,
       phaseId: item.phaseId,
       buildingId: item.buildingId,
-      name: item.name
+      name: item.name,
+      height: item.height
     }
 
     const edge = new THREE.LineSegments(
@@ -119,10 +172,9 @@ function rebuild() {
 
   scene.add(buildingGroup)
   applyAppearance()
-  fitCamera(items)
+  if (fit) fitCamera(items)
 }
 
-/** 着色 + 选中高亮 + 标签刷新（不重建几何） */
 function applyAppearance() {
   meshByKey.forEach((mesh, key) => {
     const stat = props.buildingStats?.[key]
@@ -132,10 +184,7 @@ function applyAppearance() {
     mesh.material.emissive.setHex(selected ? 0x7c2d12 : 0x000000)
     mesh.material.emissiveIntensity = selected ? 0.25 : 0
     if (mesh.userData.labelEl) {
-      mesh.userData.labelEl.textContent = labelText(
-        { name: mesh.userData.name },
-        stat
-      )
+      mesh.userData.labelEl.textContent = labelText({ name: mesh.userData.name }, stat)
     }
   })
 }
@@ -162,17 +211,144 @@ function fitCamera(items) {
   controls.update()
 }
 
-function onPointerDown(event) {
-  if (!hostEl.value || !camera || !buildingGroup) return
+function syncOverridesFromMeshes() {
+  const next = { ...overrides.value }
+  meshByKey.forEach((mesh, key) => {
+    next[key] = {
+      x: Number(mesh.position.x.toFixed(2)),
+      z: Number(mesh.position.z.toFixed(2))
+    }
+  })
+  overrides.value = next
+  return next
+}
+
+function persistLayout() {
+  const buildings = syncOverridesFromMeshes()
+  saveCampusLayout(props.communityId, buildings)
+  showToast('落位已保存到本机')
+}
+
+function resetLayout() {
+  clearCampusLayout(props.communityId)
+  overrides.value = {}
+  rebuild(true)
+  showToast('已恢复默认网格落位')
+}
+
+function exportLayout() {
+  const buildings = syncOverridesFromMeshes()
+  downloadCampusLayoutJson(props.communityId, buildings)
+  showToast('已导出 JSON')
+}
+
+async function onImportLayout(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  try {
+    const buildings = await parseCampusLayoutFile(file)
+    overrides.value = buildings
+    saveCampusLayout(props.communityId, buildings)
+    rebuild(true)
+    showToast('落位已导入并保存')
+  } catch (e) {
+    showToast(e.message || '导入失败')
+  }
+}
+
+function clearPlanMesh() {
+  if (!planMesh || !scene) return
+  scene.remove(planMesh)
+  disposeObject(planMesh)
+  planMesh = null
+}
+
+function onPlanFile(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file || !scene) return
+  const url = URL.createObjectURL(file)
+  const loader = new THREE.TextureLoader()
+  loader.load(
+    url,
+    (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace
+      clearPlanMesh()
+      const size = 420
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        opacity: 0.88,
+        depthWrite: false
+      })
+      planMesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat)
+      planMesh.rotation.x = -Math.PI / 2
+      planMesh.position.y = 0.08
+      scene.add(planMesh)
+      if (groundMesh) groundMesh.visible = false
+      showToast('总平图已铺到地面（仅本次会话）')
+      URL.revokeObjectURL(url)
+    },
+    undefined,
+    () => {
+      URL.revokeObjectURL(url)
+      showToast('总平图加载失败')
+    }
+  )
+}
+
+function pickBuilding(event) {
+  if (!hostEl.value || !camera || !buildingGroup) return null
   const rect = hostEl.value.getBoundingClientRect()
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
   raycaster.setFromCamera(pointer, camera)
   const hits = raycaster.intersectObjects(buildingGroup.children, false)
-  const hit = hits.find((h) => h.object?.userData?.key)
-  if (!hit) return
-  const { phaseId, buildingId, name, key } = hit.object.userData
+  return hits.find((h) => h.object?.userData?.key)?.object || null
+}
+
+function groundHit(event) {
+  if (!hostEl.value || !camera) return null
+  const rect = hostEl.value.getBoundingClientRect()
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+  raycaster.setFromCamera(pointer, camera)
+  if (!raycaster.ray.intersectPlane(groundPlane, intersectPoint)) return null
+  return intersectPoint.clone()
+}
+
+function onPointerDown(event) {
+  if (event.button !== 0) return
+  const mesh = pickBuilding(event)
+  if (!mesh) return
+
+  if (props.calibrate) {
+    const hit = groundHit(event)
+    if (!hit) return
+    dragMesh = mesh
+    dragOffset.set(mesh.position.x - hit.x, 0, mesh.position.z - hit.z)
+    if (controls) controls.enabled = false
+    return
+  }
+
+  const { phaseId, buildingId, name, key } = mesh.userData
   emit('select', { phaseId, buildingId, name, key })
+}
+
+function onPointerMove(event) {
+  if (!dragMesh || !props.calibrate) return
+  const hit = groundHit(event)
+  if (!hit) return
+  dragMesh.position.x = hit.x + dragOffset.x
+  dragMesh.position.z = hit.z + dragOffset.z
+}
+
+function onPointerUp() {
+  if (!dragMesh) return
+  dragMesh = null
+  if (controls) controls.enabled = true
+  syncOverridesFromMeshes()
 }
 
 function onResize() {
@@ -192,9 +368,16 @@ function animate() {
   labelRenderer?.render(scene, camera)
 }
 
+function loadSavedOverrides() {
+  const saved = loadCampusLayout(props.communityId)
+  overrides.value = saved?.buildings || {}
+}
+
 function init() {
   const host = hostEl.value
   if (!host) return
+
+  loadSavedOverrides()
 
   scene = new THREE.Scene()
   scene.background = new THREE.Color(0xeef2f7)
@@ -222,6 +405,12 @@ function init() {
   controls.maxPolarAngle = Math.PI * 0.48
   controls.minDistance = 40
   controls.maxDistance = 420
+  // 校准模式：左键留给拖楼栋，右键/中键转视角
+  controls.mouseButtons = {
+    LEFT: props.calibrate ? -1 : THREE.MOUSE.ROTATE,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT: THREE.MOUSE.ROTATE
+  }
 
   const hemi = new THREE.HemisphereLight(0xffffff, 0xb8c4d4, 0.95)
   scene.add(hemi)
@@ -230,13 +419,13 @@ function init() {
   dir.castShadow = true
   scene.add(dir)
 
-  const ground = new THREE.Mesh(
+  groundMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(600, 600),
     new THREE.MeshStandardMaterial({ color: 0xd9e2ec, roughness: 1 })
   )
-  ground.rotation.x = -Math.PI / 2
-  ground.receiveShadow = true
-  scene.add(ground)
+  groundMesh.rotation.x = -Math.PI / 2
+  groundMesh.receiveShadow = true
+  scene.add(groundMesh)
 
   const grid = new THREE.GridHelper(500, 50, 0xcbd5e1, 0xe2e8f0)
   grid.position.y = 0.05
@@ -246,16 +435,22 @@ function init() {
   pointer = new THREE.Vector2()
 
   renderer.domElement.addEventListener('pointerdown', onPointerDown)
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', onPointerUp)
   window.addEventListener('resize', onResize)
 
-  rebuild()
+  rebuild(true)
   animate()
 }
 
 function teardown() {
   cancelAnimationFrame(animId)
+  clearTimeout(toastTimer)
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
   window.removeEventListener('resize', onResize)
   renderer?.domElement?.removeEventListener('pointerdown', onPointerDown)
+  clearPlanMesh()
   clearBuildings()
   controls?.dispose()
   renderer?.dispose()
@@ -270,11 +465,26 @@ function teardown() {
   scene = null
   camera = null
   controls = null
+  groundMesh = null
 }
 
-watch(() => props.phases, rebuild, { deep: true })
+function applyCalibrateControls() {
+  if (!controls) return
+  controls.mouseButtons = {
+    LEFT: props.calibrate ? -1 : THREE.MOUSE.ROTATE,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT: THREE.MOUSE.ROTATE
+  }
+}
+
+watch(() => props.phases, () => rebuild(true), { deep: true })
 watch(() => props.selectedKey, applyAppearance)
 watch(() => props.buildingStats, applyAppearance, { deep: true })
+watch(() => props.communityId, () => {
+  loadSavedOverrides()
+  rebuild(true)
+})
+watch(() => props.calibrate, applyCalibrateControls)
 
 onMounted(init)
 onUnmounted(teardown)
@@ -289,12 +499,52 @@ onUnmounted(teardown)
   border-radius: 10px;
   overflow: hidden;
   background: #eef2f7;
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.65rem;
+  background: #fff7ed;
+  border-bottom: 1px solid #fdba74;
+  z-index: 3;
+}
+
+.cal-tip {
+  font-size: 0.75rem;
+  color: #9a3412;
+}
+
+.cal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.file-btn {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.save-btn {
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.35rem 0.75rem;
+  cursor: pointer;
 }
 
 .canvas-host {
   width: 100%;
-  height: 100%;
-  min-height: 480px;
+  flex: 1;
+  min-height: 440px;
   position: relative;
 }
 
@@ -310,6 +560,25 @@ onUnmounted(teardown)
   border-radius: 8px;
   padding: 0.3rem 0.55rem;
   pointer-events: none;
+}
+
+.toast {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  z-index: 4;
+  margin: 0;
+  font-size: 0.8rem;
+  background: rgba(15, 23, 42, 0.88);
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  pointer-events: none;
+}
+
+.btn-sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.875rem;
 }
 </style>
 
