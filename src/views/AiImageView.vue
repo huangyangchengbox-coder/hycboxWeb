@@ -32,9 +32,10 @@
             </select>
           </div>
         </div>
-        <button class="btn" type="submit" :disabled="loading">
-          {{ loading ? '生成中…' : '开始生成' }}
+        <button class="btn" type="submit" :disabled="submitting">
+          {{ submitting ? '提交中…' : '开始生成' }}
         </button>
+        <p class="hint">提交后立即返回任务，后台生成；本页最多轮询 10 分钟，下次进入可看结果。</p>
         <p v-if="error" class="error-msg">{{ error }}</p>
       </form>
     </section>
@@ -66,8 +67,9 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
-import { createImage, listJobs, mediaUrl, statusLabel } from '../api/aiMedia'
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { createImage, getJob, listJobs, mediaUrl, statusLabel } from '../api/aiMedia'
+import { createJobPoller } from '../api/jobPoller'
 
 const form = reactive({
   prompt: '',
@@ -76,16 +78,23 @@ const form = reactive({
   n: 1
 })
 
-const loading = ref(false)
+const submitting = ref(false)
 const loadingList = ref(false)
 const error = ref('')
 const jobs = ref([])
+
+const poller = createJobPoller(
+  () => jobs.value,
+  (id) => getJob(id),
+  (next) => { jobs.value = next }
+)
 
 async function loadHistory() {
   loadingList.value = true
   try {
     const data = await listJobs('image')
     jobs.value = data?.list || []
+    poller.start()
   } catch (e) {
     error.value = e.message
   } finally {
@@ -99,24 +108,29 @@ async function onGenerate() {
     return
   }
   error.value = ''
-  loading.value = true
+  submitting.value = true
   try {
-    await createImage({
+    const job = await createImage({
       prompt: form.prompt,
       model: form.model,
       size: form.size,
       n: form.n
     })
     form.prompt = ''
-    await loadHistory()
+    if (job) {
+      jobs.value = [job, ...jobs.value.filter((j) => j.id !== job.id)]
+    }
+    poller.start()
   } catch (e) {
-    error.value = e.message || '生成失败'
+    error.value = e.message || '提交失败'
+    await loadHistory()
   } finally {
-    loading.value = false
+    submitting.value = false
   }
 }
 
 onMounted(loadHistory)
+onUnmounted(() => poller.stop())
 </script>
 
 <style scoped>
@@ -133,6 +147,12 @@ h2 {
 
 .req {
   color: var(--danger);
+}
+
+.hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 
 .history-head {

@@ -32,9 +32,10 @@
             </select>
           </div>
         </div>
-        <button class="btn" type="submit" :disabled="loading">
-          {{ loading ? '提交中…' : '开始生成' }}
+        <button class="btn" type="submit" :disabled="submitting">
+          {{ submitting ? '提交中…' : '开始生成' }}
         </button>
+        <p class="hint">提交后立即返回任务，后台生成；本页最多轮询 10 分钟，下次进入可看结果。</p>
         <p v-if="error" class="error-msg">{{ error }}</p>
       </form>
     </section>
@@ -74,15 +75,8 @@
 
 <script setup>
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
-import {
-  createVideo,
-  getJob,
-  isRunning,
-  listJobs,
-  mediaUrl,
-  refreshVideo,
-  statusLabel
-} from '../api/aiMedia'
+import { createVideo, getJob, listJobs, mediaUrl, statusLabel } from '../api/aiMedia'
+import { createJobPoller } from '../api/jobPoller'
 
 const form = reactive({
   prompt: '',
@@ -91,59 +85,27 @@ const form = reactive({
   size: '720x1280'
 })
 
-const loading = ref(false)
+const submitting = ref(false)
 const loadingList = ref(false)
 const error = ref('')
 const jobs = ref([])
-let pollTimer = null
+
+const poller = createJobPoller(
+  () => jobs.value,
+  (id) => getJob(id),
+  (next) => { jobs.value = next }
+)
 
 async function loadHistory() {
   loadingList.value = true
   try {
     const data = await listJobs('video')
     jobs.value = data?.list || []
-    schedulePoll()
+    poller.start()
   } catch (e) {
     error.value = e.message
   } finally {
     loadingList.value = false
-  }
-}
-
-function schedulePoll() {
-  clearPoll()
-  const running = jobs.value.filter((j) => isRunning(j.status))
-  if (!running.length) return
-  pollTimer = setInterval(() => pollRunning(running.map((j) => j.id)), 5000)
-}
-
-function clearPoll() {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
-}
-
-async function pollRunning(ids) {
-  for (const id of ids) {
-    const idx = jobs.value.findIndex((j) => j.id === id)
-    if (idx < 0 || !isRunning(jobs.value[idx].status)) continue
-    try {
-      let updated
-      try {
-        updated = await refreshVideo(id)
-      } catch {
-        updated = await getJob(id)
-      }
-      if (updated) {
-        jobs.value[idx] = updated
-      }
-    } catch {
-      /* 轮询失败忽略，下次再试 */
-    }
-  }
-  if (!jobs.value.some((j) => isRunning(j.status))) {
-    clearPoll()
   }
 }
 
@@ -153,25 +115,29 @@ async function onGenerate() {
     return
   }
   error.value = ''
-  loading.value = true
+  submitting.value = true
   try {
-    await createVideo({
+    const job = await createVideo({
       prompt: form.prompt,
       model: form.model,
       seconds: form.seconds,
       size: form.size
     })
     form.prompt = ''
-    await loadHistory()
+    if (job) {
+      jobs.value = [job, ...jobs.value.filter((j) => j.id !== job.id)]
+    }
+    poller.start()
   } catch (e) {
-    error.value = e.message || '生成失败'
+    error.value = e.message || '提交失败'
+    await loadHistory()
   } finally {
-    loading.value = false
+    submitting.value = false
   }
 }
 
 onMounted(loadHistory)
-onUnmounted(clearPoll)
+onUnmounted(() => poller.stop())
 </script>
 
 <style scoped>
@@ -188,6 +154,12 @@ h2 {
 
 .req {
   color: var(--danger);
+}
+
+.hint {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 
 .history-head {

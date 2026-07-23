@@ -4,7 +4,7 @@ export function createImage(payload) {
   return apiRequest('/admin/ai-media/images', {
     method: 'POST',
     body: payload,
-    timeout: 120000
+    timeout: 20000
   })
 }
 
@@ -12,7 +12,7 @@ export function createVideo(payload) {
   return apiRequest('/admin/ai-media/videos', {
     method: 'POST',
     body: payload,
-    timeout: 120000
+    timeout: 20000
   })
 }
 
@@ -30,7 +30,7 @@ export function refreshVideo(id) {
   return apiRequest(`/admin/ai-media/${id}/refresh`, {
     method: 'POST',
     body: {},
-    timeout: 120000
+    timeout: 30000
   })
 }
 
