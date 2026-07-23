@@ -30,7 +30,7 @@ export async function login(username, password) {
   const { apiRequest } = await import('./client')
   const data = await apiRequest('/admin/login', {
     method: 'POST',
-    body: { username, password },
+    body: { username, password, client: 'web' },
     auth: false
   })
   setToken(data.token)
