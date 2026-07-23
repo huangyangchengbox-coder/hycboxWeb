@@ -7,6 +7,7 @@
       </div>
       <nav class="nav">
         <router-link to="/cockpit" class="nav-link" active-class="active">小区数据仓</router-link>
+        <router-link to="/nation-cockpit" class="nav-link" active-class="active">物流中国仓</router-link>
         <router-link to="/ai-image" class="nav-link" active-class="active">图片 AI</router-link>
         <router-link to="/ai-video" class="nav-link" active-class="active">视频 AI</router-link>
       </nav>
@@ -29,7 +30,7 @@ import { getAdminInfo, logout } from '../api/auth'
 const router = useRouter()
 const route = useRoute()
 const displayName = computed(() => getAdminInfo().displayName || getAdminInfo().username || '管理员')
-const isWide = computed(() => route.name === 'cockpit')
+const isWide = computed(() => route.name === 'cockpit' || route.name === 'nation-cockpit')
 
 function onLogout() {
   logout()

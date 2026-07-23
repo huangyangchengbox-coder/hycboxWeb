@@ -2,7 +2,7 @@
   <div class="login-page">
     <div class="card login-card">
       <h1>hycBox</h1>
-      <p class="subtitle">管理端 · 小区数据仓 / 图片 AI / 视频 AI</p>
+      <p class="subtitle">管理端 · 小区数据仓 / 物流中国仓 / 图片 AI / 视频 AI</p>
       <form @submit.prevent="onSubmit">
         <div class="form-group">
           <label>账号</label>

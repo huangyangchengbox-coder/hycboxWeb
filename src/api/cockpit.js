@@ -14,6 +14,13 @@ export function getDeliveryMap(publicationId) {
   })
 }
 
+/** 物流中国仓：按省汇总 */
+export function getNationMap(publicationId) {
+  return apiRequest('/admin/cockpit/nation-map', {
+    params: { publicationId }
+  })
+}
+
 /** 小区期数与楼栋骨架 */
 export function getPhases(communityId) {
   return apiRequest('/community/phases', {

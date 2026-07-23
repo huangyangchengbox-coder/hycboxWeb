@@ -19,6 +19,11 @@ const routes = [
         component: () => import('../views/CockpitView.vue')
       },
       {
+        path: 'nation-cockpit',
+        name: 'nation-cockpit',
+        component: () => import('../views/NationCockpitView.vue')
+      },
+      {
         path: 'ai-image',
         name: 'ai-image',
         component: () => import('../views/AiImageView.vue')
