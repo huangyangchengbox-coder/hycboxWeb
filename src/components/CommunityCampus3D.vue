@@ -1,7 +1,7 @@
 <template>
   <div class="campus3d">
     <div ref="hostEl" class="canvas-host"></div>
-    <div class="hint">拖拽旋转 · 滚轮缩放 · 点击楼栋下钻楼层</div>
+    <div class="hint">拖拽旋转 · 滚轮缩放 · 点击楼栋下钻 · 黄=待派送 / 绿=已配送 / 灰=无单</div>
   </div>
 </template>
 
@@ -11,12 +11,21 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import { buildCampusLayout } from '../data/hengdaMingduLayout'
+import {
+  BUILDING_TONE_COLOR,
+  buildingStatusTone
+} from '../utils/campusOrderStats'
 
 const props = defineProps({
   /** 小区期数楼栋骨架（与 /community/phases 一致） */
   phases: { type: Array, default: () => [] },
   /** 选中楼栋 key：phaseId_buildingId */
-  selectedKey: { type: String, default: '' }
+  selectedKey: { type: String, default: '' },
+  /**
+   * 楼栋订单聚合：{ [key]: { pending, completed, quantity } }
+   * 有待派送→黄，仅已配送→绿，无单→灰
+   */
+  buildingStats: { type: Object, default: () => ({}) }
 })
 
 const emit = defineEmits(['select'])
@@ -33,12 +42,6 @@ let pointer = null
 let animId = 0
 let buildingGroup = null
 const meshByKey = new Map()
-
-const PHASE_COLOR = {
-  phase1: 0x5eead4,
-  phase2: 0x7dd3fc,
-  phase3: 0xfcd34d
-}
 
 function disposeObject(obj) {
   obj.traverse((child) => {
@@ -61,6 +64,13 @@ function clearBuildings() {
   meshByKey.clear()
 }
 
+function labelText(item, stat) {
+  if (!stat || (stat.pending === 0 && stat.completed === 0)) {
+    return item.name
+  }
+  return `${item.name} 待${stat.pending}/已${stat.completed}`
+}
+
 function rebuild() {
   if (!scene) return
   clearBuildings()
@@ -68,12 +78,15 @@ function rebuild() {
   const items = buildCampusLayout(props.phases)
 
   for (const item of items) {
+    const stat = props.buildingStats?.[item.key]
+    const tone = buildingStatusTone(stat)
     const geo = new THREE.BoxGeometry(item.width, item.height, item.depth)
-    const color = PHASE_COLOR[item.phaseId] || 0x94a3b8
     const mat = new THREE.MeshStandardMaterial({
-      color,
+      color: BUILDING_TONE_COLOR[tone],
       metalness: 0.05,
-      roughness: 0.72
+      roughness: 0.72,
+      emissive: 0x000000,
+      emissiveIntensity: 0
     })
     const mesh = new THREE.Mesh(geo, mat)
     mesh.position.set(item.x, item.height / 2, item.z)
@@ -94,9 +107,10 @@ function rebuild() {
 
     const labelEl = document.createElement('div')
     labelEl.className = 'campus-label'
-    labelEl.textContent = item.name
+    labelEl.textContent = labelText(item, stat)
     const label = new CSS2DObject(labelEl)
     label.position.set(0, item.height / 2 + 2, 0)
+    mesh.userData.labelEl = labelEl
     mesh.add(label)
 
     buildingGroup.add(mesh)
@@ -104,17 +118,25 @@ function rebuild() {
   }
 
   scene.add(buildingGroup)
-  applySelection()
+  applyAppearance()
   fitCamera(items)
 }
 
-function applySelection() {
+/** 着色 + 选中高亮 + 标签刷新（不重建几何） */
+function applyAppearance() {
   meshByKey.forEach((mesh, key) => {
-    const base = PHASE_COLOR[mesh.userData.phaseId] || 0x94a3b8
+    const stat = props.buildingStats?.[key]
+    const tone = buildingStatusTone(stat)
     const selected = key === props.selectedKey
-    mesh.material.color.setHex(selected ? 0xf97316 : base)
-    mesh.material.emissive?.setHex(selected ? 0x7c2d12 : 0x000000)
+    mesh.material.color.setHex(selected ? 0xf97316 : BUILDING_TONE_COLOR[tone])
+    mesh.material.emissive.setHex(selected ? 0x7c2d12 : 0x000000)
     mesh.material.emissiveIntensity = selected ? 0.25 : 0
+    if (mesh.userData.labelEl) {
+      mesh.userData.labelEl.textContent = labelText(
+        { name: mesh.userData.name },
+        stat
+      )
+    }
   })
 }
 
@@ -251,7 +273,8 @@ function teardown() {
 }
 
 watch(() => props.phases, rebuild, { deep: true })
-watch(() => props.selectedKey, applySelection)
+watch(() => props.selectedKey, applyAppearance)
+watch(() => props.buildingStats, applyAppearance, { deep: true })
 
 onMounted(init)
 onUnmounted(teardown)
@@ -291,7 +314,6 @@ onUnmounted(teardown)
 </style>
 
 <style>
-/* label 挂在 body 外层，需非 scoped */
 .campus-label {
   padding: 2px 6px;
   border-radius: 6px;

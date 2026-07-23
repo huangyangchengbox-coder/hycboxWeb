@@ -52,11 +52,19 @@
                 楼层 2D
               </button>
             </div>
-            <div v-if="viewMode === 'floor'" class="legend">
+            <div class="legend">
               <span class="leg pending">待派送</span>
               <span class="leg completed">已配送</span>
               <span class="leg empty">无订单</span>
             </div>
+            <button
+              v-if="viewMode === 'campus'"
+              class="btn btn-secondary btn-sm"
+              :disabled="loadingMap"
+              @click="reloadMap"
+            >
+              刷新状态
+            </button>
           </div>
         </div>
 
@@ -89,6 +97,7 @@
           v-else-if="viewMode === 'campus'"
           :phases="campusPhases"
           :selected-key="selectedBuildingKey"
+          :building-stats="buildingStats"
           @select="onCampusSelect"
         />
 
@@ -118,6 +127,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getDeliveryMap, getPhases, getRooms, listPublications } from '../api/cockpit'
 import CommunityCampus3D from '../components/CommunityCampus3D.vue'
+import { aggregateBuildingOrderStats } from '../utils/campusOrderStats'
 
 const loadingPubs = ref(false)
 const loadingMap = ref(false)
@@ -152,6 +162,11 @@ const currentBuilding = computed(() => buildings.value.find((b) => b.id === buil
 
 const selectedBuildingKey = computed(() =>
   phaseId.value && buildingId.value ? `${phaseId.value}_${buildingId.value}` : ''
+)
+
+/** 3D 楼栋着色：按 phaseId_buildingId 聚合待派送/已配送房间数 */
+const buildingStats = computed(() =>
+  aggregateBuildingOrderStats(deliveryMap.value?.rooms || [])
 )
 
 const unitOptions = computed(() => {
