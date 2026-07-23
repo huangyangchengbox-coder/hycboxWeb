@@ -39,10 +39,17 @@
             <div class="view-tabs">
               <button
                 type="button"
+                :class="['tab-btn', { active: viewMode === 'map' }]"
+                @click="viewMode = 'map'"
+              >
+                地图 3D
+              </button>
+              <button
+                type="button"
                 :class="['tab-btn', { active: viewMode === 'campus' }]"
                 @click="viewMode = 'campus'"
               >
-                园区 3D
+                场景 3D
               </button>
               <button
                 type="button"
@@ -58,7 +65,7 @@
               <span class="leg empty">无订单</span>
             </div>
             <button
-              v-if="viewMode === 'campus'"
+              v-if="viewMode === 'map' || viewMode === 'campus'"
               class="btn btn-secondary btn-sm"
               :disabled="loadingMap"
               @click="reloadMap"
@@ -66,7 +73,7 @@
               刷新状态
             </button>
             <button
-              v-if="viewMode === 'campus'"
+              v-if="viewMode === 'map' || viewMode === 'campus'"
               type="button"
               :class="['btn', 'btn-sm', calibrateMode ? 'cal-on' : 'btn-secondary']"
               @click="calibrateMode = !calibrateMode"
@@ -100,6 +107,16 @@
 
         <p v-if="error" class="error-msg">{{ error }}</p>
         <p v-else-if="viewMode === 'floor' && (loadingMap || loadingRooms)" class="muted">加载楼栋中…</p>
+
+        <CommunityCampusMap3D
+          v-else-if="viewMode === 'map'"
+          :phases="campusPhases"
+          :selected-key="selectedBuildingKey"
+          :building-stats="buildingStats"
+          :community-id="campusCommunityId"
+          :calibrate="calibrateMode"
+          @select="onCampusSelect"
+        />
 
         <CommunityCampus3D
           v-else-if="viewMode === 'campus'"
@@ -137,6 +154,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getDeliveryMap, getPhases, getRooms, listPublications } from '../api/cockpit'
 import CommunityCampus3D from '../components/CommunityCampus3D.vue'
+import CommunityCampusMap3D from '../components/CommunityCampusMap3D.vue'
 import { aggregateBuildingOrderStats } from '../utils/campusOrderStats'
 
 const loadingPubs = ref(false)
@@ -156,9 +174,9 @@ const buildingId = ref('')
 const unit = ref(1)
 const rooms = ref([])
 const statusByRoom = ref({})
-/** campus | floor：第一步默认园区 3D */
-const viewMode = ref('campus')
-/** 总平校准：拖拽楼栋落位 */
+/** map | campus | floor：默认地图 3D */
+const viewMode = ref('map')
+/** 总平/地图校准：拖拽或点选落位 */
 const calibrateMode = ref(false)
 
 const communityPubs = computed(() =>
@@ -248,7 +266,7 @@ async function selectPub(pub) {
   phaseId.value = ''
   buildingId.value = ''
   unit.value = 1
-  viewMode.value = 'campus'
+  viewMode.value = 'map'
   calibrateMode.value = false
   await Promise.all([reloadMap(), loadPhaseSkeleton(pub)])
 }
