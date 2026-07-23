@@ -24,10 +24,8 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import {
   HENGDA_MAP_CENTER,
   buildCampusGeoJson,
-  phase2PlanCoordinates,
   pointOverrideFromLngLat
 } from '../data/hengdaMingduGeo'
-import { PHASE2_PLAN_OVERLAY } from '../data/hengdaMingduLayout'
 import { buildingStatusTone } from '../utils/campusOrderStats'
 import {
   clearCampusLayout,
@@ -55,14 +53,12 @@ const pickingName = ref('')
 const hintText = computed(() =>
   props.calibrate
     ? '卫星地图 + 楼栋挤出 · 点楼再点地图校准 · 黄待派送/绿已配送/灰无单'
-    : '卫星+二期总平 · 拖拽/缩放/倾斜 · 点击楼栋下钻 · 黄=待派送 / 绿=已配送 / 灰=无单'
+    : '卫星地图 · 拖拽/缩放/倾斜 · 点击楼栋下钻 · 黄=待派送 / 绿=已配送 / 灰=无单'
 )
 
 let map = null
 let toastTimer = 0
 const SOURCE_ID = 'campus-buildings'
-const SOURCE_PLAN = 'phase2-plan'
-const LAYER_PLAN = 'phase2-plan-layer'
 const LAYER_FILL = 'campus-extrusion'
 const LAYER_LINE = 'campus-outline'
 const LAYER_LABEL = 'campus-label'
@@ -220,21 +216,6 @@ function initMap() {
   map.addControl(new maplibregl.ScaleControl({ maxWidth: 120 }), 'bottom-left')
 
   map.on('load', () => {
-    // 二期总平图铺底，便于对照卫星/校准
-    map.addSource(SOURCE_PLAN, {
-      type: 'image',
-      url: PHASE2_PLAN_OVERLAY.url,
-      coordinates: phase2PlanCoordinates()
-    })
-    map.addLayer({
-      id: LAYER_PLAN,
-      type: 'raster',
-      source: SOURCE_PLAN,
-      paint: {
-        'raster-opacity': PHASE2_PLAN_OVERLAY.opacity
-      }
-    })
-
     map.addSource(SOURCE_ID, {
       type: 'geojson',
       data: currentGeoJson()
