@@ -4,7 +4,7 @@
     <div ref="hudRef" class="hud-container" :class="{ hidden: inSpace }"></div>
 
     <canvas ref="spaceCanvasRef" class="space-canvas" :class="{ active: inSpace }"></canvas>
-    <div class="space-hud" :class="{ active: inSpace && !insideBh }">
+    <div class="space-hud" :class="{ active: inSpace && !insideTarget }">
       <div
         v-for="lab in spaceLabels"
         :key="lab.id"
@@ -22,14 +22,24 @@
           <span class="dot">·</span>
           <span>{{ lab.distText }}</span>
         </div>
-        <div v-if="lab.clickable" class="galaxy-hint">点击坠入</div>
+        <div v-if="lab.clickable" class="galaxy-hint">
+          {{ lab.kind === 'blackhole' ? '点击坠入' : '点击进入' }}
+        </div>
       </div>
     </div>
 
-    <div v-if="insideBh" class="bh-overlay">
-      <div class="bh-overlay-title">{{ divingBh?.name || '黑洞' }}</div>
-      <div class="bh-overlay-sub">已进入视界示意区域 · {{ divingBh?.type }}</div>
-      <button type="button" class="space-btn back" @click="exitBlackhole">离开黑洞</button>
+    <div v-if="insideTarget" class="bh-overlay">
+      <div class="bh-overlay-title">{{ divingTarget?.name || '目标' }}</div>
+      <div class="bh-overlay-sub">
+        {{
+          insideKind === 'blackhole'
+            ? `已进入视界示意区域 · ${divingTarget?.type || ''}`
+            : `已进入星系示意内部 · ${divingTarget?.type || ''}`
+        }}
+      </div>
+      <button type="button" class="space-btn back" @click="exitInside">
+        {{ insideKind === 'blackhole' ? '离开黑洞' : '离开星系' }}
+      </button>
     </div>
 
     <div ref="loaderRef" class="loader" :class="{ done: loaderDone }">
@@ -59,13 +69,15 @@
           <div class="home-title">hycBox</div>
           <div class="home-sub">
             {{
-              insideBh
+              insideKind === 'blackhole'
                 ? '黑洞内部示意 · 时空拉伸特效'
-                : spaceMode === 'blackholes'
-                  ? '黑洞模式 · 点击黑洞坠入 · 拖拽环视'
-                  : inSpace
-                    ? '太空模式 · 已知星系示意 · 拖拽环视'
-                    : '地球主页 · 拖拽旋转 · 滚轮缩放'
+                : insideKind === 'galaxy'
+                  ? '星系内部示意 · 拖拽环视星盘'
+                  : spaceMode === 'blackholes'
+                    ? '黑洞模式 · 点击黑洞坠入 · 拖拽环视'
+                    : inSpace
+                      ? '太空模式 · 点击星系进入 · 拖拽环视'
+                      : '地球主页 · 拖拽旋转 · 滚轮缩放'
             }}
           </div>
         </div>
@@ -83,7 +95,7 @@
       <template v-if="!inSpace">
         <button type="button" class="space-btn" @click="enterSpace">进入太空</button>
       </template>
-      <template v-else-if="!insideBh">
+      <template v-else-if="!insideTarget">
         <div class="btn-row">
           <button
             v-if="spaceMode === 'galaxies'"
@@ -107,7 +119,7 @@
           {{
             spaceMode === 'blackholes'
               ? '点击黑洞或标签滑入视界 · 布局为示意'
-              : '布局为对数压缩示意，距离仅供对照'
+              : '点击星系或标签进入内部 · 布局为示意'
           }}
         </p>
       </template>
@@ -132,8 +144,9 @@ const error = ref('')
 const inSpace = ref(false)
 const spaceMode = ref('galaxies')
 const spaceLabels = ref([])
-const insideBh = ref(false)
-const divingBh = ref(null)
+const insideTarget = ref(false)
+const insideKind = ref(null)
+const divingTarget = ref(null)
 
 let disposeGlobe = null
 let spaceScene = null
@@ -142,8 +155,9 @@ async function enterSpace() {
   if (inSpace.value || !spaceCanvasRef.value) return
   inSpace.value = true
   spaceMode.value = 'galaxies'
-  insideBh.value = false
-  divingBh.value = null
+  insideTarget.value = false
+  insideKind.value = null
+  divingTarget.value = null
   await nextTick()
   if (spaceScene) {
     spaceScene.dispose()
@@ -156,16 +170,19 @@ async function enterSpace() {
     onModeChange: (mode) => {
       spaceMode.value = mode
     },
-    onDiveChange: (diving, bh, phase) => {
+    onDiveChange: (_diving, meta, phase, kind) => {
       if (phase === 'start') {
-        divingBh.value = bh
-        insideBh.value = false
+        divingTarget.value = meta
+        insideKind.value = kind
+        insideTarget.value = false
       } else if (phase === 'inside') {
-        divingBh.value = bh
-        insideBh.value = true
+        divingTarget.value = meta
+        insideKind.value = kind
+        insideTarget.value = true
       } else {
-        insideBh.value = false
-        divingBh.value = null
+        insideTarget.value = false
+        insideKind.value = null
+        divingTarget.value = null
       }
     }
   })
@@ -181,22 +198,25 @@ function backToGalaxies() {
 }
 
 function onLabelClick(lab) {
-  if (!lab?.clickable || lab.kind !== 'blackhole') return
-  spaceScene?.enterBlackholeById(lab.id)
+  if (!lab?.clickable) return
+  if (lab.kind === 'blackhole') spaceScene?.enterBlackholeById(lab.id)
+  else if (lab.kind === 'galaxy') spaceScene?.enterGalaxyById(lab.id)
 }
 
-function exitBlackhole() {
-  spaceScene?.exitBlackhole(false)
-  insideBh.value = false
-  divingBh.value = null
+function exitInside() {
+  spaceScene?.exitInside(false)
+  insideTarget.value = false
+  insideKind.value = null
+  divingTarget.value = null
 }
 
 function leaveSpace() {
   inSpace.value = false
   spaceMode.value = 'galaxies'
   spaceLabels.value = []
-  insideBh.value = false
-  divingBh.value = null
+  insideTarget.value = false
+  insideKind.value = null
+  divingTarget.value = null
   if (spaceScene) {
     spaceScene.dispose()
     spaceScene = null
@@ -333,7 +353,7 @@ onUnmounted(() => {
 }
 
 .galaxy-label.clickable:hover {
-  background: rgba(255, 120, 40, 0.18);
+  background: rgba(120, 180, 255, 0.18);
 }
 
 .galaxy-hint {

@@ -92,7 +92,7 @@ export class SpaceScene {
     this.galaxySprites = []
     this.bhMeshes = []
     this.dive = null
-    this.insideBlackhole = false
+    this.insideKind = null // null | 'galaxy' | 'blackhole'
     this.savedCam = null
     this.pointer = new THREE.Vector2()
     this.raycaster = new THREE.Raycaster()
@@ -129,6 +129,7 @@ export class SpaceScene {
     this.#buildBlackholes()
     this.#buildDust()
     this.#buildInsideFx()
+    this.#buildGalaxyInsideFx()
 
     this.bhGroup.visible = false
 
@@ -149,11 +150,13 @@ export class SpaceScene {
 
   setMode(mode) {
     if (mode !== 'galaxies' && mode !== 'blackholes') return
-    if (this.insideBlackhole) this.exitBlackhole(true)
+    if (this.insideKind) this.exitInside(true)
     this.mode = mode
     this.galaxyGroup.visible = mode === 'galaxies'
     this.dust.visible = mode === 'galaxies'
     this.bhGroup.visible = mode === 'blackholes'
+    if (this.galaxyInsideFx) this.galaxyInsideFx.visible = false
+    if (this.insideFx) this.insideFx.visible = false
     this.controls.autoRotate = true
     this.controls.autoRotateSpeed = mode === 'blackholes' ? 0.22 : 0.35
     if (mode === 'blackholes') {
@@ -168,18 +171,32 @@ export class SpaceScene {
     this.onModeChange?.(mode)
   }
 
-  /** HUD 点击进入某个黑洞 */
+  /** HUD / 程序进入某个黑洞 */
   enterBlackholeById(id) {
     const mesh = this.bhMeshes.find((m) => m.userData.id === id)
-    if (mesh) this.#startDive(mesh)
+    if (mesh) this.#startDive(mesh, 'blackhole')
   }
 
-  exitBlackhole(instant = false) {
+  /** HUD / 程序进入某个星系 */
+  enterGalaxyById(id) {
+    const sprite = this.galaxySprites.find((m) => m.userData.id === id)
+    if (sprite) this.#startDive(sprite, 'galaxy')
+  }
+
+  /** 离开当前坠入的星系或黑洞 */
+  exitInside(instant = false) {
     this.dive = null
-    this.insideBlackhole = false
-    this.insideFx.visible = false
+    this.insideKind = null
+    if (this.insideFx) this.insideFx.visible = false
+    if (this.galaxyInsideFx) this.galaxyInsideFx.visible = false
+    this.galaxyGroup.visible = this.mode === 'galaxies'
+    this.dust.visible = this.mode === 'galaxies'
+    this.bhGroup.visible = this.mode === 'blackholes'
     this.controls.enabled = true
     this.controls.autoRotate = true
+    this.controls.autoRotateSpeed = this.mode === 'blackholes' ? 0.22 : 0.35
+    this.controls.minDistance = 8
+    this.controls.maxDistance = 160
     if (this.savedCam) {
       if (instant) {
         this.camera.position.copy(this.savedCam.pos)
@@ -197,7 +214,12 @@ export class SpaceScene {
         this.controls.enabled = false
       }
     }
-    this.onDiveChange?.(false, null, 'exit')
+    this.onDiveChange?.(false, null, 'exit', null)
+  }
+
+  /** @deprecated 兼容旧调用 */
+  exitBlackhole(instant = false) {
+    this.exitInside(instant)
   }
 
   #buildStarfield() {
@@ -281,7 +303,12 @@ export class SpaceScene {
       const s = g.size * (g.id === 'mw' ? 6.5 : 3.2)
       sprite.scale.set(s, s * 0.72, 1)
       sprite.position.set(g.x, g.y, g.z)
-      sprite.userData = { id: g.id, base: { x: g.x, y: g.y, z: g.z }, meta: g }
+      sprite.userData = {
+        id: g.id,
+        kind: 'galaxy',
+        base: { x: g.x, y: g.y, z: g.z },
+        meta: g
+      }
       group.add(sprite)
       this.galaxySprites.push(sprite)
 
@@ -297,6 +324,15 @@ export class SpaceScene {
       )
       core.scale.set(s * 0.18, s * 0.18, 1)
       sprite.add(core)
+
+      // 可点击碰撞球（跟随精灵）
+      const hit = new THREE.Mesh(
+        new THREE.SphereGeometry(Math.max(1.2, s * 0.35), 12, 12),
+        new THREE.MeshBasicMaterial({ visible: false })
+      )
+      hit.userData = sprite.userData
+      sprite.add(hit)
+      sprite.userData.hit = hit
     }
   }
 
@@ -401,23 +437,93 @@ export class SpaceScene {
     group.add(veil)
   }
 
+  /** 进入星系后：盘面星群示意 */
+  #buildGalaxyInsideFx() {
+    const group = new THREE.Group()
+    group.visible = false
+    this.galaxyInsideFx = group
+    this.scene.add(group)
+
+    const count = 1200
+    const positions = new Float32Array(count * 3)
+    const colors = new Float32Array(count * 3)
+    const cCore = new THREE.Color('#ffe8c0')
+    const cArm = new THREE.Color('#9ec9ff')
+    for (let i = 0; i < count; i++) {
+      const arm = Math.floor(Math.random() * 3)
+      const t = Math.random() * Math.PI * 2
+      const spiral = t + arm * ((Math.PI * 2) / 3)
+      const r = 1.5 + Math.random() * 22
+      positions[i * 3] = Math.cos(spiral) * r
+      positions[i * 3 + 1] = (Math.random() - 0.5) * (1.2 + r * 0.04)
+      positions[i * 3 + 2] = Math.sin(spiral) * r
+      const col = r < 6 ? cCore : cArm
+      colors[i * 3] = col.r
+      colors[i * 3 + 1] = col.g
+      colors[i * 3 + 2] = col.b
+    }
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    this.galaxyInsideStars = new THREE.Points(
+      geo,
+      new THREE.PointsMaterial({
+        size: 0.28,
+        map: this.starTex,
+        transparent: true,
+        depthWrite: false,
+        vertexColors: true,
+        blending: THREE.AdditiveBlending,
+        sizeAttenuation: true
+      })
+    )
+    group.add(this.galaxyInsideStars)
+
+    const haze = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: this.galaxyTex,
+        color: 0xa8c8ff,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      })
+    )
+    haze.scale.set(48, 28, 1)
+    group.add(haze)
+  }
+
   #onPointerClick(e) {
-    if (this.mode !== 'blackholes' || this.dive || this.insideBlackhole) return
+    if (this.dive || this.insideKind) return
     const rect = this.canvas.getBoundingClientRect()
     this.pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
     this.pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
     this.raycaster.setFromCamera(this.pointer, this.camera)
-    const hits = this.bhMeshes.map((m) => m.userData.hit).filter(Boolean)
-    const intersects = this.raycaster.intersectObjects(hits, false)
-    if (intersects.length) {
-      const hit = intersects[0].object
-      const root = this.bhMeshes.find((m) => m.userData.id === hit.userData.id)
-      if (root) this.#startDive(root)
+
+    if (this.mode === 'blackholes') {
+      const hits = this.bhMeshes.map((m) => m.userData.hit).filter(Boolean)
+      const intersects = this.raycaster.intersectObjects(hits, false)
+      if (intersects.length) {
+        const hit = intersects[0].object
+        const root = this.bhMeshes.find((m) => m.userData.id === hit.userData.id)
+        if (root) this.#startDive(root, 'blackhole')
+      }
+      return
+    }
+
+    if (this.mode === 'galaxies') {
+      const hits = this.galaxySprites.map((m) => m.userData.hit).filter(Boolean)
+      const intersects = this.raycaster.intersectObjects(hits, false)
+      if (intersects.length) {
+        const hit = intersects[0].object
+        const sprite = this.galaxySprites.find((m) => m.userData.id === hit.userData.id)
+        if (sprite) this.#startDive(sprite, 'galaxy')
+      }
     }
   }
 
-  #startDive(root) {
-    if (this.dive || this.insideBlackhole) return
+  #startDive(root, diveKind) {
+    if (this.dive || this.insideKind) return
     const meta = root.userData.meta
     const world = new THREE.Vector3()
     root.getWorldPosition(world)
@@ -427,10 +533,13 @@ export class SpaceScene {
     }
     this.controls.enabled = false
     this.controls.autoRotate = false
-    const dir = world.clone().sub(this.camera.position).normalize()
-    const toPos = world.clone().add(dir.multiplyScalar(-0.15))
+    const toCam = this.camera.position.clone().sub(world).normalize()
+    const stopDist =
+      diveKind === 'galaxy' ? Math.max(2.8, (meta.size || 1) * 1.35) : 0.2
+    const toPos = world.clone().add(toCam.multiplyScalar(stopDist))
     this.dive = {
       kind: 'enter',
+      diveKind,
       fromPos: this.camera.position.clone(),
       toPos,
       fromTarget: this.controls.target.clone(),
@@ -439,7 +548,7 @@ export class SpaceScene {
       meta,
       root
     }
-    this.onDiveChange?.(true, meta, 'start')
+    this.onDiveChange?.(true, meta, 'start', diveKind)
   }
 
   #animate() {
@@ -463,24 +572,41 @@ export class SpaceScene {
         }
         if (p >= 1) {
           if (this.dive.kind === 'enter') {
-            this.insideBlackhole = true
-            this.insideFx.visible = true
-            this.insideFx.position.copy(this.dive.toTarget)
+            const diveKind = this.dive.diveKind || 'blackhole'
+            this.insideKind = diveKind
             this.controls.target.copy(this.dive.toTarget)
-            this.camera.position.copy(this.dive.toTarget).add(new THREE.Vector3(0, 0.2, 0.8))
-            this.onDiveChange?.(true, this.dive.meta, 'inside')
+            if (diveKind === 'blackhole') {
+              this.insideFx.visible = true
+              this.insideFx.position.copy(this.dive.toTarget)
+              this.camera.position.copy(this.dive.toTarget).add(new THREE.Vector3(0, 0.2, 0.8))
+            } else {
+              this.galaxyGroup.visible = false
+              this.dust.visible = false
+              this.galaxyInsideFx.visible = true
+              this.galaxyInsideFx.position.copy(this.dive.toTarget)
+              this.camera.position.copy(this.dive.toPos)
+              // 进入后允许缓慢环视星系内部
+              this.controls.enabled = true
+              this.controls.autoRotate = true
+              this.controls.autoRotateSpeed = 0.45
+              this.controls.minDistance = 1.2
+              this.controls.maxDistance = 18
+            }
+            this.onDiveChange?.(true, this.dive.meta, 'inside', diveKind)
           } else {
             this.controls.enabled = true
             this.controls.autoRotate = true
-            this.onDiveChange?.(false, null, 'exit')
+            this.controls.minDistance = 8
+            this.controls.maxDistance = 160
+            this.onDiveChange?.(false, null, 'exit', null)
           }
           this.dive = null
         }
-      } else if (!this.insideBlackhole) {
+      } else if (!this.insideKind || this.insideKind === 'galaxy') {
         this.controls.update()
       }
 
-      if (this.mode === 'galaxies' && this.galaxyGroup.visible) {
+      if (this.mode === 'galaxies' && this.galaxyGroup.visible && !this.insideKind) {
         for (const sprite of this.galaxySprites) {
           const g = sprite.userData.meta
           const base = sprite.userData.base
@@ -501,7 +627,7 @@ export class SpaceScene {
         }
       }
 
-      if (this.mode === 'blackholes' && this.bhGroup.visible && !this.insideBlackhole) {
+      if (this.mode === 'blackholes' && this.bhGroup.visible && !this.insideKind) {
         for (const root of this.bhMeshes) {
           const b = root.userData.meta
           const base = root.userData.base
@@ -515,7 +641,7 @@ export class SpaceScene {
         }
       }
 
-      if (this.insideBlackhole && this.insideStreaks) {
+      if (this.insideKind === 'blackhole' && this.insideStreaks) {
         this.insideStreaks.rotation.y += 0.01
         this.insideStreaks.rotation.x += 0.004
         const pos = this.insideStreaks.geometry.attributes.position
@@ -527,8 +653,12 @@ export class SpaceScene {
         pos.needsUpdate = true
       }
 
+      if (this.insideKind === 'galaxy' && this.galaxyInsideStars) {
+        this.galaxyInsideStars.rotation.y += 0.0015
+      }
+
       if (this.stars) this.stars.rotation.y += 0.00008
-      if (this.dust && this.dust.visible) this.dust.rotation.y += 0.00025
+      if (this.dust && this.dust.visible && !this.insideKind) this.dust.rotation.y += 0.00025
 
       this.#projectLabels()
       this.renderer.render(this.scene, this.camera)
@@ -538,7 +668,7 @@ export class SpaceScene {
 
   #projectLabels() {
     if (!this.onLabelsUpdate) return
-    if (this.insideBlackhole || this.dive?.kind === 'enter') {
+    if (this.insideKind || this.dive?.kind === 'enter') {
       this.onLabelsUpdate([])
       return
     }
@@ -579,7 +709,7 @@ export class SpaceScene {
           y,
           opacity: Math.min(1, Math.max(0.15, (facing - 0.15) / 0.5)),
           distanceToCamera: dist,
-          clickable: false
+          clickable: true
         })
       }
     } else {
