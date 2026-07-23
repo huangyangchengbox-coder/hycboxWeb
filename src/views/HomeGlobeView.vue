@@ -28,6 +28,34 @@
       </div>
     </div>
 
+    <div
+      class="earth-moon-hud"
+      :class="{ active: !inSpace && !onMoon && loaderDone }"
+    >
+      <div
+        v-for="lab in moonLabels"
+        :key="lab.id"
+        class="galaxy-label clickable"
+        :style="{
+          transform: `translate3d(${lab.x}px, ${lab.y}px, 0) translate(14px, -50%)`,
+          opacity: lab.opacity
+        }"
+        @click.stop="enterMoon"
+      >
+        <div class="galaxy-name">{{ lab.name }}</div>
+        <div class="galaxy-meta">
+          <span>{{ lab.sub }}</span>
+        </div>
+        <div class="galaxy-hint">点击进入</div>
+      </div>
+    </div>
+
+    <div v-if="onMoon" class="bh-overlay">
+      <div class="bh-overlay-title">{{ moonMeta?.name || '月球' }}</div>
+      <div class="bh-overlay-sub">{{ moonMeta?.note || '月球近景环视' }}</div>
+      <button type="button" class="space-btn back" @click="leaveMoon">离开月球</button>
+    </div>
+
     <div v-if="insideTarget" class="bh-overlay">
       <div class="bh-overlay-title">{{ divingTarget?.name || '目标' }}</div>
       <div class="bh-overlay-sub">
@@ -69,15 +97,17 @@
           <div class="home-title">hycBox</div>
           <div class="home-sub">
             {{
-              insideKind === 'blackhole'
-                ? '黑洞内部示意 · 时空拉伸特效'
-                : insideKind === 'galaxy'
-                  ? '星系内部示意 · 拖拽环视星盘'
-                  : spaceMode === 'blackholes'
-                    ? '黑洞模式 · 点击黑洞坠入 · 拖拽环视'
-                    : inSpace
-                      ? '太空模式 · 点击星系进入 · 拖拽环视'
-                      : '地球主页 · 拖拽旋转 · 滚轮缩放'
+              onMoon
+                ? '月球近景 · 拖拽环视月表'
+                : insideKind === 'blackhole'
+                  ? '黑洞内部示意 · 时空拉伸特效'
+                  : insideKind === 'galaxy'
+                    ? '星系内部示意 · 拖拽环视星盘'
+                    : spaceMode === 'blackholes'
+                      ? '黑洞模式 · 点击黑洞坠入 · 拖拽环视'
+                      : inSpace
+                        ? '太空模式 · 点击星系进入 · 拖拽环视'
+                        : '地球主页 · 点击月球进入 · 拖拽旋转'
             }}
           </div>
         </div>
@@ -92,10 +122,10 @@
     </div>
 
     <div v-if="loaderDone && !error" class="bottom-bar">
-      <template v-if="!inSpace">
+      <template v-if="!inSpace && !onMoon">
         <button type="button" class="space-btn" @click="enterSpace">进入太空</button>
       </template>
-      <template v-else-if="!insideTarget">
+      <template v-else-if="inSpace && !insideTarget">
         <div class="btn-row">
           <button
             v-if="spaceMode === 'galaxies'"
@@ -147,12 +177,17 @@ const spaceLabels = ref([])
 const insideTarget = ref(false)
 const insideKind = ref(null)
 const divingTarget = ref(null)
+const onMoon = ref(false)
+const moonMeta = ref(null)
+const moonLabels = ref([])
 
 let disposeGlobe = null
+let globeApi = null
 let spaceScene = null
 
 async function enterSpace() {
-  if (inSpace.value || !spaceCanvasRef.value) return
+  if (inSpace.value || onMoon.value || !spaceCanvasRef.value) return
+  if (onMoon.value) leaveMoon()
   inSpace.value = true
   spaceMode.value = 'galaxies'
   insideTarget.value = false
@@ -187,6 +222,17 @@ async function enterSpace() {
     }
   })
   spaceScene.init()
+}
+
+function enterMoon() {
+  if (inSpace.value || onMoon.value) return
+  globeApi?.enterMoon?.()
+}
+
+function leaveMoon() {
+  globeApi?.exitMoon?.(false)
+  onMoon.value = false
+  moonMeta.value = null
 }
 
 function enterBlackholes() {
@@ -226,15 +272,30 @@ function leaveSpace() {
 onMounted(async () => {
   await nextTick()
   try {
-    const { dispose } = mountGlobeApp({
+    globeApi = mountGlobeApp({
       canvas: canvasRef.value,
       hudContainer: hudRef.value,
       loaderEl: loaderRef.value,
       progressValEl: progressValRef.value,
       messageValEl: messageValRef.value,
-      progressBarEl: progressBarRef.value
+      progressBarEl: progressBarRef.value,
+      onEarthLabels: (locations) => {
+        moonLabels.value = (locations || []).filter((l) => l.kind === 'moon')
+      },
+      onMoonChange: (phase, meta) => {
+        if (phase === 'start') {
+          moonMeta.value = meta
+          onMoon.value = false
+        } else if (phase === 'inside') {
+          moonMeta.value = meta
+          onMoon.value = true
+        } else {
+          onMoon.value = false
+          moonMeta.value = null
+        }
+      }
     })
-    disposeGlobe = dispose
+    disposeGlobe = globeApi.dispose
     const el = loaderRef.value
     if (el) {
       const obs = new MutationObserver(() => {
@@ -254,8 +315,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   leaveSpace()
+  leaveMoon()
   disposeGlobe?.()
   disposeGlobe = null
+  globeApi = null
 })
 </script>
 
@@ -305,6 +368,18 @@ onUnmounted(() => {
 
 .hud-container.hidden {
   display: none;
+}
+
+.earth-moon-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.earth-moon-hud.active {
+  opacity: 1;
 }
 
 .space-hud {

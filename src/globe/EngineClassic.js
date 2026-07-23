@@ -6,6 +6,14 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CONSTANTS, CINEMATIC_LOCATIONS } from './constants.js'
 import { createMoon, updateMoon } from './createMoon.js'
+import {
+  createMoonExploreState,
+  pickMoon,
+  startMoonDive,
+  exitMoonDive,
+  updateMoonDive,
+  projectMoonLabel
+} from './moonExplore.js'
 
 export async function createEarthClassic(loader, maxAnisotropy = 1) {
   const group = new THREE.Group()
@@ -99,9 +107,12 @@ export class EngineClassic {
     this.animationId = 0
     this.isDisposed = false
     this.onLocationsUpdate = null
+    /** @type {(phase: string, meta: any) => void} */
+    this.onMoonChange = null
     this.locationAnchors = new Map()
     this.focusTargetAnchorId = null
     this.renderPipeline = null
+    this.moonExplore = createMoonExploreState()
   }
 
   async init(onProgress) {
@@ -234,14 +245,49 @@ export class EngineClassic {
 
     this.handleResize()
     window.addEventListener('resize', this.handleResize)
+    this._onMoonClick = (e) => {
+      if (this.moonExplore.inside || this.moonExplore.dive) return
+      if (pickMoon(this.moonExplore, this.canvas, this.camera, this.moonMesh, e.clientX, e.clientY)) {
+        this.enterMoon()
+      }
+    }
+    this.canvas.addEventListener('click', this._onMoonClick)
     if (onProgress) onProgress('Compiling Shaders (Warmup)')
     this.start()
+  }
+
+  enterMoon() {
+    startMoonDive(
+      this.moonExplore,
+      this.camera,
+      this.controls,
+      this.moonMesh,
+      (phase, meta) => this.onMoonChange?.(phase, meta)
+    )
+  }
+
+  exitMoon(instant = false) {
+    exitMoonDive(
+      this.moonExplore,
+      this.camera,
+      this.controls,
+      (phase, meta) => this.onMoonChange?.(phase, meta),
+      instant
+    )
   }
 
   start() {
     const tick = () => {
       this.animationId = requestAnimationFrame(tick)
-      if (this.focusTargetAnchorId) {
+      const moonBusy = updateMoonDive(
+        this.moonExplore,
+        this.camera,
+        this.controls,
+        this.moonMesh,
+        (phase, meta) => this.onMoonChange?.(phase, meta)
+      )
+
+      if (!moonBusy && this.focusTargetAnchorId) {
         const anchor = this.locationAnchors.get(this.focusTargetAnchorId)
         if (anchor) {
           const tempV = new THREE.Vector3()
@@ -259,7 +305,9 @@ export class EngineClassic {
           }
         }
       }
-      this.controls.update()
+      if (!this.moonExplore.dive) {
+        this.controls.update()
+      }
       if (this.sunSettings.autoRotate) {
         this.sunSettings.angle += 0.01 * this.sunSettings.speed
       }
@@ -272,14 +320,18 @@ export class EngineClassic {
         Math.sin(sa) * sunDist
       )
       this.sunMesh.position.copy(this.directionalLight.position)
-      this.root.rotation.y += this.earthSettings.rotationSpeed
-      this.root.traverse((child) => {
-        if (child.name === 'clouds') {
-          child.rotation.y += this.earthSettings.rotationSpeed * 0.2
-        }
-      })
+      if (!this.moonExplore.inside) {
+        this.root.rotation.y += this.earthSettings.rotationSpeed
+        this.root.traverse((child) => {
+          if (child.name === 'clouds') {
+            child.rotation.y += this.earthSettings.rotationSpeed * 0.2
+          }
+        })
+      }
       if (this.moonSettings.enabled && this.moonMesh) {
-        this.moonSettings.angle += this.moonSettings.speed
+        // 月球近景时放慢公转，避免镜头甩动过大
+        const speedScale = this.moonExplore.inside ? 0.15 : 1
+        this.moonSettings.angle += this.moonSettings.speed * speedScale
         updateMoon(this.moonMesh, this.sunMesh, this.camera, this.moonSettings)
       }
       this.updateProjectedLocations()
@@ -292,6 +344,7 @@ export class EngineClassic {
     this.isDisposed = true
     cancelAnimationFrame(this.animationId)
     window.removeEventListener('resize', this.handleResize)
+    this.canvas.removeEventListener('click', this._onMoonClick)
     this.controls?.dispose()
     this.renderer?.dispose()
   }
@@ -313,45 +366,52 @@ export class EngineClassic {
   }
 
   updateProjectedLocations() {
-    if (!this.onLocationsUpdate || this.locationAnchors.size === 0) return
-    if (this.citiesSettings && !this.citiesSettings.enabled) {
+    if (!this.onLocationsUpdate) return
+    if (this.moonExplore.inside || this.moonExplore.dive?.kind === 'enter') {
       this.onLocationsUpdate([])
       return
     }
     const projected = []
-    const tempV = new THREE.Vector3()
-    const earthCenter = new THREE.Vector3(0, 0, 0)
-    const width = this.canvas.parentElement
-      ? this.canvas.parentElement.clientWidth
-      : window.innerWidth
-    const height = this.canvas.parentElement
-      ? this.canvas.parentElement.clientHeight
-      : window.innerHeight
-    const dirToCamera = this.camera.position.clone().sub(earthCenter).normalize()
-    for (const [id, anchor] of this.locationAnchors.entries()) {
-      anchor.getWorldPosition(tempV)
-      const distanceToCamera = this.camera.position.distanceTo(tempV)
-      const dirToAnchor = tempV.clone().sub(earthCenter).normalize()
-      const d = dirToAnchor.dot(dirToCamera)
-      const visible = d > -0.05
-      let opacity = 0
-      if (d > 0) opacity = Math.min(1, d / 0.2)
-      tempV.project(this.camera)
-      const x = (tempV.x * 0.5 + 0.5) * width
-      const y = (tempV.y * -0.5 + 0.5) * height
-      const info = CINEMATIC_LOCATIONS.find((l) => l.id === id)
-      if (info) {
-        projected.push({
-          id,
-          name: info.name,
-          lat: info.lat,
-          lng: info.lng,
-          x,
-          y,
-          visible,
-          opacity,
-          distanceToCamera
-        })
+    const moonLabel = projectMoonLabel(this.canvas, this.camera, this.moonMesh)
+    if (moonLabel) projected.push(moonLabel)
+
+    if (this.citiesSettings && this.citiesSettings.enabled && this.locationAnchors.size > 0) {
+      const tempV = new THREE.Vector3()
+      const earthCenter = new THREE.Vector3(0, 0, 0)
+      const width = this.canvas.parentElement
+        ? this.canvas.parentElement.clientWidth
+        : window.innerWidth
+      const height = this.canvas.parentElement
+        ? this.canvas.parentElement.clientHeight
+        : window.innerHeight
+      const dirToCamera = this.camera.position.clone().sub(earthCenter).normalize()
+      for (const [id, anchor] of this.locationAnchors.entries()) {
+        anchor.getWorldPosition(tempV)
+        const distanceToCamera = this.camera.position.distanceTo(tempV)
+        const dirToAnchor = tempV.clone().sub(earthCenter).normalize()
+        const d = dirToAnchor.dot(dirToCamera)
+        const visible = d > -0.05
+        let opacity = 0
+        if (d > 0) opacity = Math.min(1, d / 0.2)
+        tempV.project(this.camera)
+        const x = (tempV.x * 0.5 + 0.5) * width
+        const y = (tempV.y * -0.5 + 0.5) * height
+        const info = CINEMATIC_LOCATIONS.find((l) => l.id === id)
+        if (info) {
+          projected.push({
+            id,
+            name: info.name,
+            lat: info.lat,
+            lng: info.lng,
+            x,
+            y,
+            visible,
+            opacity,
+            distanceToCamera,
+            clickable: false,
+            kind: 'city'
+          })
+        }
       }
     }
     this.onLocationsUpdate(projected)

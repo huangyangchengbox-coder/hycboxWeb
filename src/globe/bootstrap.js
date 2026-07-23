@@ -39,7 +39,16 @@ function formatLatLong(lat, lng) {
   const lngDir = lng >= 0 ? "E" : "W";
   return `${Math.abs(lat).toFixed(2)}\xB0 ${latDir}, ${Math.abs(lng).toFixed(2)}\xB0 ${lngDir}`;
 }
-export function mountGlobeApp({ canvas, hudContainer, loaderEl, progressValEl, messageValEl, progressBarEl }) {
+export function mountGlobeApp({
+  canvas,
+  hudContainer,
+  loaderEl,
+  progressValEl,
+  messageValEl,
+  progressBarEl,
+  onMoonChange,
+  onEarthLabels
+}) {
   if (!canvas) {
     throw new Error('Globe canvas element is required.')
   }
@@ -131,8 +140,10 @@ export function mountGlobeApp({ canvas, hudContainer, loaderEl, progressValEl, m
     }, 200);
   };
   const handleLocationsUpdate = (locations) => {
+    onEarthLabels?.(locations)
     const width = window.innerWidth;
     for (const loc of locations) {
+      if (loc.kind === 'moon') continue
       const beaconEl = document.getElementById(`beacon-${loc.id}`);
       const labelEl = document.getElementById(`label-${loc.id}`);
       if (beaconEl) {
@@ -163,7 +174,7 @@ export function mountGlobeApp({ canvas, hudContainer, loaderEl, progressValEl, m
         }
       }
     }
-    const activeIds = new Set(locations.map((l) => l.id));
+    const activeIds = new Set(locations.filter((l) => l.kind !== 'moon').map((l) => l.id));
     for (const loc of CINEMATIC_LOCATIONS) {
       if (!activeIds.has(loc.id)) {
         const beaconEl = document.getElementById(`beacon-${loc.id}`);
@@ -181,6 +192,7 @@ export function mountGlobeApp({ canvas, hudContainer, loaderEl, progressValEl, m
   const useCinematic = canUseWebGPU()
   let activeEngine = useCinematic ? new Engine(canvas) : new EngineClassic(canvas)
   activeEngine.onLocationsUpdate = handleLocationsUpdate
+  activeEngine.onMoonChange = onMoonChange || null
   console.info(`[globe] renderer mode: ${useCinematic ? 'WebGPU cinematic' : 'WebGL classic'}`)
 
   const startEngine = async () => {
@@ -198,6 +210,7 @@ export function mountGlobeApp({ canvas, hudContainer, loaderEl, progressValEl, m
         }
         activeEngine = new EngineClassic(canvas)
         activeEngine.onLocationsUpdate = handleLocationsUpdate
+        activeEngine.onMoonChange = onMoonChange || null
         try {
           await activeEngine.init(onProgress)
         } catch (e2) {
@@ -215,5 +228,10 @@ export function mountGlobeApp({ canvas, hudContainer, loaderEl, progressValEl, m
     activeEngine?.dispose()
   }
 
-  return { engine: activeEngine, dispose }
+  return {
+    engine: activeEngine,
+    dispose,
+    enterMoon: () => activeEngine?.enterMoon?.(),
+    exitMoon: (instant) => activeEngine?.exitMoon?.(instant)
+  }
 }

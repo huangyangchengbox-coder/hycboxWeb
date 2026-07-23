@@ -14,6 +14,14 @@ import { CONSTANTS, CINEMATIC_LOCATIONS } from './constants.js'
 import { createEarth } from './createEarth.js'
 import { createMoon, updateMoon } from './createMoon.js'
 import {
+  createMoonExploreState,
+  pickMoon,
+  startMoonDive,
+  exitMoonDive,
+  updateMoonDive,
+  projectMoonLabel
+} from './moonExplore.js'
+import {
   lensflareWgsl, ccWgsl, anamorphicWgsl, updateLensFlare
 } from './lensFlare.js'
 import { colorGradeWgsl, vignetteWgsl } from './postFx.js'
@@ -29,8 +37,10 @@ export class Engine {
     this.earthGroup = null;
     this.locationAnchors = /* @__PURE__ */ new Map();
     this.onLocationsUpdate = null;
+    this.onMoonChange = null;
     this.focusTargetAnchorId = null;
     this.isDisposed = false;
+    this.moonExplore = createMoonExploreState();
     this.handleResize = () => {
       if (!this.canvas.parentElement || !this.renderer) return;
       const width = this.canvas.parentElement.clientWidth;
@@ -47,7 +57,14 @@ export class Engine {
     };
     this.animate = () => {
       this.animationId = requestAnimationFrame(this.animate);
-      if (this.focusTargetAnchorId) {
+      const moonBusy = updateMoonDive(
+        this.moonExplore,
+        this.camera,
+        this.controls,
+        this.moonMesh,
+        (phase, meta) => this.onMoonChange?.(phase, meta)
+      );
+      if (!moonBusy && this.focusTargetAnchorId) {
         const anchor = this.locationAnchors.get(this.focusTargetAnchorId);
         if (anchor) {
           const tempV = new THREE.Vector3();
@@ -63,7 +80,9 @@ export class Engine {
           }
         }
       }
-      this.controls.update();
+      if (!this.moonExplore.dive) {
+        this.controls.update();
+      }
       if (this.sunSettings.autoRotate) {
         this.sunSettings.angle += 0.01 * this.sunSettings.speed;
         if (this.sunSettings.angle > Math.PI * 2)
@@ -79,15 +98,18 @@ export class Engine {
       );
       this.sunMesh.position.copy(this.directionalLight.position);
       this.sunDirUniform.value.copy(this.directionalLight.position).normalize();
-      this.root.rotation.y += this.earthSettings.rotationSpeed;
-      this.root.rotation.z = this.earthSettings.trueInclination ? 23.44 * (Math.PI / 180) : 0;
-      this.root.traverse((child) => {
-        if (child.name === "clouds") {
-          child.rotation.y += this.earthSettings.rotationSpeed * 0.2;
-        }
-      });
+      if (!this.moonExplore.inside) {
+        this.root.rotation.y += this.earthSettings.rotationSpeed;
+        this.root.rotation.z = this.earthSettings.trueInclination ? 23.44 * (Math.PI / 180) : 0;
+        this.root.traverse((child) => {
+          if (child.name === "clouds") {
+            child.rotation.y += this.earthSettings.rotationSpeed * 0.2;
+          }
+        });
+      }
       if (this.moonSettings.enabled) {
-        this.moonSettings.angle += this.moonSettings.speed;
+        const speedScale = this.moonExplore.inside ? 0.15 : 1;
+        this.moonSettings.angle += this.moonSettings.speed * speedScale;
       }
       if (this.moonMesh && this.sunMesh) {
         updateMoon(this.moonMesh, this.sunMesh, this.camera, this.moonSettings);
@@ -622,12 +644,38 @@ export class Engine {
     this.root.add(this.satellitePoints);
   }
   start() {
+    this._onMoonClick = (e) => {
+      if (this.moonExplore.inside || this.moonExplore.dive) return;
+      if (pickMoon(this.moonExplore, this.canvas, this.camera, this.moonMesh, e.clientX, e.clientY)) {
+        this.enterMoon();
+      }
+    };
+    this.canvas.addEventListener("click", this._onMoonClick);
     this.animate();
+  }
+  enterMoon() {
+    startMoonDive(
+      this.moonExplore,
+      this.camera,
+      this.controls,
+      this.moonMesh,
+      (phase, meta) => this.onMoonChange?.(phase, meta)
+    );
+  }
+  exitMoon(instant = false) {
+    exitMoonDive(
+      this.moonExplore,
+      this.camera,
+      this.controls,
+      (phase, meta) => this.onMoonChange?.(phase, meta),
+      instant
+    );
   }
   dispose() {
     this.isDisposed = true;
     cancelAnimationFrame(this.animationId);
     window.removeEventListener("resize", this.handleResize);
+    this.canvas.removeEventListener("click", this._onMoonClick);
     if (this.gui) {
       this.gui.destroy();
     }
@@ -660,43 +708,49 @@ export class Engine {
     }
   }
   updateProjectedLocations() {
-    if (!this.onLocationsUpdate || this.locationAnchors.size === 0) return;
-    if (this.citiesSettings && !this.citiesSettings.enabled) {
+    if (!this.onLocationsUpdate) return;
+    if (this.moonExplore.inside || this.moonExplore.dive?.kind === "enter") {
       this.onLocationsUpdate([]);
       return;
     }
     const projected = [];
-    const tempV = new THREE.Vector3();
-    const earthCenter = new THREE.Vector3(0, 0, 0);
-    const width = this.canvas.parentElement ? this.canvas.parentElement.clientWidth : window.innerWidth;
-    const height = this.canvas.parentElement ? this.canvas.parentElement.clientHeight : window.innerHeight;
-    const dirToCamera = this.camera.position.clone().sub(earthCenter).normalize();
-    for (const [id, anchor] of this.locationAnchors.entries()) {
-      anchor.getWorldPosition(tempV);
-      const distanceToCamera = this.camera.position.distanceTo(tempV);
-      const dirToAnchor = tempV.clone().sub(earthCenter).normalize();
-      const dot2 = dirToAnchor.dot(dirToCamera);
-      const visible = dot2 > -0.05;
-      let opacity = 0;
-      if (dot2 > 0) {
-        opacity = Math.min(1, dot2 / 0.2);
-      }
-      tempV.project(this.camera);
-      const x = (tempV.x * 0.5 + 0.5) * width;
-      const y = (tempV.y * -0.5 + 0.5) * height;
-      const info = CINEMATIC_LOCATIONS.find((l) => l.id === id);
-      if (info) {
-        projected.push({
-          id,
-          name: info.name,
-          lat: info.lat,
-          lng: info.lng,
-          x,
-          y,
-          visible,
-          opacity,
-          distanceToCamera
-        });
+    const moonLabel = projectMoonLabel(this.canvas, this.camera, this.moonMesh);
+    if (moonLabel) projected.push(moonLabel);
+    if (this.citiesSettings && this.citiesSettings.enabled && this.locationAnchors.size > 0) {
+      const tempV = new THREE.Vector3();
+      const earthCenter = new THREE.Vector3(0, 0, 0);
+      const width = this.canvas.parentElement ? this.canvas.parentElement.clientWidth : window.innerWidth;
+      const height = this.canvas.parentElement ? this.canvas.parentElement.clientHeight : window.innerHeight;
+      const dirToCamera = this.camera.position.clone().sub(earthCenter).normalize();
+      for (const [id, anchor] of this.locationAnchors.entries()) {
+        anchor.getWorldPosition(tempV);
+        const distanceToCamera = this.camera.position.distanceTo(tempV);
+        const dirToAnchor = tempV.clone().sub(earthCenter).normalize();
+        const dot2 = dirToAnchor.dot(dirToCamera);
+        const visible = dot2 > -0.05;
+        let opacity = 0;
+        if (dot2 > 0) {
+          opacity = Math.min(1, dot2 / 0.2);
+        }
+        tempV.project(this.camera);
+        const x = (tempV.x * 0.5 + 0.5) * width;
+        const y = (tempV.y * -0.5 + 0.5) * height;
+        const info = CINEMATIC_LOCATIONS.find((l) => l.id === id);
+        if (info) {
+          projected.push({
+            id,
+            name: info.name,
+            lat: info.lat,
+            lng: info.lng,
+            x,
+            y,
+            visible,
+            opacity,
+            distanceToCamera,
+            kind: "city",
+            clickable: false
+          });
+        }
       }
     }
     this.onLocationsUpdate(projected);
