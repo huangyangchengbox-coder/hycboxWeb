@@ -4,23 +4,32 @@
     <div ref="hudRef" class="hud-container" :class="{ hidden: inSpace }"></div>
 
     <canvas ref="spaceCanvasRef" class="space-canvas" :class="{ active: inSpace }"></canvas>
-    <div class="space-hud" :class="{ active: inSpace }">
+    <div class="space-hud" :class="{ active: inSpace && !insideBh }">
       <div
         v-for="lab in spaceLabels"
         :key="lab.id"
         class="galaxy-label"
+        :class="{ clickable: lab.clickable }"
         :style="{
           transform: `translate3d(${lab.x}px, ${lab.y}px, 0) translate(14px, -50%)`,
           opacity: lab.opacity
         }"
+        @click.stop="onLabelClick(lab)"
       >
         <div class="galaxy-name">{{ lab.name }}</div>
         <div class="galaxy-meta">
-          <span>{{ lab.type }}</span>
+          <span>{{ lab.sub }}</span>
           <span class="dot">·</span>
-          <span>{{ formatDist(lab.distMly) }}</span>
+          <span>{{ lab.distText }}</span>
         </div>
+        <div v-if="lab.clickable" class="galaxy-hint">点击坠入</div>
       </div>
+    </div>
+
+    <div v-if="insideBh" class="bh-overlay">
+      <div class="bh-overlay-title">{{ divingBh?.name || '黑洞' }}</div>
+      <div class="bh-overlay-sub">已进入视界示意区域 · {{ divingBh?.type }}</div>
+      <button type="button" class="space-btn back" @click="exitBlackhole">离开黑洞</button>
     </div>
 
     <div ref="loaderRef" class="loader" :class="{ done: loaderDone }">
@@ -49,7 +58,15 @@
         <div>
           <div class="home-title">hycBox</div>
           <div class="home-sub">
-            {{ inSpace ? '太空模式 · 已知星系示意 · 拖拽环视' : '地球主页 · 拖拽旋转 · 滚轮缩放' }}
+            {{
+              insideBh
+                ? '黑洞内部示意 · 时空拉伸特效'
+                : spaceMode === 'blackholes'
+                  ? '黑洞模式 · 点击黑洞坠入 · 拖拽环视'
+                  : inSpace
+                    ? '太空模式 · 已知星系示意 · 拖拽环视'
+                    : '地球主页 · 拖拽旋转 · 滚轮缩放'
+            }}
           </div>
         </div>
       </div>
@@ -63,9 +80,37 @@
     </div>
 
     <div v-if="loaderDone && !error" class="bottom-bar">
-      <button v-if="!inSpace" type="button" class="space-btn" @click="enterSpace">进入太空</button>
-      <button v-else type="button" class="space-btn back" @click="leaveSpace">返回地球</button>
-      <p v-if="inSpace" class="space-tip">布局为对数压缩示意，距离仅供对照</p>
+      <template v-if="!inSpace">
+        <button type="button" class="space-btn" @click="enterSpace">进入太空</button>
+      </template>
+      <template v-else-if="!insideBh">
+        <div class="btn-row">
+          <button
+            v-if="spaceMode === 'galaxies'"
+            type="button"
+            class="space-btn"
+            @click="enterBlackholes"
+          >
+            黑洞
+          </button>
+          <button
+            v-else
+            type="button"
+            class="space-btn back"
+            @click="backToGalaxies"
+          >
+            返回星系
+          </button>
+          <button type="button" class="space-btn back" @click="leaveSpace">返回地球</button>
+        </div>
+        <p class="space-tip">
+          {{
+            spaceMode === 'blackholes'
+              ? '点击黑洞或标签滑入视界 · 布局为示意'
+              : '布局为对数压缩示意，距离仅供对照'
+          }}
+        </p>
+      </template>
     </div>
   </div>
 </template>
@@ -85,21 +130,20 @@ const progressBarRef = ref(null)
 const loaderDone = ref(false)
 const error = ref('')
 const inSpace = ref(false)
+const spaceMode = ref('galaxies')
 const spaceLabels = ref([])
+const insideBh = ref(false)
+const divingBh = ref(null)
 
 let disposeGlobe = null
 let spaceScene = null
 
-function formatDist(distMly) {
-  if (!distMly) return '本星系'
-  if (distMly < 1) return `${(distMly * 1000).toFixed(0)} 千光年`
-  if (distMly < 100) return `${distMly.toFixed(1)} 百万光年`
-  return `${Math.round(distMly)} 百万光年`
-}
-
 async function enterSpace() {
   if (inSpace.value || !spaceCanvasRef.value) return
   inSpace.value = true
+  spaceMode.value = 'galaxies'
+  insideBh.value = false
+  divingBh.value = null
   await nextTick()
   if (spaceScene) {
     spaceScene.dispose()
@@ -108,14 +152,51 @@ async function enterSpace() {
   spaceScene = new SpaceScene(spaceCanvasRef.value, {
     onLabelsUpdate: (labels) => {
       spaceLabels.value = labels
+    },
+    onModeChange: (mode) => {
+      spaceMode.value = mode
+    },
+    onDiveChange: (diving, bh, phase) => {
+      if (phase === 'start') {
+        divingBh.value = bh
+        insideBh.value = false
+      } else if (phase === 'inside') {
+        divingBh.value = bh
+        insideBh.value = true
+      } else {
+        insideBh.value = false
+        divingBh.value = null
+      }
     }
   })
   spaceScene.init()
 }
 
+function enterBlackholes() {
+  spaceScene?.setMode('blackholes')
+}
+
+function backToGalaxies() {
+  spaceScene?.setMode('galaxies')
+}
+
+function onLabelClick(lab) {
+  if (!lab?.clickable || lab.kind !== 'blackhole') return
+  spaceScene?.enterBlackholeById(lab.id)
+}
+
+function exitBlackhole() {
+  spaceScene?.exitBlackhole(false)
+  insideBh.value = false
+  divingBh.value = null
+}
+
 function leaveSpace() {
   inSpace.value = false
+  spaceMode.value = 'galaxies'
   spaceLabels.value = []
+  insideBh.value = false
+  divingBh.value = null
   if (spaceScene) {
     spaceScene.dispose()
     spaceScene = null
@@ -243,8 +324,63 @@ onUnmounted(() => {
   gap: 6px;
 }
 
-.galaxy-meta .dot {
-  color: rgba(255, 255, 255, 0.2);
+.galaxy-label.clickable {
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.galaxy-label.clickable:hover {
+  background: rgba(255, 120, 40, 0.18);
+}
+
+.galaxy-hint {
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: rgba(255, 180, 120, 0.75);
+}
+
+.btn-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.bh-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 36;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: calc(2rem + env(safe-area-inset-bottom));
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 20%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.bh-overlay-title {
+  font-size: 1.1rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 220, 180, 0.9);
+  margin-bottom: 0.35rem;
+}
+
+.bh-overlay-sub {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.bh-overlay .space-btn {
+  pointer-events: auto;
 }
 
 .home-chrome {
