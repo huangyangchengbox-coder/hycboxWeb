@@ -1,7 +1,27 @@
 <template>
-  <div class="home-globe">
-    <canvas ref="canvasRef" class="earth-canvas"></canvas>
-    <div ref="hudRef" class="hud-container"></div>
+  <div class="home-globe" :class="{ 'in-space': inSpace }">
+    <canvas ref="canvasRef" class="earth-canvas" :class="{ hidden: inSpace }"></canvas>
+    <div ref="hudRef" class="hud-container" :class="{ hidden: inSpace }"></div>
+
+    <canvas ref="spaceCanvasRef" class="space-canvas" :class="{ active: inSpace }"></canvas>
+    <div class="space-hud" :class="{ active: inSpace }">
+      <div
+        v-for="lab in spaceLabels"
+        :key="lab.id"
+        class="galaxy-label"
+        :style="{
+          transform: `translate3d(${lab.x}px, ${lab.y}px, 0) translate(14px, -50%)`,
+          opacity: lab.opacity
+        }"
+      >
+        <div class="galaxy-name">{{ lab.name }}</div>
+        <div class="galaxy-meta">
+          <span>{{ lab.type }}</span>
+          <span class="dot">·</span>
+          <span>{{ formatDist(lab.distMly) }}</span>
+        </div>
+      </div>
+    </div>
 
     <div ref="loaderRef" class="loader" :class="{ done: loaderDone }">
       <div class="loader-bg-glow"></div>
@@ -23,15 +43,17 @@
       </div>
     </div>
 
-    <div class="home-chrome">
+    <div class="home-chrome" :class="{ space: inSpace }">
       <div class="home-brand">
         <span class="home-logo">hyc</span>
         <div>
           <div class="home-title">hycBox</div>
-          <div class="home-sub">地球主页 · 拖拽旋转 · 滚轮缩放</div>
+          <div class="home-sub">
+            {{ inSpace ? '太空模式 · 已知星系示意 · 拖拽环视' : '地球主页 · 拖拽旋转 · 滚轮缩放' }}
+          </div>
         </div>
       </div>
-      <nav class="home-nav">
+      <nav v-if="!inSpace" class="home-nav">
         <router-link to="/cockpit">小区数据仓</router-link>
         <router-link to="/nation-cockpit">物流中国仓</router-link>
         <router-link to="/ai-image">图片 AI</router-link>
@@ -39,14 +61,22 @@
       </nav>
       <p v-if="error" class="home-error">{{ error }}</p>
     </div>
+
+    <div v-if="loaderDone && !error" class="bottom-bar">
+      <button v-if="!inSpace" type="button" class="space-btn" @click="enterSpace">进入太空</button>
+      <button v-else type="button" class="space-btn back" @click="leaveSpace">返回地球</button>
+      <p v-if="inSpace" class="space-tip">布局为对数压缩示意，距离仅供对照</p>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { mountGlobeApp } from '../globe/bootstrap.js'
+import { SpaceScene } from '../globe/SpaceScene.js'
 
 const canvasRef = ref(null)
+const spaceCanvasRef = ref(null)
 const hudRef = ref(null)
 const loaderRef = ref(null)
 const progressValRef = ref(null)
@@ -54,8 +84,43 @@ const messageValRef = ref(null)
 const progressBarRef = ref(null)
 const loaderDone = ref(false)
 const error = ref('')
+const inSpace = ref(false)
+const spaceLabels = ref([])
 
 let disposeGlobe = null
+let spaceScene = null
+
+function formatDist(distMly) {
+  if (!distMly) return '本星系'
+  if (distMly < 1) return `${(distMly * 1000).toFixed(0)} 千光年`
+  if (distMly < 100) return `${distMly.toFixed(1)} 百万光年`
+  return `${Math.round(distMly)} 百万光年`
+}
+
+async function enterSpace() {
+  if (inSpace.value || !spaceCanvasRef.value) return
+  inSpace.value = true
+  await nextTick()
+  if (spaceScene) {
+    spaceScene.dispose()
+    spaceScene = null
+  }
+  spaceScene = new SpaceScene(spaceCanvasRef.value, {
+    onLabelsUpdate: (labels) => {
+      spaceLabels.value = labels
+    }
+  })
+  spaceScene.init()
+}
+
+function leaveSpace() {
+  inSpace.value = false
+  spaceLabels.value = []
+  if (spaceScene) {
+    spaceScene.dispose()
+    spaceScene = null
+  }
+}
 
 onMounted(async () => {
   await nextTick()
@@ -69,7 +134,6 @@ onMounted(async () => {
       progressBarEl: progressBarRef.value
     })
     disposeGlobe = dispose
-    // loader 淡出由 bootstrap 控制 DOM；同步本地状态便于样式
     const el = loaderRef.value
     if (el) {
       const obs = new MutationObserver(() => {
@@ -88,6 +152,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  leaveSpace()
   disposeGlobe?.()
   disposeGlobe = null
 })
@@ -104,7 +169,8 @@ onUnmounted(() => {
   color: #fff;
 }
 
-.earth-canvas {
+.earth-canvas,
+.space-canvas {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -113,11 +179,72 @@ onUnmounted(() => {
   touch-action: none;
 }
 
+.earth-canvas.hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.space-canvas {
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.space-canvas.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .hud-container {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 20;
+}
+
+.hud-container.hidden {
+  display: none;
+}
+
+.space-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.space-hud.active {
+  opacity: 1;
+}
+
+.galaxy-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.galaxy-name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.galaxy-meta {
+  margin-top: 2px;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.galaxy-meta .dot {
+  color: rgba(255, 255, 255, 0.2);
 }
 
 .home-chrome {
@@ -198,6 +325,55 @@ onUnmounted(() => {
   color: #fecaca;
   font-size: 0.85rem;
   pointer-events: auto;
+}
+
+.bottom-bar {
+  position: absolute;
+  z-index: 35;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.25rem 1.5rem calc(1.25rem + env(safe-area-inset-bottom));
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.72), transparent 90%);
+  pointer-events: none;
+}
+
+.space-btn {
+  pointer-events: auto;
+  min-width: 10rem;
+  padding: 0.7rem 1.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 0.9rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: background 0.2s, border-color 0.2s, transform 0.15s;
+}
+
+.space-btn:hover {
+  background: rgba(13, 148, 136, 0.35);
+  border-color: rgba(45, 212, 191, 0.55);
+  transform: translateY(-1px);
+}
+
+.space-btn.back {
+  background: rgba(15, 23, 42, 0.55);
+}
+
+.space-tip {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 /* Loader */
@@ -352,7 +528,6 @@ onUnmounted(() => {
 }
 </style>
 
-<!-- HUD / beacon 需非 scoped，供 bootstrap 注入的 DOM 使用 -->
 <style>
 .beacon-point {
   position: absolute;
