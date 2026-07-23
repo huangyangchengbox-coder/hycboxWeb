@@ -80,7 +80,8 @@ echarts.use([
   CanvasRenderer
 ])
 
-const GEO_URL = 'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json'
+/** 本地 GeoJSON，避免外链 geo.datav.aliyun.com 被拦/跨域导致地图空白 */
+const GEO_URL = `${import.meta.env.BASE_URL}geo/china.json`
 
 const loadingPubs = ref(false)
 const loadingMap = ref(false)
@@ -94,6 +95,7 @@ const mapReady = ref(false)
 
 let chart = null
 let chinaGeo = null
+let mapLoadPromise = null
 
 const nationPubs = computed(() =>
   (pubs.value || []).filter((p) => p.scope === 'nationwide')
@@ -103,13 +105,25 @@ const top5 = computed(() => nationMap.value?.top5 || [])
 
 async function ensureChinaMap() {
   if (mapReady.value) return
-  const res = await fetch(GEO_URL)
-  if (!res.ok) {
-    throw new Error('中国地图加载失败')
+  if (mapLoadPromise) {
+    await mapLoadPromise
+    return
   }
-  chinaGeo = await res.json()
-  echarts.registerMap('china', chinaGeo)
-  mapReady.value = true
+  mapLoadPromise = (async () => {
+    const res = await fetch(GEO_URL)
+    if (!res.ok) {
+      throw new Error(`中国地图加载失败（${res.status}）`)
+    }
+    chinaGeo = await res.json()
+    echarts.registerMap('china', chinaGeo)
+    mapReady.value = true
+  })()
+  try {
+    await mapLoadPromise
+  } catch (e) {
+    mapLoadPromise = null
+    throw e
+  }
 }
 
 function provinceCenters() {
