@@ -36,44 +36,15 @@
             </span>
           </div>
           <div class="toolbar-right">
-            <div class="view-tabs">
-              <button
-                type="button"
-                :class="['tab-btn', { active: viewMode === 'map' }]"
-                @click="viewMode = 'map'"
-              >
-                地图 3D
-              </button>
-              <button
-                type="button"
-                :class="['tab-btn', { active: viewMode === 'campus' }]"
-                @click="viewMode = 'campus'"
-              >
-                场景 3D
-              </button>
-              <button
-                type="button"
-                :class="['tab-btn', { active: viewMode === 'floor' }]"
-                @click="viewMode = 'floor'"
-              >
-                楼层 2D
-              </button>
-            </div>
             <div class="legend">
               <span class="leg pending">待派送</span>
               <span class="leg completed">已配送</span>
               <span class="leg empty">无订单</span>
             </div>
-            <button
-              v-if="viewMode === 'map' || viewMode === 'campus'"
-              class="btn btn-secondary btn-sm"
-              :disabled="loadingMap"
-              @click="reloadMap"
-            >
+            <button class="btn btn-secondary btn-sm" :disabled="loadingMap" @click="reloadMap">
               刷新状态
             </button>
             <button
-              v-if="viewMode === 'map' || viewMode === 'campus'"
               type="button"
               :class="['btn', 'btn-sm', calibrateMode ? 'cal-on' : 'btn-secondary']"
               @click="calibrateMode = !calibrateMode"
@@ -83,43 +54,9 @@
           </div>
         </div>
 
-        <div v-if="viewMode === 'floor'" class="selectors">
-          <label>
-            期数
-            <select v-model="phaseId" @change="onPhaseChange">
-              <option v-for="p in phases" :key="p.id" :value="p.id">{{ p.name }}</option>
-            </select>
-          </label>
-          <label>
-            楼栋
-            <select v-model="buildingId" @change="onBuildingChange">
-              <option v-for="b in buildings" :key="b.id" :value="b.id">{{ b.name }}</option>
-            </select>
-          </label>
-          <label>
-            单元
-            <select v-model.number="unit" @change="loadRooms">
-              <option v-for="u in unitOptions" :key="u" :value="u">{{ u }} 单元</option>
-            </select>
-          </label>
-          <button class="btn btn-secondary btn-sm" :disabled="loadingMap" @click="reloadMap">刷新状态</button>
-        </div>
-
         <p v-if="error" class="error-msg">{{ error }}</p>
-        <p v-else-if="viewMode === 'floor' && (loadingMap || loadingRooms)" class="muted">加载楼栋中…</p>
-
-        <CommunityCampusMap3D
-          v-else-if="viewMode === 'map'"
-          :phases="campusPhases"
-          :selected-key="selectedBuildingKey"
-          :building-stats="buildingStats"
-          :community-id="campusCommunityId"
-          :calibrate="calibrateMode"
-          @select="onCampusSelect"
-        />
 
         <CommunityCampus3D
-          v-else-if="viewMode === 'campus'"
           :phases="campusPhases"
           :selected-key="selectedBuildingKey"
           :building-stats="buildingStats"
@@ -127,24 +64,6 @@
           :calibrate="calibrateMode"
           @select="onCampusSelect"
         />
-
-        <div v-else class="floor-board">
-          <div v-for="floor in floorsDesc" :key="floor" class="floor-row">
-            <div class="floor-label">{{ floor }}F</div>
-            <div class="room-row">
-              <button
-                v-for="room in roomsByFloor[floor] || []"
-                :key="room.id"
-                type="button"
-                :class="['room-cell', roomStatus(room.id)]"
-                :title="roomTip(room)"
-              >
-                {{ room.roomNo }}
-              </button>
-            </div>
-          </div>
-          <p v-if="!floorsDesc.length" class="muted">该单元暂无房间数据</p>
-        </div>
       </template>
     </section>
   </div>
@@ -152,31 +71,21 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { getDeliveryMap, getPhases, getRooms, listPublications } from '../api/cockpit'
+import { getDeliveryMap, getPhases, listPublications } from '../api/cockpit'
 import CommunityCampus3D from '../components/CommunityCampus3D.vue'
-import CommunityCampusMap3D from '../components/CommunityCampusMap3D.vue'
 import { aggregateBuildingOrderStats } from '../utils/campusOrderStats'
 
 const loadingPubs = ref(false)
 const loadingMap = ref(false)
-const loadingRooms = ref(false)
 const error = ref('')
 const pubs = ref([])
 const selectedId = ref('')
 const selectedPub = ref(null)
 const deliveryMap = ref(null)
-/** 楼层 2D 用（可能按发布期数过滤） */
-const phases = ref([])
-/** 园区 3D 用：整小区楼栋骨架 */
+/** 园区 3D：整小区楼栋骨架 */
 const campusPhases = ref([])
 const phaseId = ref('')
 const buildingId = ref('')
-const unit = ref(1)
-const rooms = ref([])
-const statusByRoom = ref({})
-/** map | campus | floor：默认地图 3D */
-const viewMode = ref('map')
-/** 总平/地图校准：拖拽或点选落位 */
 const calibrateMode = ref(false)
 
 const communityPubs = computed(() =>
@@ -187,13 +96,6 @@ const campusCommunityId = computed(
   () => selectedPub.value?.communityId || deliveryMap.value?.communityId || 'hengda_mingdu'
 )
 
-const buildings = computed(() => {
-  const phase = phases.value.find((p) => p.id === phaseId.value)
-  return phase?.buildings || []
-})
-
-const currentBuilding = computed(() => buildings.value.find((b) => b.id === buildingId.value))
-
 const selectedBuildingKey = computed(() =>
   phaseId.value && buildingId.value ? `${phaseId.value}_${buildingId.value}` : ''
 )
@@ -202,47 +104,6 @@ const selectedBuildingKey = computed(() =>
 const buildingStats = computed(() =>
   aggregateBuildingOrderStats(deliveryMap.value?.rooms || [])
 )
-
-const unitOptions = computed(() => {
-  const n = Number(currentBuilding.value?.units) || 1
-  return Array.from({ length: n }, (_, i) => i + 1)
-})
-
-const roomsByFloor = computed(() => {
-  const map = {}
-  for (const room of rooms.value) {
-    const floor = parseFloor(room.roomNo)
-    if (floor == null) continue
-    if (!map[floor]) map[floor] = []
-    map[floor].push(room)
-  }
-  Object.keys(map).forEach((f) => {
-    map[f].sort((a, b) => String(a.roomNo).localeCompare(String(b.roomNo)))
-  })
-  return map
-})
-
-const floorsDesc = computed(() =>
-  Object.keys(roomsByFloor.value)
-    .map(Number)
-    .sort((a, b) => b - a)
-)
-
-function parseFloor(roomNo) {
-  const digits = String(roomNo || '').replace(/\D/g, '')
-  if (digits.length < 3) return null
-  return Math.floor(Number(digits) / 100)
-}
-
-function roomStatus(roomId) {
-  return statusByRoom.value[roomId] || 'empty'
-}
-
-function roomTip(room) {
-  const st = statusByRoom.value[room.id]
-  const label = st === 'pending' ? '待派送' : st === 'completed' ? '已配送' : '无订单'
-  return `${room.label || room.roomNo} · ${label}`
-}
 
 async function loadPubs() {
   loadingPubs.value = true
@@ -261,32 +122,18 @@ async function selectPub(pub) {
   selectedId.value = pub.id
   selectedPub.value = pub
   deliveryMap.value = null
-  rooms.value = []
-  statusByRoom.value = {}
   phaseId.value = ''
   buildingId.value = ''
-  unit.value = 1
-  viewMode.value = 'map'
   calibrateMode.value = false
   await Promise.all([reloadMap(), loadPhaseSkeleton(pub)])
 }
 
-/** 点击 3D 楼栋 → 切到楼层 2D（校准模式不触发） */
+/** 点击 3D 楼栋：高亮选中（校准模式不触发） */
 function onCampusSelect({ phaseId: pid, buildingId: bid }) {
   if (calibrateMode.value) return
   if (!pid || !bid) return
-  // 若发布限定期数且点了其他期，仍允许用整区骨架切换（phases 可能被过滤）
-  if (!phases.value.find((p) => p.id === pid)) {
-    const full = campusPhases.value.find((p) => p.id === pid)
-    if (full) {
-      phases.value = [...phases.value, full]
-    }
-  }
   phaseId.value = pid
   buildingId.value = bid
-  unit.value = 1
-  viewMode.value = 'floor'
-  loadRooms()
 }
 
 async function reloadMap() {
@@ -294,13 +141,7 @@ async function reloadMap() {
   loadingMap.value = true
   error.value = ''
   try {
-    const data = await getDeliveryMap(selectedId.value)
-    deliveryMap.value = data
-    const map = {}
-    for (const r of data?.rooms || []) {
-      if (r.roomId) map[r.roomId] = r.status
-    }
-    statusByRoom.value = map
+    deliveryMap.value = await getDeliveryMap(selectedId.value)
   } catch (e) {
     error.value = e.message || '加载配送状态失败'
   } finally {
@@ -315,47 +156,9 @@ async function loadPhaseSkeleton(pub) {
     return
   }
   try {
-    const list = await getPhases(communityId)
-    const all = list || []
-    campusPhases.value = all
-    let next = all
-    if (pub.phaseId) {
-      next = all.filter((p) => p.id === pub.phaseId)
-    }
-    phases.value = next.length ? next : all
-    phaseId.value = phases.value[0]?.id || ''
-    onPhaseChange()
+    campusPhases.value = (await getPhases(communityId)) || []
   } catch (e) {
     error.value = e.message || '加载楼栋失败'
-  }
-}
-
-function onPhaseChange() {
-  const list = buildings.value
-  buildingId.value = list[0]?.id || ''
-  onBuildingChange()
-}
-
-function onBuildingChange() {
-  unit.value = 1
-  loadRooms()
-}
-
-async function loadRooms() {
-  const pub = selectedPub.value
-  const communityId = pub?.communityId || deliveryMap.value?.communityId
-  if (!communityId || !phaseId.value || !buildingId.value) {
-    rooms.value = []
-    return
-  }
-  loadingRooms.value = true
-  try {
-    rooms.value = (await getRooms(communityId, phaseId.value, buildingId.value, unit.value)) || []
-  } catch (e) {
-    error.value = e.message || '加载房间失败'
-    rooms.value = []
-  } finally {
-    loadingRooms.value = false
   }
 }
 
@@ -398,18 +201,19 @@ onMounted(loadPubs)
 }
 
 .pub-item {
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  margin-bottom: 0.5rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
   cursor: pointer;
-  background: #fafafa;
+  border: 1px solid transparent;
 }
 
-.pub-item:hover,
+.pub-item:hover {
+  background: #f3f5f4;
+}
+
 .pub-item.active {
-  border-color: var(--accent);
   background: #ecfdf5;
+  border-color: #a7f3d0;
 }
 
 .pub-title {
@@ -418,9 +222,9 @@ onMounted(loadPubs)
 }
 
 .pub-meta {
+  margin-top: 0.25rem;
   display: flex;
-  justify-content: space-between;
-  margin-top: 0.35rem;
+  gap: 0.75rem;
   font-size: 0.75rem;
   color: var(--muted);
 }
@@ -428,20 +232,16 @@ onMounted(loadPubs)
 .map-panel {
   display: flex;
   flex-direction: column;
-  min-height: 480px;
-}
-
-.empty-hint {
-  margin: auto;
-  color: var(--muted);
+  min-height: 520px;
+  padding: 1rem;
 }
 
 .map-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
   align-items: center;
   justify-content: space-between;
+  gap: 0.75rem;
   margin-bottom: 0.75rem;
 }
 
@@ -454,55 +254,29 @@ onMounted(loadPubs)
 .toolbar-right {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
   align-items: center;
-}
-
-.view-tabs {
-  display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.tab-btn {
-  border: 0;
-  background: #fff;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.8rem;
-  cursor: pointer;
-  color: var(--muted);
-}
-
-.tab-btn.active {
-  background: #ecfdf5;
-  color: var(--accent-dark);
-  font-weight: 600;
+  gap: 0.6rem;
 }
 
 .legend {
   display: flex;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  font-size: 0.75rem;
 }
 
 .leg {
-  font-size: 0.75rem;
-  padding: 0.2rem 0.55rem;
+  padding: 0.2rem 0.5rem;
   border-radius: 999px;
-  border: 1px solid var(--border);
 }
 
 .leg.pending {
   background: #fef3c7;
   color: #92400e;
-  border-color: #f59e0b;
 }
 
 .leg.completed {
   background: #d1fae5;
   color: #065f46;
-  border-color: #10b981;
 }
 
 .leg.empty {
@@ -510,85 +284,19 @@ onMounted(loadPubs)
   color: #6b7280;
 }
 
-.selectors {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: end;
-  margin-bottom: 1rem;
+.cal-on {
+  background: #0d9488;
+  color: #fff;
 }
 
-.selectors label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.75rem;
+.empty-hint {
+  margin: auto;
   color: var(--muted);
 }
 
-.selectors select {
-  min-width: 120px;
-  padding: 0.4rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.floor-board {
-  flex: 1;
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.75rem;
-  background: #f8faf9;
-  max-height: calc(100vh - 260px);
-}
-
-.floor-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.35rem;
-}
-
-.floor-label {
-  width: 2.5rem;
-  flex-shrink: 0;
-  text-align: right;
-  font-size: 0.75rem;
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.room-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.room-cell {
-  min-width: 3.2rem;
-  padding: 0.35rem 0.4rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  font-size: 0.75rem;
-  cursor: default;
-  background: #e5e7eb;
-  color: #4b5563;
-}
-
-.room-cell.pending {
-  background: #fbbf24;
-  border-color: #d97706;
-  color: #78350f;
-  font-weight: 600;
-}
-
-.room-cell.completed {
-  background: #34d399;
-  border-color: #059669;
-  color: #064e3b;
-  font-weight: 600;
+.error-msg {
+  color: var(--danger);
+  font-size: 0.875rem;
 }
 
 .muted {
@@ -599,14 +307,5 @@ onMounted(loadPubs)
 .btn-sm {
   padding: 0.35rem 0.75rem;
   font-size: 0.875rem;
-}
-
-.cal-on {
-  background: #ea580c;
-  color: #fff;
-  border: 0;
-  border-radius: 8px;
-  padding: 0.35rem 0.75rem;
-  cursor: pointer;
 }
 </style>
