@@ -6,6 +6,7 @@
         <div class="form-group">
           <label>描述 prompt <span class="req">*</span></label>
           <textarea
+            ref="promptEl"
             v-model.trim="form.prompt"
             placeholder="描述你想生成的视频内容…"
             required
@@ -79,6 +80,8 @@
         </article>
       </div>
     </section>
+
+    <TaskFlyBurst ref="flyRef" :text="flyText" />
   </div>
 </template>
 
@@ -86,6 +89,7 @@
 import { nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { createVideo, getJob, listJobs, mediaUrl, statusLabel } from '../api/aiMedia'
 import { createJobPoller } from '../api/jobPoller'
+import TaskFlyBurst from '../components/TaskFlyBurst.vue'
 
 const form = reactive({
   prompt: '',
@@ -99,6 +103,9 @@ const loadingList = ref(false)
 const error = ref('')
 const jobs = ref([])
 const historyEl = ref(null)
+const promptEl = ref(null)
+const flyRef = ref(null)
+const flyText = ref('')
 const enteringId = ref('')
 let enteringTimer = 0
 
@@ -108,17 +115,19 @@ const poller = createJobPoller(
   (next) => { jobs.value = next }
 )
 
-function pushJobToList(job) {
+async function pushJobToList(job, previewText) {
   if (!job?.id) return
+  flyText.value = previewText || job.prompt || '生成任务'
+  await nextTick()
+  await flyRef.value?.play(promptEl.value, historyEl.value)
   enteringId.value = job.id
   jobs.value = [job, ...jobs.value.filter((j) => j.id !== job.id)]
   clearTimeout(enteringTimer)
   enteringTimer = setTimeout(() => {
     enteringId.value = ''
   }, 700)
-  nextTick(() => {
-    historyEl.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  })
+  await nextTick()
+  historyEl.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
 }
 
 async function loadHistory() {
@@ -141,6 +150,7 @@ async function onGenerate() {
     return
   }
   error.value = ''
+  const promptSnapshot = form.prompt
   submitting.value = true
   try {
     const job = await createVideo({
@@ -149,8 +159,8 @@ async function onGenerate() {
       seconds: form.seconds,
       size: form.size
     })
+    await pushJobToList(job, promptSnapshot)
     form.prompt = ''
-    pushJobToList(job)
     poller.start()
   } catch (e) {
     error.value = e.message || '提交失败'
