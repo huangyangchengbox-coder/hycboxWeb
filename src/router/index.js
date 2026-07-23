@@ -12,7 +12,13 @@ const routes = [
     path: '/',
     component: () => import('../layouts/AdminLayout.vue'),
     children: [
-      { path: '', redirect: '/cockpit' },
+      { path: '', redirect: '/home' },
+      {
+        path: 'home',
+        name: 'home',
+        component: () => import('../views/HomeGlobeView.vue'),
+        meta: { immersive: true }
+      },
       {
         path: 'cockpit',
         name: 'cockpit',
@@ -45,7 +51,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   if (to.meta.public) {
     if (getToken() && to.path === '/login') {
-      return '/cockpit'
+      return '/home'
     }
     return true
   }

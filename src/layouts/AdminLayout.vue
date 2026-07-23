@@ -1,11 +1,12 @@
 <template>
-  <div class="layout">
-    <header class="header">
+  <div class="layout" :class="{ immersive: isImmersive }">
+    <header v-if="!isImmersive" class="header">
       <div class="brand">
         <span class="logo">hyc</span>
         <span>hycBox</span>
       </div>
       <nav class="nav">
+        <router-link to="/home" class="nav-link" active-class="active">主页</router-link>
         <router-link to="/cockpit" class="nav-link" active-class="active">小区数据仓</router-link>
         <router-link to="/nation-cockpit" class="nav-link" active-class="active">物流中国仓</router-link>
         <router-link to="/ai-image" class="nav-link" active-class="active">图片 AI</router-link>
@@ -16,7 +17,7 @@
         <button class="btn btn-secondary btn-sm" @click="onLogout">退出</button>
       </div>
     </header>
-    <main class="main" :class="{ wide: isWide }">
+    <main class="main" :class="{ wide: isWide, immersive: isImmersive }">
       <router-view />
     </main>
   </div>
@@ -31,6 +32,7 @@ const router = useRouter()
 const route = useRoute()
 const displayName = computed(() => getAdminInfo().displayName || getAdminInfo().username || '管理员')
 const isWide = computed(() => route.name === 'cockpit' || route.name === 'nation-cockpit')
+const isImmersive = computed(() => route.meta.immersive === true || route.name === 'home')
 
 function onLogout() {
   logout()
@@ -41,6 +43,12 @@ function onLogout() {
 <style scoped>
 .layout {
   min-height: 100vh;
+}
+
+.layout.immersive {
+  height: 100vh;
+  overflow: hidden;
+  background: #0a0a0a;
 }
 
 .header {
@@ -116,5 +124,12 @@ function onLogout() {
 
 .main.wide {
   max-width: 1400px;
+}
+
+.main.immersive {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
 }
 </style>

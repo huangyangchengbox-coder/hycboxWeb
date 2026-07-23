@@ -2,7 +2,7 @@
   <div class="login-page">
     <div class="card login-card">
       <h1>hycBox</h1>
-      <p class="subtitle">管理端 · 小区数据仓 / 物流中国仓 / 图片 AI / 视频 AI</p>
+      <p class="subtitle">管理端 · 地球主页 / 小区数据仓 / 物流中国仓 / 图片 AI / 视频 AI</p>
       <form @submit.prevent="onSubmit">
         <div class="form-group">
           <label>账号</label>
@@ -38,7 +38,7 @@ async function onSubmit() {
   loading.value = true
   try {
     await login(username.value, password.value)
-    const redirect = route.query.redirect || '/cockpit'
+    const redirect = route.query.redirect || '/home'
     router.replace(String(redirect))
   } catch (e) {
     error.value = e.message || '登录失败'
