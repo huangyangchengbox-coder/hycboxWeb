@@ -1,5 +1,6 @@
 import { CINEMATIC_LOCATIONS, MESSAGE_PROGRESS } from './constants.js'
 import { Engine } from './Engine.js'
+import { EngineClassic, canUseWebGPU } from './EngineClassic.js'
 
 function getTimezoneOffset(id) {
   switch (id) {
@@ -176,15 +177,33 @@ export function mountGlobeApp({ canvas, hudContainer, loaderEl, progressValEl, m
   intervals.push(setInterval(updateTimes, 1000))
   intervals.push(tickInterval)
 
-  const engine = new Engine(canvas)
-  engine.onLocationsUpdate = handleLocationsUpdate
+  // HTTP / 无 WebGPU 时走经典 WebGL，避免 wgslFn 着色器校验失败
+  const useCinematic = canUseWebGPU()
+  let activeEngine = useCinematic ? new Engine(canvas) : new EngineClassic(canvas)
+  activeEngine.onLocationsUpdate = handleLocationsUpdate
+  console.info(`[globe] renderer mode: ${useCinematic ? 'WebGPU cinematic' : 'WebGL classic'}`)
 
   const startEngine = async () => {
     try {
-      await engine.init(onProgress)
+      await activeEngine.init(onProgress)
       onLoad()
     } catch (err) {
       console.error('Engine init error:', err)
+      if (useCinematic) {
+        console.warn('[globe] cinematic failed, retrying WebGL classic')
+        try {
+          activeEngine.dispose()
+        } catch (_) {
+          /* ignore */
+        }
+        activeEngine = new EngineClassic(canvas)
+        activeEngine.onLocationsUpdate = handleLocationsUpdate
+        try {
+          await activeEngine.init(onProgress)
+        } catch (e2) {
+          console.error('Classic engine init error:', e2)
+        }
+      }
       onLoad()
     }
   }
@@ -193,8 +212,8 @@ export function mountGlobeApp({ canvas, hudContainer, loaderEl, progressValEl, m
 
   const dispose = () => {
     intervals.forEach((id) => clearInterval(id))
-    engine.dispose()
+    activeEngine?.dispose()
   }
 
-  return { engine, dispose }
+  return { engine: activeEngine, dispose }
 }

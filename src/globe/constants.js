@@ -38,6 +38,7 @@ const params = typeof window !== 'undefined' ? new URLSearchParams(window.locati
 const use2k = !(params && params.get('hd') === '1')
 
 export const CONSTANTS = {
+  // 仅作能力探测参考；实际渲染由 canUseWebGPU() 决定（HTTP 下通常无 WebGPU）
   RENDER_TYPE: typeof navigator !== 'undefined' && navigator.gpu ? 'webgpu' : 'webgl',
   EARTH_RADIUS: 10,
   ATMOSPHERE_RADIUS: 10.2,
