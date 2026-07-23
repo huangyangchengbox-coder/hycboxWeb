@@ -1,8 +1,8 @@
 <template>
   <div class="login-page">
     <div class="card login-card">
-      <h1>慧优果管理端</h1>
-      <p class="subtitle">登录后使用图片 / 视频 AI 功能</p>
+      <h1>hycBox</h1>
+      <p class="subtitle">管理端 · 小区数据仓 / 图片 AI / 视频 AI</p>
       <form @submit.prevent="onSubmit">
         <div class="form-group">
           <label>账号</label>
@@ -38,7 +38,7 @@ async function onSubmit() {
   loading.value = true
   try {
     await login(username.value, password.value)
-    const redirect = route.query.redirect || '/ai-image'
+    const redirect = route.query.redirect || '/cockpit'
     router.replace(String(redirect))
   } catch (e) {
     error.value = e.message || '登录失败'

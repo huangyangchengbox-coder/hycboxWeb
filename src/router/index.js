@@ -12,7 +12,12 @@ const routes = [
     path: '/',
     component: () => import('../layouts/AdminLayout.vue'),
     children: [
-      { path: '', redirect: '/ai-image' },
+      { path: '', redirect: '/cockpit' },
+      {
+        path: 'cockpit',
+        name: 'cockpit',
+        component: () => import('../views/CockpitView.vue')
+      },
       {
         path: 'ai-image',
         name: 'ai-image',
@@ -35,7 +40,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   if (to.meta.public) {
     if (getToken() && to.path === '/login') {
-      return '/ai-image'
+      return '/cockpit'
     }
     return true
   }
