@@ -44,7 +44,8 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory('/web/'),
+  // 与 vite base 一致：正式 /web/，体验 /web-trial/
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes
 })
 
