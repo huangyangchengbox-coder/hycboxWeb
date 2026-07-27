@@ -112,12 +112,7 @@
           </div>
         </div>
       </div>
-      <nav v-if="!inSpace" class="home-nav">
-        <router-link to="/cockpit">小区数据仓</router-link>
-        <router-link to="/nation-cockpit">物流中国仓</router-link>
-        <router-link to="/ai-image">图片 AI</router-link>
-        <router-link to="/ai-video">视频 AI</router-link>
-      </nav>
+      <router-link v-if="!inSpace && !isLoggedIn" to="/login" class="home-login">登录</router-link>
       <p v-if="error" class="home-error">{{ error }}</p>
     </div>
 
@@ -159,6 +154,7 @@
 
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { getToken } from '../api/auth'
 import { mountGlobeApp } from '../globe/bootstrap.js'
 import { SpaceScene } from '../globe/SpaceScene.js'
 
@@ -180,6 +176,7 @@ const divingTarget = ref(null)
 const onMoon = ref(false)
 const moonMeta = ref(null)
 const moonLabels = ref([])
+const isLoggedIn = ref(!!getToken())
 
 let disposeGlobe = null
 let globeApi = null
@@ -525,25 +522,17 @@ onUnmounted(() => {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-.home-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  pointer-events: auto;
-  justify-content: flex-end;
-}
-
-.home-nav a {
+.home-login {
   padding: 0.4rem 0.75rem;
   border-radius: 999px;
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.75);
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: auto;
 }
 
-.home-nav a:hover,
-.home-nav a.router-link-active {
+.home-login:hover {
   color: #fff;
   background: rgba(13, 148, 136, 0.35);
   border-color: rgba(45, 212, 191, 0.4);

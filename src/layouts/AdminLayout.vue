@@ -6,33 +6,78 @@
         <span>hycBox</span>
       </div>
       <nav class="nav">
-        <router-link to="/home" class="nav-link" active-class="active">主页</router-link>
-        <router-link to="/cockpit" class="nav-link" active-class="active">小区数据仓</router-link>
-        <router-link to="/nation-cockpit" class="nav-link" active-class="active">物流中国仓</router-link>
-        <router-link to="/ai-image" class="nav-link" active-class="active">图片 AI</router-link>
-        <router-link to="/ai-video" class="nav-link" active-class="active">视频 AI</router-link>
+        <template v-if="isLoggedIn">
+          <div
+            class="nav-dropdown"
+            :class="{ open: openMenu === 'cockpit', active: isCockpitActive }"
+            @mouseenter="openMenu = 'cockpit'"
+            @mouseleave="closeIf('cockpit')"
+          >
+            <button type="button" class="nav-link nav-trigger">
+              驾驶舱
+              <span class="caret">▾</span>
+            </button>
+            <div class="dropdown-panel">
+              <router-link to="/cockpit" class="dropdown-item" active-class="active" @click="openMenu = ''">
+                小区数据仓
+              </router-link>
+              <router-link to="/nation-cockpit" class="dropdown-item" active-class="active" @click="openMenu = ''">
+                物流中国仓
+              </router-link>
+            </div>
+          </div>
+
+          <div
+            class="nav-dropdown"
+            :class="{ open: openMenu === 'ai', active: isAiActive }"
+            @mouseenter="openMenu = 'ai'"
+            @mouseleave="closeIf('ai')"
+          >
+            <button type="button" class="nav-link nav-trigger">
+              AI
+              <span class="caret">▾</span>
+            </button>
+            <div class="dropdown-panel">
+              <router-link to="/ai-image" class="dropdown-item" active-class="active" @click="openMenu = ''">
+                图片 AI
+              </router-link>
+              <router-link to="/ai-video" class="dropdown-item" active-class="active" @click="openMenu = ''">
+                视频 AI
+              </router-link>
+            </div>
+          </div>
+        </template>
+        <router-link v-else to="/login" class="nav-link nav-login">登录</router-link>
       </nav>
-      <div class="user">
+      <div v-if="isLoggedIn" class="user">
         <span class="name">{{ displayName }}</span>
         <button class="btn btn-secondary btn-sm" @click="onLogout">退出</button>
       </div>
     </header>
-    <main class="main" :class="{ wide: isWide, immersive: isImmersive }">
+    <main class="main" :class="{ wide: isWide, immersive: isImmersive }" @mouseenter="openMenu = ''">
       <router-view />
     </main>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getAdminInfo, logout } from '../api/auth'
+import { getAdminInfo, getToken, logout } from '../api/auth'
 
 const router = useRouter()
 const route = useRoute()
+const openMenu = ref('')
+const isLoggedIn = computed(() => !!getToken())
 const displayName = computed(() => getAdminInfo().displayName || getAdminInfo().username || '管理员')
 const isWide = computed(() => route.name === 'cockpit' || route.name === 'nation-cockpit')
 const isImmersive = computed(() => route.meta.immersive === true || route.name === 'home')
+const isCockpitActive = computed(() => route.name === 'cockpit' || route.name === 'nation-cockpit')
+const isAiActive = computed(() => route.name === 'ai-image' || route.name === 'ai-video')
+
+function closeIf(key) {
+  if (openMenu.value === key) openMenu.value = ''
+}
 
 function onLogout() {
   logout()
@@ -86,16 +131,81 @@ function onLogout() {
   gap: 0.5rem;
   flex: 1;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .nav-link {
   padding: 0.45rem 0.9rem;
   border-radius: 8px;
   color: var(--muted);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
 }
 
 .nav-link.active,
-.nav-link:hover {
+.nav-link:hover,
+.nav-login {
+  color: var(--accent-dark);
+  background: #ecfdf5;
+}
+
+.nav-login {
+  margin-left: auto;
+}
+
+.nav-dropdown.active > .nav-trigger,
+.nav-dropdown.open > .nav-trigger {
+  color: var(--accent-dark);
+  background: #ecfdf5;
+}
+
+.nav-dropdown {
+  position: relative;
+}
+
+.nav-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.caret {
+  font-size: 0.65rem;
+  opacity: 0.7;
+}
+
+.dropdown-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% - 2px);
+  left: 0;
+  min-width: 10rem;
+  padding: 0.4rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+  z-index: 40;
+}
+
+.nav-dropdown.open .dropdown-panel,
+.nav-dropdown:hover .dropdown-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.dropdown-item {
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.dropdown-item:hover,
+.dropdown-item.active {
   color: var(--accent-dark);
   background: #ecfdf5;
 }

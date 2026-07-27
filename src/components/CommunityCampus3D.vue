@@ -132,42 +132,66 @@ function rebuild(fit = true) {
   for (const item of items) {
     const stat = props.buildingStats?.[item.key]
     const tone = buildingStatusTone(stat)
-    const geo = new THREE.BoxGeometry(item.width, item.height, item.depth)
-    const mat = new THREE.MeshStandardMaterial({
-      color: BUILDING_TONE_COLOR[tone],
-      metalness: 0.05,
-      roughness: 0.72,
-      emissive: 0x000000,
-      emissiveIntensity: 0
-    })
-    const mesh = new THREE.Mesh(geo, mat)
-    mesh.position.set(item.x, item.height / 2, item.z)
-    mesh.castShadow = true
-    mesh.receiveShadow = true
-    mesh.userData = {
+    const units = Math.max(1, Number(item.units) || 1)
+    const gap = units > 1 ? 0.6 : 0
+    const unitW = (item.width - gap * (units - 1)) / units
+
+    const root = new THREE.Group()
+    root.position.set(item.x, 0, item.z)
+    root.userData = {
       key: item.key,
       phaseId: item.phaseId,
       buildingId: item.buildingId,
       name: item.name,
-      height: item.height
+      height: item.height,
+      units
     }
 
-    const edge = new THREE.LineSegments(
-      new THREE.EdgesGeometry(geo),
-      new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 })
-    )
-    mesh.add(edge)
+    for (let u = 0; u < units; u++) {
+      const geo = new THREE.BoxGeometry(unitW, item.height, item.depth)
+      const mat = new THREE.MeshStandardMaterial({
+        color: BUILDING_TONE_COLOR[tone],
+        metalness: 0.05,
+        roughness: 0.72,
+        emissive: 0x000000,
+        emissiveIntensity: 0
+      })
+      const mesh = new THREE.Mesh(geo, mat)
+      const xOff = -item.width / 2 + unitW / 2 + u * (unitW + gap)
+      mesh.position.set(xOff, item.height / 2, 0)
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      mesh.userData = { unitIndex: u + 1, parentKey: item.key }
+
+      const edge = new THREE.LineSegments(
+        new THREE.EdgesGeometry(geo),
+        new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 })
+      )
+      mesh.add(edge)
+
+      // 多单元时在体块上标单元号
+      if (units > 1) {
+        const uEl = document.createElement('div')
+        uEl.className = 'campus-unit-label'
+        uEl.textContent = `${u + 1}单元`
+        const uLabel = new CSS2DObject(uEl)
+        uLabel.position.set(0, 0.2, item.depth / 2 + 0.3)
+        mesh.add(uLabel)
+      }
+
+      root.add(mesh)
+    }
 
     const labelEl = document.createElement('div')
     labelEl.className = 'campus-label'
     labelEl.textContent = labelText(item, stat)
     const label = new CSS2DObject(labelEl)
-    label.position.set(0, item.height / 2 + 2, 0)
-    mesh.userData.labelEl = labelEl
-    mesh.add(label)
+    label.position.set(0, item.height + 2, 0)
+    root.userData.labelEl = labelEl
+    root.add(label)
 
-    buildingGroup.add(mesh)
-    meshByKey.set(item.key, mesh)
+    buildingGroup.add(root)
+    meshByKey.set(item.key, root)
   }
 
   scene.add(buildingGroup)
@@ -176,15 +200,22 @@ function rebuild(fit = true) {
 }
 
 function applyAppearance() {
-  meshByKey.forEach((mesh, key) => {
+  meshByKey.forEach((root, key) => {
     const stat = props.buildingStats?.[key]
     const tone = buildingStatusTone(stat)
     const selected = key === props.selectedKey
-    mesh.material.color.setHex(selected ? 0xf97316 : BUILDING_TONE_COLOR[tone])
-    mesh.material.emissive.setHex(selected ? 0x7c2d12 : 0x000000)
-    mesh.material.emissiveIntensity = selected ? 0.25 : 0
-    if (mesh.userData.labelEl) {
-      mesh.userData.labelEl.textContent = labelText({ name: mesh.userData.name }, stat)
+    const color = selected ? 0xf97316 : BUILDING_TONE_COLOR[tone]
+    const emissive = selected ? 0x7c2d12 : 0x000000
+    const emissiveIntensity = selected ? 0.25 : 0
+    root.traverse((child) => {
+      if (child.isMesh && child.material && child.material.color) {
+        child.material.color.setHex(color)
+        child.material.emissive.setHex(emissive)
+        child.material.emissiveIntensity = emissiveIntensity
+      }
+    })
+    if (root.userData.labelEl) {
+      root.userData.labelEl.textContent = labelText({ name: root.userData.name }, stat)
     }
   })
 }
@@ -306,8 +337,13 @@ function pickBuilding(event) {
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
   raycaster.setFromCamera(pointer, camera)
-  const hits = raycaster.intersectObjects(buildingGroup.children, false)
-  return hits.find((h) => h.object?.userData?.key)?.object || null
+  const hits = raycaster.intersectObjects(buildingGroup.children, true)
+  for (const hit of hits) {
+    let obj = hit.object
+    while (obj && !obj.userData?.key) obj = obj.parent
+    if (obj?.userData?.key) return obj
+  }
+  return null
 }
 
 function groundHit(event) {
@@ -593,6 +629,16 @@ onUnmounted(teardown)
   font-size: 11px;
   white-space: nowrap;
   transform: translateY(-4px);
+  user-select: none;
+}
+
+.campus-unit-label {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.55);
+  color: #e2e8f0;
+  font-size: 9px;
+  white-space: nowrap;
   user-select: none;
 }
 </style>

@@ -1,6 +1,6 @@
 import { getToken } from './auth'
 
-const API_BASE = (import.meta.env.VITE_API_BASE || 'http://8.152.99.189/api').replace(/\/$/, '')
+const API_BASE = (import.meta.env.VITE_API_BASE || 'https://hychyr.top/api').replace(/\/$/, '')
 
 export async function apiRequest(path, options = {}) {
   const {

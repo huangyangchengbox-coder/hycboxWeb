@@ -12,7 +12,7 @@ function requireEnv(name) {
 }
 
 module.exports = {
-  HOST: process.env.HYC_SSH_HOST || '8.152.99.189',
+  HOST: process.env.HYC_SSH_HOST || 'hychyr.top',
   USER: process.env.HYC_SSH_USER || 'root',
   get PASSWORD() {
     return requireEnv('HYC_SSH_PASSWORD')

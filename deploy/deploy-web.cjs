@@ -124,7 +124,7 @@ async function main() {
   await exec(conn, `curl -s -o /dev/null -w "web:%{http_code}\\n" http://127.0.0.1/web/ || true`)
 
   conn.end()
-  console.log(`\n部署完成: http://${HOST}/web/`)
+  console.log(`\n部署完成: https://${HOST}/web/`)
 }
 
 main().catch((e) => {

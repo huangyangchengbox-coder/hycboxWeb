@@ -106,6 +106,27 @@ function footprint(building) {
   return { width, depth }
 }
 
+/** 写入楼栋几何项；units 供 3D 按单元拆分体块 */
+function pushBuilding(list, phase, building, pos) {
+  const { width, depth } = footprint(building)
+  const floors = Number(building.maxFloor) || 1
+  const units = Math.max(1, Number(building.units) || 1)
+  list.push({
+    key: `${phase.id}_${building.id}`,
+    phaseId: phase.id,
+    phaseName: phase.name || phase.id,
+    buildingId: String(building.id),
+    name: building.name || `${building.id}号楼`,
+    x: pos.x,
+    z: pos.z,
+    width,
+    depth,
+    height: floors * FLOOR_HEIGHT_M,
+    floors,
+    units
+  })
+}
+
 function resolvePosition(phaseId, buildingId, colIdx, rowIdx) {
   const table = PHASE_POSITIONS[phaseId]
   const fixed = table?.[String(buildingId)]
@@ -136,22 +157,8 @@ export function buildCampusLayout(phases) {
         row.forEach((bid, colIdx) => {
           const building = byId.get(String(bid))
           if (!building) return
-          const { width, depth } = footprint(building)
-          const floors = Number(building.maxFloor) || 1
           const pos = resolvePosition(phaseId, building.id, colIdx, rowIdx)
-          list.push({
-            key: `${phaseId}_${building.id}`,
-            phaseId,
-            phaseName: phase.name || phaseId,
-            buildingId: String(building.id),
-            name: building.name || `${building.id}号楼`,
-            x: pos.x,
-            z: pos.z,
-            width,
-            depth,
-            height: floors * FLOOR_HEIGHT_M,
-            floors
-          })
+          pushBuilding(list, phase, building, pos)
           placed.add(String(building.id))
           byId.delete(String(bid))
         })
@@ -164,44 +171,16 @@ export function buildCampusLayout(phases) {
       if (placed.has(bid)) continue
       const building = byId.get(bid)
       if (!building) continue
-      const { width, depth } = footprint(building)
-      const floors = Number(building.maxFloor) || 1
-      list.push({
-        key: `${phaseId}_${building.id}`,
-        phaseId,
-        phaseName: phase.name || phaseId,
-        buildingId: String(building.id),
-        name: building.name || `${building.id}号楼`,
-        x: pos.x,
-        z: pos.z,
-        width,
-        depth,
-        height: floors * FLOOR_HEIGHT_M,
-        floors
-      })
+      pushBuilding(list, phase, building, pos)
       byId.delete(bid)
     }
 
     let extra = 0
     for (const building of byId.values()) {
-      const { width, depth } = footprint(building)
-      const floors = Number(building.maxFloor) || 1
       const col = extra % 4
       const row = Math.floor(extra / 4) + (grid ? grid.length : 0)
       const pos = resolvePosition(phaseId, building.id, col, row)
-      list.push({
-        key: `${phaseId}_${building.id}`,
-        phaseId,
-        phaseName: phase.name || phaseId,
-        buildingId: String(building.id),
-        name: building.name || `${building.id}号楼`,
-        x: pos.x,
-        z: pos.z,
-        width,
-        depth,
-        height: floors * FLOOR_HEIGHT_M,
-        floors
-      })
+      pushBuilding(list, phase, building, pos)
       extra += 1
     }
   }

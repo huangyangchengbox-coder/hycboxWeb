@@ -17,7 +17,7 @@ const routes = [
         path: 'home',
         name: 'home',
         component: () => import('../views/HomeGlobeView.vue'),
-        meta: { immersive: true }
+        meta: { public: true, immersive: true }
       },
       {
         path: 'cockpit',
