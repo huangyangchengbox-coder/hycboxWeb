@@ -33,9 +33,30 @@ export async function login(username, password) {
     body: { username, password, client: 'web' },
     auth: false
   })
+  applyLoginData(data)
+  return data
+}
+
+export function applyLoginData(data) {
   setToken(data.token)
   setAdminInfo(data)
-  return data
+}
+
+/** 创建 Web 扫码登录票据 */
+export async function createQrLogin() {
+  const { apiRequest } = await import('./client')
+  return apiRequest('/admin/qr-login/create', {
+    method: 'POST',
+    auth: false
+  })
+}
+
+/** 轮询扫码登录状态 */
+export async function pollQrLogin(ticket) {
+  const { apiRequest } = await import('./client')
+  return apiRequest(`/admin/qr-login/${encodeURIComponent(ticket)}`, {
+    auth: false
+  })
 }
 
 export function logout() {
