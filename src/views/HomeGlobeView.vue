@@ -112,7 +112,13 @@
           </div>
         </div>
       </div>
-      <router-link v-if="!inSpace && !isLoggedIn" to="/login" class="home-login">登录</router-link>
+      <router-link
+        v-if="!inSpace"
+        :to="isLoggedIn ? '/cockpit' : '/login'"
+        class="home-login"
+      >
+        {{ isLoggedIn ? '管理' : '登录' }}
+      </router-link>
       <p v-if="error" class="home-error">{{ error }}</p>
     </div>
 
@@ -523,19 +529,23 @@ onUnmounted(() => {
 }
 
 .home-login {
-  padding: 0.4rem 0.75rem;
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0.5rem 1.1rem;
   border-radius: 999px;
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: #fff;
+  background: rgba(13, 148, 136, 0.55);
+  border: 1px solid rgba(45, 212, 191, 0.55);
   pointer-events: auto;
+  z-index: 40;
 }
 
 .home-login:hover {
-  color: #fff;
-  background: rgba(13, 148, 136, 0.35);
-  border-color: rgba(45, 212, 191, 0.4);
+  background: rgba(13, 148, 136, 0.8);
+  border-color: rgba(45, 212, 191, 0.85);
 }
 
 .home-error {
