@@ -3,7 +3,7 @@
     <div class="login-shell">
       <div class="card login-card">
         <h1>hycBox</h1>
-        <p class="subtitle">管理端 · 账号密码登录</p>
+        <p class="subtitle">{{envLabel}} · 账号密码登录</p>
         <form @submit.prevent="onSubmit">
           <div class="form-group">
             <label>账号</label>
@@ -22,7 +22,9 @@
 
       <div class="card qr-card">
         <h2>小程序扫码登录</h2>
-        <p class="subtitle">使用已登录的管理员小程序扫码并确认</p>
+        <p class="subtitle">
+          {{ isTrial ? '请用【体验版】小程序扫码确认（勿用正式版）' : '请用【正式版】小程序扫码确认（勿用体验版）' }}
+        </p>
         <div class="qr-box">
           <img v-if="qrImageSrc" :src="qrImageSrc" alt="扫码登录" class="qr-image" />
           <div v-else class="qr-placeholder">{{ qrLoading ? '生成二维码…' : '二维码加载失败' }}</div>
@@ -44,6 +46,8 @@ import { applyLoginData, createQrLogin, login, pollQrLogin } from '../api/auth'
 
 const route = useRoute()
 const router = useRouter()
+const isTrial = import.meta.env.VITE_APP_ENV === 'trial'
+const envLabel = isTrial ? '体验管理端' : '管理端'
 const username = ref('')
 const password = ref('')
 const loading = ref(false)

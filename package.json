@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:trial": "vite build --mode trial",
     "preview": "vite preview",
-    "deploy": "node deploy/deploy-web.cjs"
+    "deploy": "node deploy/deploy-web.cjs",
+    "deploy:trial": "node deploy/deploy-web.cjs --trial"
   },
   "dependencies": {
     "echarts": "^5.5.1",
