@@ -38,6 +38,11 @@ const routes = [
         path: 'ai-video',
         name: 'ai-video',
         component: () => import('../views/AiVideoView.vue')
+      },
+      {
+        path: 'hub-entries',
+        name: 'hub-entries',
+        component: () => import('../views/HubEntriesView.vue')
       }
     ]
   }

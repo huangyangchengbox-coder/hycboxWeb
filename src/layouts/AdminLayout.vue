@@ -46,6 +46,8 @@
               </router-link>
             </div>
           </div>
+
+          <router-link to="/hub-entries" class="nav-link" active-class="active">首页入口</router-link>
         </template>
         <router-link v-else to="/login" class="nav-link nav-login">登录</router-link>
       </nav>
