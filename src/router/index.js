@@ -45,6 +45,11 @@ const routes = [
         component: () => import('../views/AiCloudflareView.vue')
       },
       {
+        path: 'ai-nvidia-nim',
+        name: 'ai-nvidia-nim',
+        component: () => import('../views/AiNvidiaNimView.vue')
+      },
+      {
         path: 'hub-entries',
         name: 'hub-entries',
         component: () => import('../views/HubEntriesView.vue')

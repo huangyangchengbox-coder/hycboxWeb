@@ -47,6 +47,9 @@
               <router-link to="/ai-cloudflare" class="dropdown-item" active-class="active" @click="openMenu = ''">
                 Cloudflare Workers AI
               </router-link>
+              <router-link to="/ai-nvidia-nim" class="dropdown-item" active-class="active" @click="openMenu = ''">
+                NVIDIA NIM AI
+              </router-link>
             </div>
           </div>
 
@@ -79,7 +82,10 @@ const isWide = computed(() => route.name === 'cockpit' || route.name === 'nation
 const isImmersive = computed(() => route.meta.immersive === true || route.name === 'home')
 const isCockpitActive = computed(() => route.name === 'cockpit' || route.name === 'nation-cockpit')
 const isAiActive = computed(() =>
-  route.name === 'ai-image' || route.name === 'ai-video' || route.name === 'ai-cloudflare'
+  route.name === 'ai-image'
+  || route.name === 'ai-video'
+  || route.name === 'ai-cloudflare'
+  || route.name === 'ai-nvidia-nim'
 )
 
 function closeIf(key) {
