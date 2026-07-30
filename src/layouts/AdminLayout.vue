@@ -34,15 +34,18 @@
             @mouseleave="closeIf('ai')"
           >
             <button type="button" class="nav-link nav-trigger">
-              AI
+              Web AI
               <span class="caret">▾</span>
             </button>
             <div class="dropdown-panel">
               <router-link to="/ai-image" class="dropdown-item" active-class="active" @click="openMenu = ''">
-                图片 AI
+                Agnes AI · 图片
               </router-link>
               <router-link to="/ai-video" class="dropdown-item" active-class="active" @click="openMenu = ''">
-                视频 AI
+                Agnes AI · 视频
+              </router-link>
+              <router-link to="/ai-cloudflare" class="dropdown-item" active-class="active" @click="openMenu = ''">
+                Cloudflare Workers AI
               </router-link>
             </div>
           </div>
@@ -75,7 +78,9 @@ const displayName = computed(() => getAdminInfo().displayName || getAdminInfo().
 const isWide = computed(() => route.name === 'cockpit' || route.name === 'nation-cockpit')
 const isImmersive = computed(() => route.meta.immersive === true || route.name === 'home')
 const isCockpitActive = computed(() => route.name === 'cockpit' || route.name === 'nation-cockpit')
-const isAiActive = computed(() => route.name === 'ai-image' || route.name === 'ai-video')
+const isAiActive = computed(() =>
+  route.name === 'ai-image' || route.name === 'ai-video' || route.name === 'ai-cloudflare'
+)
 
 function closeIf(key) {
   if (openMenu.value === key) openMenu.value = ''

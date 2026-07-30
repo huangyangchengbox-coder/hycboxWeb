@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <section class="card">
-      <h2>图片 AI 生成</h2>
+      <h2>Agnes AI · 图片生成</h2>
       <form @submit.prevent="onGenerate">
         <div class="form-group">
           <label>描述 prompt <span class="req">*</span></label>

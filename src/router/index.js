@@ -40,6 +40,11 @@ const routes = [
         component: () => import('../views/AiVideoView.vue')
       },
       {
+        path: 'ai-cloudflare',
+        name: 'ai-cloudflare',
+        component: () => import('../views/AiCloudflareView.vue')
+      },
+      {
         path: 'hub-entries',
         name: 'hub-entries',
         component: () => import('../views/HubEntriesView.vue')
