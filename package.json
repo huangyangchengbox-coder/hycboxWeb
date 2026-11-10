@@ -7,9 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "build:trial": "vite build --mode trial",
+    "build:v2": "vite build --mode v2",
     "preview": "vite preview",
     "deploy": "node deploy/deploy-web.cjs",
-    "deploy:trial": "node deploy/deploy-web.cjs --trial"
+    "deploy:trial": "node deploy/deploy-web.cjs --trial",
+    "deploy:v2": "node deploy/deploy-web.cjs --v2"
   },
   "dependencies": {
     "echarts": "^5.5.1",

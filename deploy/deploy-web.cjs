@@ -1,7 +1,8 @@
 /**
  * 构建并上传 hycBoxWeb 静态资源
  * 正式：/opt/hycbox-web/ → https://hychyr.top/web/
- * 体验：/opt/hycbox-web-trial/ → https://trial.hychyr.top/web/
+ * 体验：/opt/hycbox-web-trial/ → https://hychyr.top/web-trial/
+ * v2：/opt/hycbox-web-v2/ → https://hychyr.top/web-v2/
  *
  * 用法：
  *   npm run build && set HYC_SSH_PASSWORD=xxx && npm run deploy
@@ -13,9 +14,14 @@ const path = require('path')
 const { HOST, PORT, USER, PASSWORD, PUBLIC_HOST } = require('./ssh-env.cjs')
 
 const isTrial = process.argv.includes('--trial')
+const isV2 = process.argv.includes('--v2')
 const LOCAL_DIST = path.join(__dirname, '..', 'dist')
-const REMOTE_DIR = isTrial ? '/opt/hycbox-web-trial' : '/opt/hycbox-web'
-const PUBLIC_URL = isTrial ? 'https://hychyr.top/web-trial/' : `https://${PUBLIC_HOST}/web/`
+const REMOTE_DIR = isV2 ? '/opt/hycbox-web-v2' : isTrial ? '/opt/hycbox-web-trial' : '/opt/hycbox-web'
+const PUBLIC_URL = isV2
+  ? `https://${PUBLIC_HOST}/web-v2/`
+  : isTrial
+    ? 'https://hychyr.top/web-trial/'
+    : `https://${PUBLIC_HOST}/web/`
 const NGINX_CONF_LOCAL = path.join(__dirname, '..', '..', 'hycBoxServer', 'deploy', 'nginx-hychyr.top.conf')
 
 function exec(conn, cmd) {
@@ -123,7 +129,7 @@ async function main() {
     conn.connect({ host: HOST, port: PORT, username: USER, password: PASSWORD, tryKeyboard: true, readyTimeout: 30000 })
   })
 
-  console.log(`SSH 连接成功（${isTrial ? '体验' : '正式'}）\n`)
+  console.log(`SSH 连接成功（${isV2 ? 'v2' : isTrial ? '体验' : '正式'}）\n`)
   await exec(conn, `rm -rf ${REMOTE_DIR} && mkdir -p ${REMOTE_DIR}`)
 
   await new Promise((resolve, reject) => {
@@ -143,7 +149,7 @@ async function main() {
   await patchTrialServerEnv(conn)
 
   const hostHeader = PUBLIC_HOST
-  const webPath = isTrial ? '/web-trial/' : '/web/'
+  const webPath = isV2 ? '/web-v2/' : isTrial ? '/web-trial/' : '/web/'
   await exec(conn, `curl -s -o /dev/null -w "web:%{http_code}\\n" -H "Host: ${hostHeader}" http://127.0.0.1${webPath} || true`)
   await exec(conn, `curl -s -o /dev/null -w "api:%{http_code}\\n" -H "Host: ${hostHeader}" http://127.0.0.1${isTrial ? '/api-trial/health' : '/api/health'} || true`)
 

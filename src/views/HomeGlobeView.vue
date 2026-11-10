@@ -125,6 +125,7 @@
     <div v-if="loaderDone && !error" class="bottom-bar">
       <template v-if="!inSpace && !onMoon">
         <button type="button" class="space-btn" @click="enterSpace">进入太空</button>
+        <router-link class="space-btn" to="/cosmos">COSMOS v2</router-link>
       </template>
       <template v-else-if="inSpace && !insideTarget">
         <div class="btn-row">
@@ -570,6 +571,14 @@ onUnmounted(() => {
   padding: 1.25rem 1.5rem calc(1.25rem + env(safe-area-inset-bottom));
   background: linear-gradient(0deg, rgba(0, 0, 0, 0.72), transparent 90%);
   pointer-events: none;
+}
+
+a.space-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  box-sizing: border-box;
 }
 
 .space-btn {

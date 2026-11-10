@@ -12,7 +12,13 @@ const routes = [
     path: '/',
     component: () => import('../layouts/AdminLayout.vue'),
     children: [
-      { path: '', redirect: '/home' },
+      { path: '', redirect: '/cosmos' },
+      {
+        path: 'cosmos',
+        name: 'cosmos',
+        component: () => import('../views/CosmosView.vue'),
+        meta: { public: true, immersive: true }
+      },
       {
         path: 'home',
         name: 'home',
