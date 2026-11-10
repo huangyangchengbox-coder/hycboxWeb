@@ -1,6 +1,9 @@
 <template>
   <div class="cosmos" ref="rootRef">
     <canvas ref="canvasRef" class="cosmos-canvas"></canvas>
+    <WorldMenu>
+      <router-link class="wm-link" to="/home">经典地球</router-link>
+    </WorldMenu>
 
     <header class="cosmos-top">
       <div>
@@ -9,7 +12,6 @@
       </div>
       <p class="cosmos-hint">{{ activeMode.hint }}</p>
       <div class="cosmos-top-actions">
-        <router-link class="ghost" to="/home">经典地球</router-link>
         <button type="button" class="ghost" @click="toggleFull">全屏</button>
       </div>
     </header>
@@ -88,6 +90,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { MODES } from '../cosmos/catalog.js'
 import { CosmosScene } from '../cosmos/CosmosScene.js'
+import WorldMenu from '../components/WorldMenu.vue'
 
 const modes = MODES
 const speeds = [0.2, 1, 4, 20]
@@ -195,7 +198,7 @@ onUnmounted(() => {
 }
 
 .cosmos-top {
-  top: 0;
+  top: 48px;
   left: 196px;
   right: 0;
   display: flex;
@@ -231,7 +234,7 @@ onUnmounted(() => {
 }
 
 .cosmos-nav {
-  top: 0;
+  top: 48px;
   left: 0;
   bottom: 0;
   width: 180px;

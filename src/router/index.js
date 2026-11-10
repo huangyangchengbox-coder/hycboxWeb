@@ -20,6 +20,12 @@ const routes = [
         meta: { public: true, immersive: true }
       },
       {
+        path: 'wildlife',
+        name: 'wildlife',
+        component: () => import('../views/WildlifeView.vue'),
+        meta: { public: true, immersive: true }
+      },
+      {
         path: 'home',
         name: 'home',
         component: () => import('../views/HomeGlobeView.vue'),
