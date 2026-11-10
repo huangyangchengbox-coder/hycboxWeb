@@ -62,11 +62,11 @@
         {{
           insideKind === 'blackhole'
             ? `已进入视界示意区域 · ${divingTarget?.type || ''}`
-            : `已进入星系示意内部 · ${divingTarget?.type || ''}`
+            : `已进入星云示意内部 · ${divingTarget?.type || ''} ${divingTarget?.nameEn || ''}`
         }}
       </div>
       <button type="button" class="space-btn back" @click="exitInside">
-        {{ insideKind === 'blackhole' ? '离开黑洞' : '离开星系' }}
+        {{ insideKind === 'blackhole' ? '离开黑洞' : '离开星云' }}
       </button>
     </div>
 
@@ -102,11 +102,11 @@
                 : insideKind === 'blackhole'
                   ? '黑洞内部示意 · 时空拉伸特效'
                   : insideKind === 'galaxy'
-                    ? '星系内部示意 · 拖拽环视星盘'
+                    ? '星云内部示意 · 拖拽环视轮廓'
                     : spaceMode === 'blackholes'
                       ? '黑洞模式 · 点击黑洞坠入 · 拖拽环视'
                       : inSpace
-                        ? '太空模式 · 点击星系进入 · 拖拽环视'
+                        ? '太空模式 · 点击星云进入 · 拖拽环视'
                         : '地球主页 · 点击月球进入 · 拖拽旋转'
             }}
           </div>
@@ -142,7 +142,7 @@
             class="space-btn back"
             @click="backToGalaxies"
           >
-            返回星系
+            返回星云
           </button>
           <button type="button" class="space-btn back" @click="leaveSpace">返回地球</button>
         </div>
@@ -150,7 +150,7 @@
           {{
             spaceMode === 'blackholes'
               ? '点击黑洞或标签滑入视界 · 布局为示意'
-              : '点击星系或标签进入内部 · 布局为示意'
+              : '点击星云或标签进入内部 · 轮廓按经典形态示意'
           }}
         </p>
       </template>

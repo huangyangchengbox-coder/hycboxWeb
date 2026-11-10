@@ -3,7 +3,7 @@
  */
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { layoutGalaxies } from './galaxies.js'
+import { layoutNebulae, paintNebulaCanvas, formatNebulaDist } from './nebulae.js'
 import { layoutBlackholes, formatBhDist } from './blackholes.js'
 
 function makeGalaxyTexture() {
@@ -87,7 +87,8 @@ export class SpaceScene {
     this.animationId = 0
     this.t = 0
     this.mode = 'galaxies'
-    this.galaxies = layoutGalaxies()
+    this.galaxies = layoutNebulae()
+    this.nebulaTex = new Map()
     this.blackholes = layoutBlackholes()
     this.galaxySprites = []
     this.bhMeshes = []
@@ -124,6 +125,12 @@ export class SpaceScene {
     this.galaxyTex = makeGalaxyTexture()
     this.starTex = makeStarTexture()
     this.bhTex = makeBlackholeTexture()
+    for (const g of this.galaxies) {
+      const tex = new THREE.CanvasTexture(paintNebulaCanvas(g.id))
+      tex.colorSpace = THREE.SRGBColorSpace
+      tex.needsUpdate = true
+      this.nebulaTex.set(g.id, tex)
+    }
     this.#buildStarfield()
     this.#buildGalaxies()
     this.#buildBlackholes()
@@ -291,39 +298,28 @@ export class SpaceScene {
     this.scene.add(group)
 
     for (const g of this.galaxies) {
+      const aspect = g.aspect || 1
       const mat = new THREE.SpriteMaterial({
-        map: this.galaxyTex,
-        color: new THREE.Color(g.color),
+        map: this.nebulaTex.get(g.id) || this.galaxyTex,
+        color: 0xffffff,
         transparent: true,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        opacity: g.id === 'mw' ? 0.95 : 0.82
+        blending: THREE.NormalBlending,
+        opacity: 1
       })
       const sprite = new THREE.Sprite(mat)
-      const s = g.size * (g.id === 'mw' ? 6.5 : 3.2)
-      sprite.scale.set(s, s * 0.72, 1)
+      const s = g.size * 5.2
+      sprite.scale.set(s * aspect, s, 1)
       sprite.position.set(g.x, g.y, g.z)
       sprite.userData = {
         id: g.id,
         kind: 'galaxy',
         base: { x: g.x, y: g.y, z: g.z },
-        meta: g
+        meta: g,
+        aspect
       }
       group.add(sprite)
       this.galaxySprites.push(sprite)
-
-      const core = new THREE.Sprite(
-        new THREE.SpriteMaterial({
-          map: this.starTex,
-          color: 0xffffff,
-          transparent: true,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-          opacity: 0.9
-        })
-      )
-      core.scale.set(s * 0.18, s * 0.18, 1)
-      sprite.add(core)
 
       // 可点击碰撞球（跟随精灵）
       const hit = new THREE.Mesh(
@@ -482,15 +478,29 @@ export class SpaceScene {
     const haze = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: this.galaxyTex,
-        color: 0xa8c8ff,
+        color: 0xffffff,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.95,
         depthWrite: false,
-        blending: THREE.AdditiveBlending
+        blending: THREE.NormalBlending
       })
     )
-    haze.scale.set(48, 28, 1)
+    haze.scale.set(36, 36, 1)
+    this.galaxyInsideHaze = haze
     group.add(haze)
+  }
+
+  #applyInsideNebula(meta) {
+    const tex = meta && this.nebulaTex.get(meta.id)
+    const haze = this.galaxyInsideHaze
+    if (!haze || !tex) return
+    haze.material.map = tex
+    haze.material.color.set(0xffffff)
+    haze.material.opacity = 0.96
+    haze.material.needsUpdate = true
+    const aspect = meta.aspect || 1
+    const h = 32
+    haze.scale.set(h * aspect, h, 1)
   }
 
   #onPointerClick(e) {
@@ -584,6 +594,7 @@ export class SpaceScene {
               this.dust.visible = false
               this.galaxyInsideFx.visible = true
               this.galaxyInsideFx.position.copy(this.dive.toTarget)
+              this.#applyInsideNebula(this.dive.meta)
               this.camera.position.copy(this.dive.toPos)
               // 进入后允许缓慢环视星系内部
               this.controls.enabled = true
@@ -610,20 +621,18 @@ export class SpaceScene {
         for (const sprite of this.galaxySprites) {
           const g = sprite.userData.meta
           const base = sprite.userData.base
-          if (g.id === 'mw') {
-            sprite.rotation.z = this.t * 0.0004
-            continue
-          }
           const phase = g.orbitPhase + this.t * g.orbitSpeed
-          const wobble = Math.sin(this.t * 0.002 + g.orbitPhase) * 0.35
-          const spin = 1 + Math.sin(phase) * 0.04
+          const wobble = Math.sin(this.t * 0.002 + g.orbitPhase) * 0.28
+          const spin = 1 + Math.sin(phase) * 0.03
+          const aspect = sprite.userData.aspect || g.aspect || 1
           sprite.position.set(
-            base.x * Math.cos(phase * 0.15) - base.z * Math.sin(phase * 0.15),
+            base.x * Math.cos(phase * 0.12) - base.z * Math.sin(phase * 0.12),
             base.y + wobble,
-            base.x * Math.sin(phase * 0.15) + base.z * Math.cos(phase * 0.15)
+            base.x * Math.sin(phase * 0.12) + base.z * Math.cos(phase * 0.12)
           )
-          sprite.scale.x = g.size * 3.2 * spin
-          sprite.scale.y = g.size * 3.2 * 0.72 * spin
+          const s = g.size * 5.2 * spin
+          sprite.scale.x = s * aspect
+          sprite.scale.y = s
         }
       }
 
@@ -699,12 +708,8 @@ export class SpaceScene {
           kind: 'galaxy',
           id: g.id,
           name: g.name,
-          sub: g.type,
-          distText: g.distMly
-            ? g.distMly < 1
-              ? `${(g.distMly * 1000).toFixed(0)} 千光年`
-              : `${g.distMly < 100 ? g.distMly.toFixed(1) : Math.round(g.distMly)} 百万光年`
-            : '本星系',
+          sub: `${g.type} · ${g.nameEn || ''}`,
+          distText: formatNebulaDist(g.distLy),
           x,
           y,
           opacity: Math.min(1, Math.max(0.15, (facing - 0.15) / 0.5)),
@@ -748,21 +753,22 @@ export class SpaceScene {
     window.removeEventListener('resize', this.handleResize)
     this.canvas.removeEventListener('click', this._onClick)
     this.controls?.dispose()
-    this.galaxyTex?.dispose()
-    this.starTex?.dispose()
-    this.bhTex?.dispose()
+    const sharedMaps = new Set([this.galaxyTex, this.starTex, this.bhTex])
+    if (this.nebulaTex) {
+      for (const tex of this.nebulaTex.values()) sharedMaps.add(tex)
+    }
     this.scene?.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose()
       if (obj.material) {
         const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
         mats.forEach((m) => {
-          if (m.map && m.map !== this.galaxyTex && m.map !== this.starTex && m.map !== this.bhTex) {
-            m.map.dispose?.()
-          }
+          if (m.map && !sharedMaps.has(m.map)) m.map.dispose?.()
           m.dispose?.()
         })
       }
     })
+    for (const tex of sharedMaps) tex?.dispose?.()
+    this.nebulaTex?.clear()
     this.renderer?.dispose()
   }
 }

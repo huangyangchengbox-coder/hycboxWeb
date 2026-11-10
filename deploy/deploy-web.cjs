@@ -10,12 +10,12 @@
 const { Client } = require('ssh2')
 const fs = require('fs')
 const path = require('path')
-const { HOST, USER, PASSWORD } = require('./ssh-env.cjs')
+const { HOST, PORT, USER, PASSWORD, PUBLIC_HOST } = require('./ssh-env.cjs')
 
 const isTrial = process.argv.includes('--trial')
 const LOCAL_DIST = path.join(__dirname, '..', 'dist')
 const REMOTE_DIR = isTrial ? '/opt/hycbox-web-trial' : '/opt/hycbox-web'
-const PUBLIC_URL = isTrial ? 'https://hychyr.top/web-trial/' : `https://${HOST}/web/`
+const PUBLIC_URL = isTrial ? 'https://hychyr.top/web-trial/' : `https://${PUBLIC_HOST}/web/`
 const NGINX_CONF_LOCAL = path.join(__dirname, '..', '..', 'hycBoxServer', 'deploy', 'nginx-hychyr.top.conf')
 
 function exec(conn, cmd) {
@@ -120,7 +120,7 @@ async function main() {
   await new Promise((resolve, reject) => {
     conn.on('keyboard-interactive', (n, i, l, p, f) => f(p.map(() => PASSWORD)))
     conn.on('ready', resolve).on('error', reject)
-    conn.connect({ host: HOST, username: USER, password: PASSWORD, tryKeyboard: true, readyTimeout: 30000 })
+    conn.connect({ host: HOST, port: PORT, username: USER, password: PASSWORD, tryKeyboard: true, readyTimeout: 30000 })
   })
 
   console.log(`SSH 连接成功（${isTrial ? '体验' : '正式'}）\n`)
@@ -142,7 +142,7 @@ async function main() {
   await syncNginx(conn)
   await patchTrialServerEnv(conn)
 
-  const hostHeader = HOST
+  const hostHeader = PUBLIC_HOST
   const webPath = isTrial ? '/web-trial/' : '/web/'
   await exec(conn, `curl -s -o /dev/null -w "web:%{http_code}\\n" -H "Host: ${hostHeader}" http://127.0.0.1${webPath} || true`)
   await exec(conn, `curl -s -o /dev/null -w "api:%{http_code}\\n" -H "Host: ${hostHeader}" http://127.0.0.1${isTrial ? '/api-trial/health' : '/api/health'} || true`)

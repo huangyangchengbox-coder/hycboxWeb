@@ -5,7 +5,7 @@
 const { Client } = require('ssh2')
 const fs = require('fs')
 const path = require('path')
-const { HOST, USER, PASSWORD } = require('./ssh-env.cjs')
+const { HOST, PORT, USER, PASSWORD } = require('./ssh-env.cjs')
 
 const NGINX_CONF = path.join(__dirname, '..', '..', 'hycBoxServer', 'deploy', 'nginx-hychyr.top.conf')
 
@@ -40,7 +40,7 @@ async function main() {
   await new Promise((resolve, reject) => {
     conn.on('keyboard-interactive', (n, i, l, p, f) => f(p.map(() => PASSWORD)))
     conn.on('ready', resolve).on('error', reject)
-    conn.connect({ host: HOST, username: USER, password: PASSWORD, tryKeyboard: true, readyTimeout: 30000 })
+    conn.connect({ host: HOST, port: PORT, username: USER, password: PASSWORD, tryKeyboard: true, readyTimeout: 30000 })
   })
 
   const content = fs.readFileSync(NGINX_CONF, 'utf8')
