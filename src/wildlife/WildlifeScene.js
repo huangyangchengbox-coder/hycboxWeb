@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { HABITATS } from './habitats.js'
 import { MIGRATIONS, SPECIALS } from './features.js'
+import { bubbleField, critter } from './creatures.js'
 
 function visiblePath(path) {
   const lats = path.map((item) => item[0])
@@ -55,66 +56,6 @@ function smooth(t) {
   return t * t * (3 - 2 * t)
 }
 
-function critter(shape, color) {
-  const g = new THREE.Group()
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.72 })
-  const dark = new THREE.MeshStandardMaterial({ color: '#1c1c1c', roughness: 0.6 })
-  if (shape === 'whale' || shape === 'dolphin') {
-    const body = new THREE.Mesh(new THREE.SphereGeometry(shape === 'whale' ? 0.7 : 0.38, 24, 16), mat)
-    body.scale.set(2.2, 0.7, 0.7)
-    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.45, 8), mat)
-    tail.rotation.z = Math.PI / 2
-    tail.position.x = shape === 'whale' ? -1.5 : -0.8
-    g.add(body, tail)
-  } else if (shape === 'shark') {
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.36, 20, 12), mat)
-    body.scale.set(2.1, 0.55, 0.5)
-    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.32, 4), dark)
-    fin.position.y = 0.28
-    g.add(body, fin)
-  } else if (shape === 'turtle') {
-    const shell = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 12), mat)
-    shell.scale.y = 0.55
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), dark)
-    head.position.x = 0.42
-    g.add(shell, head)
-  } else if (shape === 'bird') {
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.28, 16, 12), mat)
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.22), mat)
-    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.2, 6), dark)
-    beak.rotation.z = -Math.PI / 2
-    beak.position.x = 0.32
-    g.add(body, wing, beak)
-  } else if (shape === 'tall') {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.35, 0.28), mat)
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.1, 8), mat)
-    neck.position.y = 0.7
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), mat)
-    head.position.set(0.08, 1.25, 0)
-    g.add(body, neck, head)
-  } else if (shape === 'snake') {
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.9, 4, 8), mat)
-    body.rotation.z = Math.PI / 2
-    g.add(body)
-  } else if (shape === 'round') {
-    g.add(new THREE.Mesh(new THREE.SphereGeometry(0.36, 20, 14), mat))
-  } else {
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.32, 0.28), mat)
-    body.position.y = 0.28
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), mat)
-    head.position.set(0.4, 0.42, 0)
-    g.add(body, head)
-    for (const x of [-0.22, 0.22]) {
-      for (const z of [-0.1, 0.1]) {
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.28, 6), dark)
-        leg.position.set(x, 0.12, z)
-        g.add(leg)
-      }
-    }
-  }
-  return g
-}
-
 export class WildlifeScene {
   constructor(canvas, hooks = {}) {
     this.canvas = canvas
@@ -153,6 +94,7 @@ export class WildlifeScene {
     this.sun = new THREE.DirectionalLight(0xfff4dd, 1.4)
     this.sun.position.set(4, 6, 3)
     this.scene.add(this.ambient, this.sun)
+    this.scene.add(new THREE.HemisphereLight(0xd7f2ff, 0x6a4a28, 0.85))
     this.scene.add(this.camera)
     this.spot = new THREE.SpotLight(0xfff1c8, 0, 16, 0.42, 0.5, 1)
     this.spot.position.set(0, 0, 0)
@@ -211,7 +153,7 @@ export class WildlifeScene {
     this.renderer.setClearColor(habitat.fog, 1)
     this.selectedId = null
     this.onSelect?.({ type: 'habitat', ...habitat })
-    this.#fly(new THREE.Vector3(0, 2.4, 8), new THREE.Vector3(0, 0.4, 0), instant)
+    this.#fly(new THREE.Vector3(0, 2.1, 6.4), new THREE.Vector3(0, 0.45, 0), instant)
   }
 
   focusAnimal(id) {
@@ -222,7 +164,10 @@ export class WildlifeScene {
     this.onSelect?.({ type: 'animal', ...body.meta })
     const world = new THREE.Vector3()
     body.anchor.getWorldPosition(world)
-    this.#fly(world.clone().add(new THREE.Vector3(0.2, 0.8, 2.4)), world, false)
+    const aim = world.clone()
+    aim.y += 0.35
+    const offset = new THREE.Vector3(1.15, 0.7, 1.25).applyQuaternion(body.anchor.quaternion).multiplyScalar(1.85)
+    this.#fly(aim.clone().add(offset), aim, false)
   }
 
   setReduced(value) {
@@ -335,11 +280,17 @@ export class WildlifeScene {
       )
       ground.rotation.x = -Math.PI / 2
       group.add(ground)
+      if (habitat.id === 'ocean') {
+        const bubbles = bubbleField()
+        group.add(bubbles)
+        group.userData.bubbles = bubbles
+      }
       habitat.animals.forEach((animal, index) => {
         const mesh = critter(animal.shape, animal.color)
         const angle = (index / habitat.animals.length) * Math.PI * 1.4 - 0.4
-        const radius = 2.2 + (index % 2) * 0.8
-        mesh.position.set(Math.cos(angle) * radius, animal.shape === 'bird' ? 1.1 : 0, Math.sin(angle) * radius)
+        const radius = 3.6 + (index % 3) * 0.85
+        const lift = animal.shape === 'bird' ? 1.25 : 0
+        mesh.position.set(Math.cos(angle) * radius, lift, Math.sin(angle) * radius)
         mesh.lookAt(0, mesh.position.y, 0)
         const hit = new THREE.Mesh(
           new THREE.SphereGeometry(0.55, 8, 8),
@@ -512,15 +463,19 @@ export class WildlifeScene {
     this.controls.target.add(move)
   }
 
-  #animateLife() {
+  #animateLife(dt) {
     if (this.reduced) return
     const t = this.clock.elapsedTime
+    const habitat = this.habitatGroups?.get(this.view)
+    habitat?.userData.bubbles?.userData.animate?.(t, dt)
     for (const body of this.bodies) {
       if ((body.kind !== 'animal' && body.kind !== 'special') || !body.base) continue
       const home = body.kind === 'animal' ? body.habitatId === this.view : body.section === this.view
       if (!home) continue
-      body.anchor.position.y = body.base.y + Math.sin(t * 1.5 + body.base.x) * 0.045
-      body.anchor.position.x = body.base.x + Math.sin(t * 0.4 + body.base.z) * 0.16
+      body.anchor.userData.animate?.(t, body.base.x)
+      const bob = body.anchor.userData.motion === 'swim' ? 0.07 : 0.02
+      body.anchor.position.y = body.base.y + Math.sin(t * 0.9 + body.base.x) * bob
+      body.anchor.position.x = body.base.x
       body.hit.position.copy(body.anchor.position)
     }
   }
@@ -571,7 +526,7 @@ export class WildlifeScene {
         this.clouds.rotation.y += dt * 0.12
       }
       this.#roam(dt)
-      this.#animateLife()
+      this.#animateLife(dt)
       this.#animateWeather(dt)
       this.#animateMigration()
       if (this.flight) {
