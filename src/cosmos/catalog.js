@@ -1,6 +1,7 @@
 /** 尺度与轨道为艺术化示意，事实字段取公开近似值。 */
 
 export const MODES = [
+  { id: 'timeline', en: 'TIMELINE', name: '宇宙演化', hint: '拖动时间轴，回溯 138 亿年 · 时间为示意' },
   { id: 'planets', en: 'PLANETS', name: '行星世界', hint: '太阳与八大行星 · 单击选中，双击飞近' },
   { id: 'nebulae', en: 'NEBULAE', name: '星云世界', hint: '按经典轮廓绘制的星云示意' },
   { id: 'deep', en: 'DEEP SPACE', name: '深空世界', hint: '黑洞、星系与高能天体 · 视觉为近似' },

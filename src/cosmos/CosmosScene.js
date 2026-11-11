@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { COSMIC_OBJECTS, MODES } from './catalog.js'
 import { paintNebulaCanvas } from '../globe/nebulae.js'
+import { TimelineStage } from './timeline/TimelineStage.js'
 
 const OVERVIEW = {
   planets: { pos: [0, 28, 72], target: [0, 0, 0] },
@@ -12,7 +13,8 @@ const OVERVIEW = {
   deep: { pos: [0, 8, 28], target: [0, 0, 0] },
   events: { pos: [0, 8, 22], target: [0, 0, 0] },
   explore: { pos: [0, 6, 18], target: [0, 0, 0] },
-  exo: { pos: [0, 5, 18], target: [0, 0, 0] }
+  exo: { pos: [0, 5, 18], target: [0, 0, 0] },
+  timeline: { pos: [0, 4, 16], target: [0, 0, 0] }
 }
 
 function canvasTex(draw, size = 256) {
@@ -114,6 +116,16 @@ export class CosmosScene {
     this.raycaster = new THREE.Raycaster()
     this.pointer = new THREE.Vector2()
     this.supernovaT = -1
+    this.reducedMotion = !!hooks.reducedMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    this.timelineProgress = 0
+    this.timelinePlaying = false
+    this.timelineSpeed = 1
+    this.scrubbing = false
+    this.followCamera = true
+    this.timelineAngle = 0.4
+    this.orbitHold = 0
+    this.onTimelineProgress = hooks.onTimelineProgress || null
+    this.onTimelineEnd = hooks.onTimelineEnd || null
   }
 
   init() {
@@ -149,6 +161,8 @@ export class CosmosScene {
       this.scene.add(group)
     }
     for (const meta of COSMIC_OBJECTS) this.#addBody(meta)
+    this.timelineStage = new TimelineStage(this.groups.timeline, { quality: this.quality })
+    this.timelineStage.setProgress(0)
 
     this.clock = new THREE.Clock()
     this.#resize()
@@ -158,16 +172,27 @@ export class CosmosScene {
     this._dbl = (e) => this.#pick(e, true)
     this.canvas.addEventListener('click', this._click)
     this.canvas.addEventListener('dblclick', this._dbl)
+    this.controls.addEventListener('start', () => {
+      this.orbitHold = performance.now() + 3000
+    })
     this.overview(true)
     this.#loop()
   }
 
   setMode(mode) {
     if (!this.groups[mode] || this.mode === mode) return
+    const leavingTimeline = this.mode === 'timeline'
     this.mode = mode
     for (const key of Object.keys(this.groups)) this.groups[key].visible = key === mode
     this.selectedId = null
     this.onSelect?.(null)
+    if (mode === 'timeline') {
+      this.onLabels?.([])
+      this.timelineStage?.setProgress(this.timelineProgress)
+    } else if (leavingTimeline) {
+      this.renderer.setClearColor(0x000106, 1)
+      this.#restoreStars()
+    }
     this.overview(false)
   }
 
@@ -216,7 +241,50 @@ export class CosmosScene {
     this.quality = level === 'low' ? 'low' : 'high'
     const ratio = this.quality === 'low' ? 1 : Math.min(window.devicePixelRatio || 1, 1.75)
     this.renderer.setPixelRatio(ratio)
+    this.timelineStage?.setQuality(this.quality)
+    if (this.mode === 'timeline') this.#applyTimelineStars()
+    else this.#restoreStars()
     this.#resize()
+  }
+
+  setTimelineProgress(p) {
+    this.timelineProgress = Math.min(1, Math.max(0, p))
+    const era = this.timelineStage?.setProgress(this.timelineProgress)
+    const now = performance.now()
+    const eraChanged = !!(era && era.id !== this._timelineEra)
+    if (eraChanged) this._timelineEra = era.id
+    if (eraChanged || now - (this._tlEmitAt || 0) > 50) {
+      this._tlEmitAt = now
+      this.onTimelineProgress?.(this.timelineProgress)
+    }
+  }
+
+  setTimelinePlaying(playing) {
+    if (this.reducedMotion) playing = false
+    this.timelinePlaying = !!playing
+  }
+
+  setTimelineSpeed(speed) {
+    this.timelineSpeed = speed
+  }
+
+  setScrubbing(flag) {
+    this.scrubbing = !!flag
+    if (this.scrubbing) this.timelinePlaying = false
+  }
+
+  setFollowCamera(flag) {
+    this.followCamera = !!flag
+  }
+
+  focusTimeline() {
+    if (!this.timelineStage) return
+    const plan = this.timelineStage.cameraPlan
+    const ang = this.timelineAngle || 0
+    this.#fly(
+      new THREE.Vector3(Math.sin(ang) * plan.dist, plan.height, Math.cos(ang) * plan.dist),
+      new THREE.Vector3(0, 0, 0)
+    )
   }
 
   playSupernova() {
@@ -519,14 +587,16 @@ export class CosmosScene {
     }
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    this.scene.add(new THREE.Points(geo, new THREE.PointsMaterial({
+    this.starMat = new THREE.PointsMaterial({
       color: 0xdde7ff,
       size: 0.45,
       sizeAttenuation: false,
       transparent: true,
-      opacity: this.quality === 'low' ? 0.45 : 0.8,
+      opacity: 0.8,
       depthWrite: false
-    })))
+    })
+    this.starField = new THREE.Points(geo, this.starMat)
+    this.scene.add(this.starField)
   }
 
   #pick(event, fly) {
@@ -561,6 +631,12 @@ export class CosmosScene {
       const dt = Math.min(0.05, this.clock.getDelta())
       if (!this.paused) this.sim += dt * this.speed
       this.#animate(dt)
+      if (this.mode === 'timeline' && this.timelineStage) {
+        this.#advanceTimeline(dt)
+        this.timelineStage.update(dt)
+        this.renderer.setClearColor(this.timelineStage.clearColor, 1)
+        this.#applyTimelineStars()
+      }
       if (this.flight) {
         this.flight.t = Math.min(1, this.flight.t + dt * 0.7)
         const k = smooth(this.flight.t)
@@ -569,7 +645,8 @@ export class CosmosScene {
         if (this.flight.t >= 1) this.flight = null
       }
       this.controls.update()
-      this.#labels()
+      if (this.mode === 'timeline') this.#timelineCamera(dt)
+      else this.#labels()
       this.renderer.render(this.scene, this.camera)
     }
     tick()
@@ -617,6 +694,41 @@ export class CosmosScene {
     }
   }
 
+  #advanceTimeline(dt) {
+    if (!this.timelinePlaying || this.scrubbing || document.hidden || this.reducedMotion) return
+    const next = this.timelineProgress + (dt * this.timelineSpeed) / 90
+    if (next >= 1) {
+      this.setTimelineProgress(1)
+      this.timelinePlaying = false
+      this.onTimelineEnd?.()
+      return
+    }
+    this.setTimelineProgress(next)
+  }
+
+  #timelineCamera(dt) {
+    if (!this.followCamera || this.reducedMotion || this.flight) return
+    if (performance.now() < this.orbitHold) return
+    if (!this.timelinePlaying && !this.scrubbing) return
+    const plan = this.timelineStage.cameraPlan
+    if (this.timelinePlaying) this.timelineAngle += dt * (this.timelineStage.autoSpin || 0)
+    const ang = this.timelineAngle || 0
+    this.camera.position.set(Math.sin(ang) * plan.dist, plan.height, Math.cos(ang) * plan.dist)
+    this.controls.target.set(0, 0, 0)
+    this.controls.update()
+  }
+
+  #restoreStars() {
+    if (!this.starMat) return
+    this.starMat.opacity = this.quality === 'low' ? 0.45 : 0.8
+  }
+
+  #applyTimelineStars() {
+    if (!this.starMat || !this.timelineStage) return
+    const base = this.quality === 'low' ? 0.45 : 0.8
+    this.starMat.opacity = base * this.timelineStage.starOpacity
+  }
+
   #labels() {
     if (!this.onLabels) return
     const parent = this.canvas.parentElement
@@ -650,11 +762,13 @@ export class CosmosScene {
     this.canvas.removeEventListener('click', this._click)
     this.canvas.removeEventListener('dblclick', this._dbl)
     this.controls?.dispose()
+    this.timelineStage?.dispose()
+    this.timelineStage = null
     this.scene?.traverse((obj) => {
       obj.geometry?.dispose?.()
       const mats = obj.material ? (Array.isArray(obj.material) ? obj.material : [obj.material]) : []
       mats.forEach((m) => {
-        m.map?.dispose?.()
+        if (m.map && !m.map.userData?.shared) m.map.dispose?.()
         m.dispose?.()
       })
     })
