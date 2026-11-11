@@ -12,7 +12,8 @@ export const SECTIONS = [
   { id: 'quiz', en: 'QUIZ', name: '知识挑战' },
   { id: 'prehistoric', en: 'PREHISTORIC', name: '史前世界' },
   { id: 'micro', en: 'MICRO', name: '微观世界' },
-  { id: 'lab', en: 'ECO LAB', name: '生态实验室' }
+  { id: 'lab', en: 'ECO LAB', name: '生态实验室' },
+  { id: 'snakes', en: 'SNAKES', name: '蛇族图鉴' }
 ]
 
 export const MIGRATIONS = [
@@ -62,7 +63,11 @@ export const QUIZ = [
   { q: '帝企鹅主要分布在？', options: ['北极', '南极沿岸', '亚马孙雨林'], answer: 1 },
   { q: '非洲象在 IUCN 公开类别中通常被标为？', options: ['无危 LC', '濒危 EN', '已灭绝 EX'], answer: 1 },
   { q: '绿海龟成体主要以什么为食？', options: ['海草和藻类', '只吃海豹', '树叶'], answer: 0 },
-  { q: '野骆驼 Camelus ferus 的保护处境是？', options: ['极危 CR', '无危 LC', '家养牲畜'], answer: 0 }
+  { q: '野骆驼 Camelus ferus 的保护处境是？', options: ['极危 CR', '无危 LC', '家养牲畜'], answer: 0 },
+  { q: '看到蛇，头有点三角，就能判断有毒吗？', options: ['能，三角头一定有毒', '不能，头型不可靠', '圆头就一定无毒'], answer: 1 },
+  { q: '被蛇咬后，首先应该怎么做？', options: ['用嘴把毒吸出来', '离开现场并尽快就医', '把蛇抓住带到医院'], answer: 1 },
+  { q: '银环蛇的头相对较圆，它的毒性是？', options: ['无毒', '剧毒，以神经毒为主', '只有被反复咀嚼才有事'], answer: 1 },
+  { q: '翠青蛇和竹叶青都可能是绿色，区别在于？', options: ['绿色越亮越有毒', '不能靠颜色判断，竹叶青有颊窝且有毒', '细的都无毒'], answer: 1 }
 ]
 
 export const SOUNDS = [

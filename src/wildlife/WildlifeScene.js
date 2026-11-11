@@ -6,6 +6,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { HABITATS } from './habitats.js'
 import { MIGRATIONS, SPECIALS } from './features.js'
 import { bubbleField, clearCreatureCaches, critter } from './creatures.js'
+import { buildAtlasSnake } from './snakeBuilder.js'
 
 function visiblePath(path) {
   const lats = path.map((item) => item[0])
@@ -104,6 +105,7 @@ export class WildlifeScene {
     this.#habitats()
     this.#migrations()
     this.#specials()
+    this.#snakes()
     this.#weather()
     this.clock = new THREE.Clock()
     this.#resize()
@@ -126,6 +128,7 @@ export class WildlifeScene {
   }
 
   showEarth(instant = false) {
+    this.#restoreSceneLight()
     this.view = 'earth'
     this.earth.visible = true
     this.nightSafari = false
@@ -133,6 +136,7 @@ export class WildlifeScene {
     this.migrationGroup.visible = false
     for (const group of this.habitatGroups.values()) group.visible = false
     for (const group of this.specialGroups.values()) group.visible = false
+    if (this.snakeGroup) this.snakeGroup.visible = false
     this.scene.fog.color.set('#07140f')
     this.renderer.setClearColor(0x07140f, 1)
     this.selectedId = null
@@ -143,10 +147,12 @@ export class WildlifeScene {
   showHabitat(id, instant = false) {
     const group = this.habitatGroups.get(id)
     if (!group) return
+    this.#restoreSceneLight()
     this.view = id
     this.earth.visible = false
     this.migrationGroup.visible = false
     for (const item of this.specialGroups.values()) item.visible = false
+    if (this.snakeGroup) this.snakeGroup.visible = false
     for (const [key, item] of this.habitatGroups) item.visible = key === id
     const habitat = HABITATS.find((item) => item.id === id)
     this.scene.fog.color.set(habitat.fog)
@@ -204,6 +210,7 @@ export class WildlifeScene {
   }
 
   showMigration() {
+    this.#restoreSceneLight()
     this.view = 'migration'
     this.earth.visible = true
     this.nightSafari = false
@@ -211,6 +218,7 @@ export class WildlifeScene {
     this.migrationGroup.visible = true
     for (const group of this.habitatGroups.values()) group.visible = false
     for (const group of this.specialGroups.values()) group.visible = false
+    if (this.snakeGroup) this.snakeGroup.visible = false
     this.scene.fog.color.set('#07140f')
     this.renderer.setClearColor(0x07140f, 1)
     this.selectedId = null
@@ -221,10 +229,12 @@ export class WildlifeScene {
   showSpecial(id) {
     const group = this.specialGroups.get(id)
     if (!group) return
+    this.#restoreSceneLight()
     this.view = id
     this.earth.visible = false
     this.migrationGroup.visible = false
     for (const item of this.habitatGroups.values()) item.visible = false
+    if (this.snakeGroup) this.snakeGroup.visible = false
     for (const [key, item] of this.specialGroups) item.visible = key === id
     const spec = SPECIALS[id]
     this.scene.fog.color.set(spec.fog)
@@ -237,6 +247,70 @@ export class WildlifeScene {
       subs: spec.creatures.map((item) => item.name)
     })
     this.#fly(new THREE.Vector3(0, 1.8, 7), new THREE.Vector3(0, 0.4, 0), false)
+  }
+
+  showSnakes() {
+    this.view = 'snakes'
+    this.earth.visible = false
+    this.migrationGroup.visible = false
+    this.nightSafari = false
+    this.spot.intensity = 0
+    for (const item of this.habitatGroups.values()) item.visible = false
+    for (const item of this.specialGroups.values()) item.visible = false
+    this.snakeGroup.visible = true
+    this.#paintSnakeScene(false)
+    this.#fly(new THREE.Vector3(0.2, 1.35, 4.4), new THREE.Vector3(0, 0.35, 0), false)
+  }
+
+  setSnakeExhibit(spec) {
+    if (!this.snakeAnchor) return
+    this.#clearSnakeModel()
+    const model = buildAtlasSnake(spec)
+    model.position.y = 0.02
+    this.snakeAnchor.add(model)
+    this.snakeModel = model
+    this.snakeThermal = !!spec.thermal
+    this.#paintSnakeScene(this.snakeThermal)
+  }
+
+  #restoreSceneLight() {
+    if (this.view !== 'snakes') return
+    this.setHour(this.hour)
+  }
+
+  #paintSnakeScene(thermal) {
+    const color = thermal ? '#3a140c' : '#142016'
+    this.scene.fog.color.set(color)
+    this.renderer.setClearColor(color, 1)
+    this.ambient.intensity = thermal ? 0.22 : 0.5
+  }
+
+  #clearSnakeModel() {
+    if (!this.snakeModel) return
+    this.snakeAnchor.remove(this.snakeModel)
+    this.snakeModel.traverse((obj) => {
+      if (obj.geometry && !obj.geometry.userData?.shared) obj.geometry.dispose?.()
+      const mats = obj.material ? (Array.isArray(obj.material) ? obj.material : [obj.material]) : []
+      mats.forEach((mat) => {
+        if (mat.userData?.sharedCoat) return
+        mat.map?.dispose?.()
+        mat.dispose?.()
+      })
+    })
+    this.snakeModel = null
+  }
+
+  #snakes() {
+    this.snakeGroup = new THREE.Group()
+    this.snakeGroup.visible = false
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(8, 40),
+      new THREE.MeshStandardMaterial({ color: '#1c2a1a', roughness: 1 })
+    )
+    ground.rotation.x = -Math.PI / 2
+    this.snakeAnchor = new THREE.Group()
+    this.snakeGroup.add(ground, this.snakeAnchor)
+    this.scene.add(this.snakeGroup)
   }
 
   setQuality(level) {
@@ -482,10 +556,11 @@ export class WildlifeScene {
       body.anchor.rotation.y = Math.atan2(-Math.cos(a), -Math.sin(a))
       body.hit.position.copy(body.anchor.position)
     }
+    if (this.view === 'snakes') this.snakeModel?.userData.animate?.(t)
   }
 
   #animateWeather(dt) {
-    const habitatView = this.view !== 'earth' && this.view !== 'migration' && !SPECIALS[this.view]
+    const habitatView = this.view !== 'earth' && this.view !== 'migration' && this.view !== 'snakes' && !SPECIALS[this.view]
     const active = this.weather !== 'sunny' && habitatView
     this.weatherMat.opacity = active ? (this.weather === 'storm' ? 0.9 : 0.55) : 0
     if (!active || this.reduced) return
@@ -590,6 +665,7 @@ export class WildlifeScene {
       })
     })
     clearCreatureCaches()
+    this.#clearSnakeModel()
     this.renderer?.dispose()
   }
 }

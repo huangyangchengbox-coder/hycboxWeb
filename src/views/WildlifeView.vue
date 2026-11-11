@@ -115,7 +115,7 @@
         </template>
         <template v-else>
           <p>答对 {{ quizScore }} / {{ quiz.length }}。</p>
-          <p v-if="quizScore >= 4">徽章：地球观察员。这是站内练习，不是认证证书。</p>
+          <p v-if="quizScore + 1 >= quiz.length">徽章：地球观察员。这是站内练习，不是认证证书。</p>
           <p v-else>再看一遍北极和南极的分布，然后可以重来。</p>
           <button type="button" class="solid" @click="resetQuiz">再来一次</button>
         </template>
@@ -139,6 +139,102 @@
           <span>{{ item.months }}</span>
           <em>{{ item.summary }} {{ item.risk }}</em>
         </button>
+      </template>
+      <template v-else-if="section === 'snakes'">
+        <div class="en">SNAKES</div>
+        <h2>蛇族图鉴</h2>
+        <p>形态是参数化示意，不是照片，也不能当野外鉴定。本页不教如何靠近或捕捉蛇。</p>
+        <div class="chips">
+          <button v-for="item in snakeTabs" :key="item.id" type="button" class="chip-btn" :class="{ on: snakeTab === item.id }" @click="snakeTab = item.id">{{ item.name }}</button>
+        </div>
+        <template v-if="snakeTab === 'atlas'">
+          <button v-for="item in snakes" :key="item.id" type="button" class="chain" :class="{ on: snakeId === item.id }" @click="pickSnake(item.id)">
+            <strong>{{ item.name }}</strong>
+            <span>{{ item.venom }} · {{ item.family }}</span>
+            <em>{{ item.scientificName }}</em>
+          </button>
+          <h2>{{ currentSnake.name }}</h2>
+          <div class="latin">{{ currentSnake.scientificName }}</div>
+          <p>{{ currentSnake.summary }}</p>
+          <dl>
+            <dt>体长</dt><dd>{{ currentSnake.length }}</dd>
+            <dt>毒性</dt><dd>{{ currentSnake.venom }} · {{ currentSnake.venomKind }}</dd>
+            <dt>食性</dt><dd>{{ currentSnake.diet }}</dd>
+            <dt>分布</dt><dd>{{ currentSnake.range }}</dd>
+            <dt>易混淆</dt><dd>{{ currentSnake.lookalike }}</dd>
+            <dt>保护</dt><dd>{{ currentSnake.protection }}</dd>
+            <dt>IUCN</dt><dd>{{ currentSnake.iucn }}</dd>
+          </dl>
+          <button type="button" class="solid" @click="snakeTab = 'range'">看省级记录</button>
+        </template>
+        <template v-else-if="snakeTab === 'fangs'">
+          <p>头是不是三角形，说明不了有没有毒。银环蛇头较圆，却是剧毒；王锦蛇头有时显得较宽，却没有毒液。</p>
+          <button v-for="item in fangTypes" :key="item.id" type="button" class="chain" :class="{ on: fangId === item.id }" @click="fangId = item.id">
+            <strong>{{ item.name }}</strong>
+            <em>{{ item.text }}</em>
+          </button>
+          <h2>毒液大致分成三类</h2>
+          <button v-for="item in venomKinds" :key="item.id" type="button" class="chain">
+            <strong>{{ item.name }}</strong>
+            <span>{{ item.sample }}</span>
+            <em>{{ item.text }}</em>
+          </button>
+        </template>
+        <template v-else-if="snakeTab === 'body'">
+          <p>下面四种运动只改变示意姿态，不是力学模拟。</p>
+          <button v-for="item in snakeMoves" :key="item.id" type="button" class="chain" :class="{ on: snakePose === item.id }" @click="snakePose = item.id">
+            <strong>{{ item.name }}</strong>
+            <em>{{ item.text }}</em>
+          </button>
+          <button v-if="currentSnake.hood" type="button" class="solid" @click="snakeHood = !snakeHood">{{ snakeHood ? '收起兜帽' : '展开兜帽' }}</button>
+          <button v-if="currentSnake.pit" type="button" class="solid" @click="snakeThermal = !snakeThermal">{{ snakeThermal ? '关闭热感示意' : '颊窝热感示意' }}</button>
+          <p v-if="snakeThermal">橙点只表示颊窝的位置。这不是热成像，也看不到真实温度。</p>
+          <p>蛇没有外耳，能感到地面震动。分叉的舌把气味送进犁鼻器。蜕下的皮可以连眼上的透明鳞一起脱落。</p>
+        </template>
+        <template v-else-if="snakeTab === 'aid'">
+          <p class="warn">本页是科普示意，不能替代医疗处置。被咬后一律尽快就医。口径依据 WHO 蛇咬伤公开建议。</p>
+          <h2>应该做</h2>
+          <p v-for="item in aidRight" :key="item">{{ item }}</p>
+          <h2>不要做</h2>
+          <p v-for="item in aidWrong" :key="item">{{ item }}</p>
+          <p>神经毒性咬伤在有训练时可以做加压固定，不要勒成止血带。没有把握就不要绑，直接送医。</p>
+        </template>
+        <template v-else-if="snakeTab === 'protect'">
+          <p>眼镜王蛇列入 2021 年版《国家重点保护野生动物名录》二级。缅甸蟒列入同一名录一级。王锦蛇、黑眉锦蛇、翠青蛇等列入 2023 年调整的“三有”名录。</p>
+          <p>一条锦蛇一年能吃下不少鼠。蛇毒也是研究抗血栓药物的材料来源。这些理由都不需要把蛇抓回来。</p>
+          <p>看到蛇：打草惊蛇、绕行离开、不捕捉、不买卖、不打死。</p>
+          <button v-for="item in snakes" :key="item.id" type="button" class="chain" @click="pickSnake(item.id)">
+            <strong>{{ item.name }}</strong>
+            <span>{{ item.protection }}</span>
+          </button>
+        </template>
+        <template v-else>
+          <p>这一版不绘制中国政区图。现有中国底图没有南海诸岛和九段线，不能拿来当分布底图。下面只列省级记录，不是精确活动点。</p>
+          <div class="chips">
+            <button type="button" class="chip-btn" :class="{ on: rangeMode === 'china' }" @click="rangeMode = 'china'">中国记录</button>
+            <button type="button" class="chip-btn" :class="{ on: rangeMode === 'world' }" @click="rangeMode = 'world'">动物地理分区</button>
+          </div>
+          <template v-if="rangeMode === 'china'">
+            <button v-for="item in snakes.filter((snake) => snake.china)" :key="item.id" type="button" class="chip-btn" :class="{ on: snakeId === item.id }" @click="pickSnake(item.id)">{{ item.name }}</button>
+            <h2>{{ currentSnake.name }}</h2>
+            <p v-if="!currentSnake.china">{{ currentSnake.range }}</p>
+            <p v-else-if="snakeProvinces.length">记录省份：{{ snakeProvinces.join('、') }}。名单来自公开分布描述的节选，不是完整名录。</p>
+            <p v-else>本期没有收录它的中国省级记录。</p>
+          </template>
+          <template v-else>
+            <p>分区是动物地理学的示意，不是国界，也不是行政区。</p>
+            <button v-for="item in realms" :key="item.id" type="button" class="chain" :class="{ on: realmId === item.id }" @click="realmId = item.id">
+              <strong>{{ item.name }}</strong>
+              <span>{{ item.en }}</span>
+              <em>{{ item.text }}</em>
+            </button>
+            <button v-for="item in realmSnakes" :key="item.id" type="button" class="chain" @click="pickSnake(item.id)">
+              <strong>{{ item.name }}</strong>
+              <span>{{ item.venom }} · {{ item.range }}</span>
+            </button>
+            <p v-if="!realmSnakes.length">该分区暂未收录精选物种。</p>
+          </template>
+        </template>
       </template>
     </aside>
     <aside v-else-if="panel" class="dossier">
@@ -225,10 +321,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import WorldMenu from '../components/WorldMenu.vue'
 import { CATEGORIES, DIETS, HABITATS, allAnimals } from '../wildlife/habitats.js'
 import { FOOD_LINKS, LIFE_STAGES, MIGRATIONS, QUIZ, SECTIONS, SOUNDS, SPECIALS, THREATS } from '../wildlife/features.js'
+import { AID_RIGHT, AID_WRONG, FANG_TYPES, MOVES, SNAKE_TABS, SNAKES, VENOM_KINDS, snakeById } from '../wildlife/snakes.js'
+import { REALMS, provincesForSpecies, speciesInRealm } from '../wildlife/snakeMapData.js'
 import { WildlifeScene } from '../wildlife/WildlifeScene.js'
 
 const habitats = HABITATS
@@ -260,13 +358,29 @@ const quizIndex = ref(0)
 const quizScore = ref(0)
 const quizDone = ref(false)
 const quizPick = ref(null)
+const snakeTab = ref('atlas')
+const snakeId = ref(SNAKES[0].id)
+const snakePose = ref(SNAKES[0].pose)
+const snakeHood = ref(false)
+const snakeThermal = ref(false)
+const fangId = ref('front')
+const rangeMode = ref('china')
+const realmId = ref('indomalayan')
+const snakeTabs = SNAKE_TABS
+const snakes = SNAKES
+const fangTypes = FANG_TYPES
+const venomKinds = VENOM_KINDS
+const snakeMoves = MOVES
+const aidRight = AID_RIGHT
+const aidWrong = AID_WRONG
+const realms = REALMS
 const wolves = ref(3)
 const deer = ref(10)
 const grass = ref(70)
 const labNote = ref('草长出来，鹿吃草，狼吃鹿。数量到 0 就表示这条链断了。')
 const portraits = new Map()
 const habitatIds = new Set(HABITATS.map((item) => item.id))
-const moduleIds = ['food', 'sounds', 'lifecycle', 'conservation', 'quiz', 'lab', 'migration']
+const moduleIds = ['food', 'sounds', 'lifecycle', 'conservation', 'quiz', 'lab', 'migration', 'snakes']
 
 const moduleSection = computed(() => moduleIds.includes(section.value))
 const showGallery = computed(() => !moduleSection.value && section.value !== 'prehistoric' && section.value !== 'micro')
@@ -278,6 +392,7 @@ const subtitle = computed(() => {
   if (section.value === 'deep') return SPECIALS.deep.summary
   if (section.value === 'prehistoric') return SPECIALS.prehistoric.summary
   if (section.value === 'micro') return SPECIALS.micro.summary
+  if (section.value === 'snakes') return '辨认不可靠，靠近和捕捉都不要做。被咬后尽快就医。模型和分布都是示意。'
   if (SPECIALS[section.value]) return SPECIALS[section.value].summary
   return '单击动物打开百科。体型和距离是艺术化示意。保护等级以 iucnredlist.org 最新评估为准。'
 })
@@ -293,6 +408,9 @@ const foodActive = computed(() => {
   return seen
 })
 const threatened = computed(() => animals.filter((item) => ['CR', 'EN', 'VU', 'NT'].includes(rankOf(item.status))))
+const currentSnake = computed(() => snakeById(snakeId.value))
+const snakeProvinces = computed(() => provincesForSpecies(snakeId.value))
+const realmSnakes = computed(() => speciesInRealm(realmId.value))
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase()
@@ -378,6 +496,12 @@ function openSection(id) {
     }
     return
   }
+  if (id === 'snakes') {
+    view.value = 'snakes'
+    scene?.showSnakes()
+    syncSnake()
+    return
+  }
   view.value = 'earth'
   scene?.showEarth(false)
 }
@@ -410,6 +534,30 @@ function onLabel(lab) {
     if (creature) panel.value = { type: 'special', ...creature, sectionName: spec.name }
   }
 }
+
+function pickSnake(id) {
+  const item = snakeById(id)
+  snakeId.value = item.id
+  snakePose.value = item.pose
+  snakeHood.value = false
+  snakeThermal.value = false
+  if (section.value !== 'snakes') openSection('snakes')
+}
+
+function syncSnake() {
+  const item = currentSnake.value
+  scene?.setSnakeExhibit({
+    ...item,
+    pose: snakePose.value,
+    hoodOpen: snakeHood.value && item.hood,
+    thermal: snakeThermal.value && item.pit,
+    fang: snakeTab.value === 'fangs' ? fangId.value : ''
+  })
+}
+
+watch([snakeId, snakePose, snakeHood, snakeThermal, snakeTab, fangId], () => {
+  if (section.value === 'snakes') syncSnake()
+})
 
 function onHour() {
   scene?.setHour(Number(hour.value))
@@ -665,6 +813,10 @@ onUnmounted(() => {
 
 .dossier p {
   line-height: 1.5;
+}
+
+.dossier p.warn {
+  color: #f0c9a0;
 }
 
 .dossier dl {
