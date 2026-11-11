@@ -278,6 +278,7 @@
         <option value="dust">沙尘</option>
       </select>
       <label v-if="section === 'migration'">月份 {{ month + 1 }}<input v-model.number="month" type="range" min="0" max="11" step="1" @input="onMonth" /></label>
+      <router-link v-if="section === 'insect'" class="solid" to="/micro">想看细胞和原子？进入微观奇境</router-link>
       <span v-if="freeRoam">WASD 移动，QE 升降，拖拽仍可转向</span>
     </div>
 
@@ -383,7 +384,7 @@ const habitatIds = new Set(HABITATS.map((item) => item.id))
 const moduleIds = ['food', 'sounds', 'lifecycle', 'conservation', 'quiz', 'lab', 'migration', 'snakes']
 
 const moduleSection = computed(() => moduleIds.includes(section.value))
-const showGallery = computed(() => !moduleSection.value && section.value !== 'prehistoric' && section.value !== 'micro')
+const showGallery = computed(() => !moduleSection.value && section.value !== 'prehistoric' && section.value !== 'insect')
 const sectionMeta = computed(() => sections.find((item) => item.id === section.value))
 const title = computed(() => sectionMeta.value?.name || '探索地球 · 发现生命')
 const subtitle = computed(() => {
@@ -391,7 +392,7 @@ const subtitle = computed(() => {
   if (section.value === 'night') return '夜间观察打开手电。北极熊在北极，帝企鹅在南极，两个区域不要混在一起。'
   if (section.value === 'deep') return SPECIALS.deep.summary
   if (section.value === 'prehistoric') return SPECIALS.prehistoric.summary
-  if (section.value === 'micro') return SPECIALS.micro.summary
+  if (section.value === 'insect') return SPECIALS.insect.summary
   if (section.value === 'snakes') return '辨认不可靠，靠近和捕捉都不要做。被咬后尽快就医。模型和分布都是示意。'
   if (SPECIALS[section.value]) return SPECIALS[section.value].summary
   return '单击动物打开百科。体型和距离是艺术化示意。保护等级以 iucnredlist.org 最新评估为准。'
@@ -481,7 +482,7 @@ function openSection(id) {
     scene?.setMonth(month.value)
     return
   }
-  if (id === 'deep' || id === 'prehistoric' || id === 'micro') {
+  if (id === 'deep' || id === 'prehistoric' || id === 'insect') {
     view.value = id
     scene?.showSpecial(id)
     return

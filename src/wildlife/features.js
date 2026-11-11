@@ -11,7 +11,7 @@ export const SECTIONS = [
   { id: 'conservation', en: 'IUCN', name: '保护专区' },
   { id: 'quiz', en: 'QUIZ', name: '知识挑战' },
   { id: 'prehistoric', en: 'PREHISTORIC', name: '史前世界' },
-  { id: 'micro', en: 'MICRO', name: '微观世界' },
+  { id: 'insect', en: 'INSECTS', name: '昆虫视界' },
   { id: 'lab', en: 'ECO LAB', name: '生态实验室' },
   { id: 'snakes', en: 'SNAKES', name: '蛇族图鉴' }
 ]
@@ -108,9 +108,9 @@ export const SPECIALS = {
       { id: 'meg', name: '巨齿鲨', shape: 'shark', color: '#7a8794', text: '中新世到上新世的巨型鲨鱼，早已灭绝。' }
     ]
   },
-  micro: {
-    name: '微观',
-    summary: '把昆虫放大到可观察的尺度，不是显微镜实拍。',
+  insect: {
+    name: '昆虫',
+    summary: '把蚂蚁、蜜蜂和蜘蛛放大来看。这是昆虫尺度，不是原子或细胞。',
     fog: '#102018',
     creatures: [
       { id: 'ant', name: '蚂蚁', shape: 'quad', color: '#3a2418', text: '社会性昆虫，分工包括觅食和育幼。' },

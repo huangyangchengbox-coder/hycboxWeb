@@ -26,6 +26,12 @@ const routes = [
         meta: { public: true, immersive: true }
       },
       {
+        path: 'micro',
+        name: 'micro',
+        component: () => import('../views/MicroView.vue'),
+        meta: { public: true, immersive: true }
+      },
+      {
         path: 'home',
         name: 'home',
         component: () => import('../views/HomeGlobeView.vue'),

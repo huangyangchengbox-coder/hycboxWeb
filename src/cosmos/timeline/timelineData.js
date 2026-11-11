@@ -153,6 +153,7 @@ export const TIMELINE_ERAS = [
       ['重元素', '来自更早的恒星'],
       ['比例', '46 亿年约为宇宙年龄的三分之一']
     ],
+    link: { to: '/micro?mode=atom&el=C', text: '你身体里的碳，来自更早的恒星。去看碳原子' },
     palette: {
       bg: '#05060f', hot: '#ffd79a', cool: '#b9cdff',
       webMix: 0.95, galaxyMix: 0.75, coreGlow: 0.7, starOpacity: 0.78, fieldOpacity: 0.95,

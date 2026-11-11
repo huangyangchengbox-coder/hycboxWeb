@@ -3,6 +3,7 @@
     <span class="wm-brand">hycBox · v2</span>
     <router-link to="/cosmos" class="wm-link" active-class="active">宇宙探索</router-link>
     <router-link to="/wildlife" class="wm-link" active-class="active">动物世界</router-link>
+    <router-link to="/micro" class="wm-link" active-class="active">微观奇境</router-link>
     <div class="wm-extra"><slot /></div>
   </nav>
 </template>

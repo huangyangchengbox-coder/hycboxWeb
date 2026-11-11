@@ -8,6 +8,7 @@
       <p v-if="era.timeAgo" class="tl-ago">距今 {{ era.timeAgo }}</p>
       <p class="tl-headline">{{ era.headline }}</p>
       <p class="tl-body">{{ era.body }}</p>
+      <router-link v-if="era.link" class="tl-link" :to="era.link.to">{{ era.link.text }}</router-link>
       <dl>
         <template v-for="row in era.facts" :key="row[0]">
           <dt>{{ row[0] }}</dt>
@@ -188,6 +189,13 @@ function onUp() {
   color: rgba(232, 238, 248, 0.86);
   line-height: 1.55;
   font-size: 14px;
+}
+
+.tl-link {
+  display: inline-block;
+  margin-top: 0.7rem;
+  color: #ffe0a8;
+  font-size: 13px;
 }
 
 .tl-card dl {
