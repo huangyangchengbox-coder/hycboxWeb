@@ -3,7 +3,7 @@
  */
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { layoutNebulae, paintNebulaCanvas, formatNebulaDist } from './nebulae.js'
+import { layoutNebulae, paintNebulaCanvas, formatNebulaDist, hash01 } from './nebulae.js'
 import { layoutBlackholes, formatBhDist } from './blackholes.js'
 
 function makeGalaxyTexture() {
@@ -316,8 +316,21 @@ export class SpaceScene {
         kind: 'galaxy',
         base: { x: g.x, y: g.y, z: g.z },
         meta: g,
-        aspect
+        aspect,
+        spin: (hash01(g.id + 'r') - 0.5) * 0.35
       }
+      const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: this.starTex,
+        color: new THREE.Color(g.color || '#ffffff'),
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        opacity: 0.22,
+        depthWrite: false
+      }))
+      const glowSize = s * 0.28
+      glow.scale.set(glowSize, glowSize, 1)
+      glow.position.z = -0.35
+      sprite.add(glow)
       group.add(sprite)
       this.galaxySprites.push(sprite)
 
@@ -491,10 +504,16 @@ export class SpaceScene {
   }
 
   #applyInsideNebula(meta) {
-    const tex = meta && this.nebulaTex.get(meta.id)
+    const canvas = meta && paintNebulaCanvas(meta.id, 1024)
     const haze = this.galaxyInsideHaze
-    if (!haze || !tex) return
-    haze.material.map = tex
+    if (!haze || !canvas) return
+    if (!this.insideTex || this.insideTex.image !== canvas) {
+      const tex = new THREE.CanvasTexture(canvas)
+      tex.colorSpace = THREE.SRGBColorSpace
+      this.insideTex?.dispose()
+      this.insideTex = tex
+    }
+    haze.material.map = this.insideTex
     haze.material.color.set(0xffffff)
     haze.material.opacity = 0.96
     haze.material.needsUpdate = true
@@ -668,6 +687,11 @@ export class SpaceScene {
 
       if (this.stars) this.stars.rotation.y += 0.00008
       if (this.dust && this.dust.visible && !this.insideKind) this.dust.rotation.y += 0.00025
+      if (!this.spinClock) this.spinClock = new THREE.Clock()
+      const spinDt = Math.min(0.05, this.spinClock.getDelta())
+      for (const sprite of this.galaxySprites) {
+        if (sprite.userData.spin) sprite.material.rotation += sprite.userData.spin * spinDt
+      }
 
       this.#projectLabels()
       this.renderer.render(this.scene, this.camera)
@@ -754,9 +778,7 @@ export class SpaceScene {
     this.canvas.removeEventListener('click', this._onClick)
     this.controls?.dispose()
     const sharedMaps = new Set([this.galaxyTex, this.starTex, this.bhTex])
-    if (this.nebulaTex) {
-      for (const tex of this.nebulaTex.values()) sharedMaps.add(tex)
-    }
+    if (this.insideTex) sharedMaps.add(this.insideTex)
     this.scene?.traverse((obj) => {
       if (obj.geometry) obj.geometry.dispose()
       if (obj.material) {

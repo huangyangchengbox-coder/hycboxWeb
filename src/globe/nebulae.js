@@ -21,7 +21,7 @@ export const NEBULAE = [
   { id: 'flame', name: '火焰星云', nameEn: 'NGC 2024', type: '发射星云', distLy: 1400, size: 1.16, aspect: 0.72, color: '#ff8a3a' }
 ]
 
-function hash01(str) {
+export function hash01(str) {
   let h = 2166136261
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i)
@@ -59,13 +59,15 @@ export function formatNebulaDist(distLy) {
 }
 
 const TEX = 360
+const canvasCache = new Map()
 
-function freshCanvas() {
+function freshCanvas(texSize = TEX) {
   const c = document.createElement('canvas')
-  c.width = TEX
-  c.height = TEX
+  c.width = texSize
+  c.height = texSize
   const ctx = c.getContext('2d')
-  ctx.clearRect(0, 0, TEX, TEX)
+  ctx.clearRect(0, 0, texSize, texSize)
+  if (texSize !== TEX) ctx.scale(texSize / TEX, texSize / TEX)
   return { c, ctx }
 }
 
@@ -97,15 +99,18 @@ function fadeEdge(ctx) {
   ctx.restore()
 }
 
-function specks(ctx, n, color, spread = 0.32) {
+function specks(ctx, n, color, spread = 0.32, seed = 0) {
+  const salt = Math.floor(seed * 997)
   ctx.save()
   ctx.fillStyle = color
   for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + i * 0.17
-    const r = TEX * (0.04 + ((i * 37) % 100) / 100 * spread)
+    const k = (i * 37 + salt * 131) % 100
+    const j = (i * 13 + salt * 17) % 10
+    const a = (i / n) * Math.PI * 2 + (salt % 7) * 0.21 + i * 0.17
+    const r = TEX * (0.04 + (k / 100) * spread)
     const x = TEX / 2 + Math.cos(a) * r
     const y = TEX / 2 + Math.sin(a * 1.07) * r * 0.85
-    ctx.globalAlpha = 0.35 + ((i * 13) % 10) / 18
+    ctx.globalAlpha = 0.35 + j / 18
     ctx.beginPath()
     ctx.arc(x, y, i % 7 === 0 ? 1.8 : 0.8, 0, Math.PI * 2)
     ctx.fill()
@@ -126,7 +131,7 @@ function paintOrion(ctx) {
   ctx.quadraticCurveTo(TEX * 0.12, TEX * 0.58, TEX * 0.08, TEX * 0.42)
   ctx.fill()
   blob(ctx, TEX * 0.52, TEX * 0.46, TEX * 0.055, TEX * 0.045, 0, 'rgba(255,255,255,1)', 'rgba(190,230,255,0.55)', 'rgba(0,0,0,0)')
-  specks(ctx, 28, 'rgba(255,230,240,0.9)', 0.26)
+  specks(ctx, 28, 'rgba(255,230,240,0.9)', 0.26, hash01('m42'))
 }
 
 function paintPillars(ctx) {
@@ -175,7 +180,7 @@ function paintCarina(ctx) {
   ctx.beginPath()
   ctx.ellipse(TEX * 0.48, TEX * 0.58, TEX * 0.045, TEX * 0.03, 0, 0, Math.PI * 2)
   ctx.fill()
-  specks(ctx, 30, 'rgba(255,230,190,0.9)', 0.3)
+  specks(ctx, 30, 'rgba(255,230,190,0.9)', 0.3, hash01('carina'))
 }
 
 function paintHorsehead(ctx) {
@@ -337,7 +342,7 @@ function paintDumbbell(ctx) {
   blob(ctx, TEX * 0.5, TEX * 0.28, TEX * 0.24, TEX * 0.16, 0, 'rgba(170,230,255,0.95)', 'rgba(70,120,220,0.45)', 'rgba(0,0,0,0)')
   blob(ctx, TEX * 0.5, TEX * 0.72, TEX * 0.24, TEX * 0.16, 0, 'rgba(150,190,255,0.95)', 'rgba(80,70,180,0.4)', 'rgba(0,0,0,0)')
   blob(ctx, TEX * 0.5, TEX * 0.5, TEX * 0.08, TEX * 0.22, 0, 'rgba(245,255,255,0.9)', 'rgba(120,180,255,0.35)', 'rgba(0,0,0,0)')
-  specks(ctx, 16, 'rgba(255,255,255,0.85)', 0.12)
+  specks(ctx, 16, 'rgba(255,255,255,0.85)', 0.12, hash01('m27'))
 }
 
 function paintLagoon(ctx) {
@@ -350,7 +355,7 @@ function paintLagoon(ctx) {
   ctx.moveTo(TEX * 0.16, TEX * 0.4)
   ctx.bezierCurveTo(TEX * 0.38, TEX * 0.62, TEX * 0.55, TEX * 0.32, TEX * 0.84, TEX * 0.58)
   ctx.stroke()
-  specks(ctx, 22, 'rgba(255,220,230,0.8)', 0.3)
+  specks(ctx, 22, 'rgba(255,220,230,0.8)', 0.3, hash01('m8'))
 }
 
 function paintTrifid(ctx) {
@@ -402,7 +407,7 @@ function paintRosette(ctx) {
   ctx.arc(TEX / 2, TEX / 2, TEX * 0.11, 0, Math.PI * 2)
   ctx.fill()
   ctx.restore()
-  specks(ctx, 16, 'rgba(255,255,255,0.9)', 0.08)
+  specks(ctx, 16, 'rgba(255,255,255,0.9)', 0.08, hash01('rosette'))
 }
 
 function paintVeil(ctx) {
@@ -479,11 +484,15 @@ const PAINTERS = {
   flame: paintFlame
 }
 
-/** 返回该星云的画布贴图（透明底，轮廓按经典形态） */
-export function paintNebulaCanvas(id) {
-  const { c, ctx } = freshCanvas()
+/** 返回该星云的画布。同一 id 和尺寸只绘制一次，两个场景共用。 */
+export function paintNebulaCanvas(id, texSize = TEX) {
+  const key = `${id}@${texSize}`
+  const cached = canvasCache.get(key)
+  if (cached) return cached
+  const { c, ctx } = freshCanvas(texSize)
   const paint = PAINTERS[id] || paintOrion
   paint(ctx)
   if (id !== 'horse' && id !== 'm16' && id !== 'veil') fadeEdge(ctx)
+  canvasCache.set(key, c)
   return c
 }

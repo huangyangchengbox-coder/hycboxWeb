@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { HABITATS } from './habitats.js'
 import { MIGRATIONS, SPECIALS } from './features.js'
-import { bubbleField, critter } from './creatures.js'
+import { bubbleField, clearCreatureCaches, critter } from './creatures.js'
 
 function visiblePath(path) {
   const lats = path.map((item) => item[0])
@@ -286,7 +286,7 @@ export class WildlifeScene {
         group.userData.bubbles = bubbles
       }
       habitat.animals.forEach((animal, index) => {
-        const mesh = critter(animal.shape, animal.color)
+        const mesh = critter(animal.shape, animal.color, animal.id)
         const angle = (index / habitat.animals.length) * Math.PI * 1.4 - 0.4
         const radius = 3.6 + (index % 3) * 0.85
         const lift = animal.shape === 'bird' ? 1.25 : 0
@@ -348,7 +348,7 @@ export class WildlifeScene {
       ground.rotation.x = -Math.PI / 2
       group.add(ground)
       spec.creatures.forEach((creature, index) => {
-        const mesh = critter(creature.shape, creature.color)
+        const mesh = critter(creature.shape, creature.color, creature.id)
         const angle = (index / spec.creatures.length) * Math.PI * 1.6 - 0.4
         mesh.position.set(Math.cos(angle) * 2.6, creature.shape === 'bird' ? 1.15 : 0.15, Math.sin(angle) * 2.6)
         const hit = new THREE.Mesh(
@@ -473,9 +473,13 @@ export class WildlifeScene {
       const home = body.kind === 'animal' ? body.habitatId === this.view : body.section === this.view
       if (!home) continue
       body.anchor.userData.animate?.(t, body.base.x)
-      const bob = body.anchor.userData.motion === 'swim' ? 0.07 : 0.02
-      body.anchor.position.y = body.base.y + Math.sin(t * 0.9 + body.base.x) * bob
-      body.anchor.position.x = body.base.x
+      const swim = body.anchor.userData.motion === 'swim'
+      const radius = swim ? 0.85 : 0.28
+      const a = t * (swim ? 0.35 : 0.55) + body.base.x
+      body.anchor.position.x = body.base.x + Math.cos(a) * radius
+      body.anchor.position.z = body.base.z + Math.sin(a) * radius
+      body.anchor.position.y = body.base.y + Math.sin(t * 0.9 + body.base.x) * (swim ? 0.07 : 0.012)
+      body.anchor.rotation.y = Math.atan2(-Math.cos(a), -Math.sin(a))
       body.hit.position.copy(body.anchor.position)
     }
   }
@@ -577,13 +581,15 @@ export class WildlifeScene {
     window.removeEventListener('keyup', this._keyUp)
     this.controls?.dispose()
     this.scene?.traverse((obj) => {
-      obj.geometry?.dispose?.()
+      if (obj.geometry && !obj.geometry.userData?.shared) obj.geometry.dispose?.()
       const mats = obj.material ? (Array.isArray(obj.material) ? obj.material : [obj.material]) : []
       mats.forEach((m) => {
+        if (m.userData?.sharedCoat) return
         m.map?.dispose?.()
         m.dispose?.()
       })
     })
+    clearCreatureCaches()
     this.renderer?.dispose()
   }
 }
