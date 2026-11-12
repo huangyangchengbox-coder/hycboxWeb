@@ -1,0 +1,1785 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>光谱</title>
+<style>
+:root{
+  --barrel:#0b0c0e; --graphite:#17181b; --graphite-2:#1f2125; --graphite-3:#2a2c31;
+  --ivory:#ece7db; --paint:#9a968c; --dim:#605e58; --index:#ff8a3c;
+  --rule:rgba(236,231,219,.10); --rule-2:rgba(236,231,219,.18);
+  --sans:"Avenir Next","Avenir","Futura","Century Gothic","Segoe UI",system-ui,sans-serif;
+  --bar-h:46px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#000;color:var(--ivory);font:500 12.5px/1.3 var(--sans);overflow:hidden;
+  -webkit-font-smoothing:antialiased;user-select:none;-webkit-user-select:none;font-variant-numeric:tabular-nums lining-nums}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,.sl:focus-visible{outline:1px solid var(--index);outline-offset:2px}
+canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block}
+#ov{touch-action:none;transition:opacity .26s ease}
+#ov.fade{opacity:0}
+
+/* ---------- top bar ---------- */
+#bar{position:fixed;left:0;right:0;top:0;height:var(--bar-h);display:flex;align-items:stretch;z-index:20;
+  background:rgba(19,20,23,.9);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
+  border-bottom:1px solid var(--rule)}
+#bar>*{display:flex;align-items:center}
+.brand{padding:0 18px 0 16px;gap:10px;font-weight:600;font-size:14px;letter-spacing:.06em;border-right:1px solid var(--rule)}
+.brand svg{width:20px;height:20px}
+.mode{position:relative;border-right:1px solid var(--rule)}
+.mode button{height:100%;padding:0 18px;color:var(--paint);font-weight:600;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:1px;transition:color .25s}
+.mode button b{font-size:13px;font-weight:600;letter-spacing:.03em}
+.mode button span{font-size:10.5px;font-weight:500;opacity:.75}
+.mode button.on{color:var(--ivory)}
+.mode .tick{position:absolute;bottom:-1px;height:2px;background:var(--index);left:0;width:0;transition:left .45s cubic-bezier(.6,0,.2,1),width .45s cubic-bezier(.6,0,.2,1)}
+.mode .tick::after{content:"";position:absolute;left:50%;bottom:2px;margin-left:-4px;border:4px solid transparent;border-bottom-color:var(--index);border-top:0}
+.menu{position:relative;border-right:1px solid var(--rule)}
+.menu-btn{height:100%;padding:0 14px 0 16px;display:flex;align-items:center;gap:10px}
+.menu-btn small{font-size:10.5px;color:var(--paint);font-weight:500}
+.menu-btn b{font-weight:600;font-size:12.5px;min-width:128px;text-align:left}
+.menu-btn svg{width:9px;height:9px;opacity:.6;transition:transform .2s}
+.menu.open .menu-btn svg{transform:rotate(180deg)}
+.menu-pop{position:absolute;top:calc(100% + 1px);left:-1px;min-width:270px;background:var(--graphite);border:1px solid var(--rule-2);border-top:0;
+  box-shadow:0 18px 40px rgba(0,0,0,.6);opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .16s,transform .16s}
+.menu.open .menu-pop{opacity:1;transform:none;pointer-events:auto}
+.menu-pop button{display:block;width:100%;text-align:left;padding:10px 16px 10px 16px;border-top:1px solid var(--rule);position:relative}
+.menu-pop button b{display:block;font-weight:600;font-size:12.5px}
+.menu-pop button span{display:block;font-size:11px;color:var(--paint);margin-top:2px;line-height:1.35}
+.menu-pop button:hover{background:var(--graphite-2)}
+.menu-pop button.on::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--index)}
+.grow{flex:1}
+.hist{padding:0 6px;gap:2px;border-left:1px solid var(--rule);transition:opacity .25s}
+.hist.off{opacity:0;pointer-events:none;width:0;padding:0;border:0;overflow:hidden}
+.ib{width:32px;height:32px;display:grid;place-items:center;border-radius:3px;color:var(--paint)}
+.ib:hover{background:var(--graphite-2);color:var(--ivory)}
+.ib:disabled{opacity:.3;pointer-events:none}
+.ib svg{width:16px;height:16px}
+.stats{border-left:1px solid var(--rule);padding:0 4px}
+.stat{padding:0 14px;display:flex;flex-direction:column;align-items:flex-end;min-width:74px}
+.stat+.stat{border-left:1px solid var(--rule)}
+.stat b{font-size:14px;font-weight:600;letter-spacing:.01em;line-height:1.15;white-space:nowrap}
+.stat span{font-size:10.5px;color:var(--paint);line-height:1.2;white-space:nowrap}
+#shot{padding:0 18px 0 14px;gap:9px;font-weight:600;white-space:nowrap;border-left:1px solid var(--rule);transition:background .15s}
+#shot:hover{background:var(--graphite-2)}
+#shot svg{width:17px;height:17px}
+
+/* ---------- floating panel ---------- */
+#panel{position:fixed;right:12px;top:calc(var(--bar-h) + 12px);width:292px;max-height:calc(100vh - var(--bar-h) - 24px);z-index:15;display:flex;flex-direction:column;
+  background:rgba(23,24,27,.93);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--rule-2);border-radius:4px;
+  box-shadow:0 24px 60px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.04)}
+.p-head{display:flex;align-items:center;height:34px;flex:none;cursor:grab;border-bottom:1px solid var(--rule)}
+.p-head:active{cursor:grabbing}
+.knurl{width:34px;align-self:stretch;border-right:1px solid var(--rule);
+  background:repeating-linear-gradient(90deg,rgba(236,231,219,.16) 0 1px,transparent 1px 4px);background-position:9px 0;background-size:17px 100%;background-repeat:no-repeat;
+  -webkit-mask:linear-gradient(#000 0 0) center/100% 12px no-repeat;mask:linear-gradient(#000 0 0) center/100% 12px no-repeat}
+.p-title{flex:1;padding:0 12px;font-weight:600;font-size:12.5px;letter-spacing:.02em}
+#collapse{width:34px;height:33px;display:grid;place-items:center;color:var(--paint);border-left:1px solid var(--rule)}
+#collapse svg{width:10px;height:10px;transition:transform .25s}
+#panel.shut #collapse svg{transform:rotate(180deg)}
+.p-wrap{position:relative;overflow:hidden;flex:1;min-height:0;display:flex}
+#panel.shut .p-wrap{display:none}
+.p-body{overflow-y:auto;overflow-x:hidden;width:100%;padding:2px 0 10px;transition:opacity .3s ease,transform .45s cubic-bezier(.6,0,.2,1)}
+.p-body.gone{position:absolute;inset:0;opacity:0;pointer-events:none;transform:translateX(18px)}
+.p-body::-webkit-scrollbar{width:8px}
+.p-body::-webkit-scrollbar-thumb{background:var(--graphite-3);border:2px solid transparent;background-clip:content-box;border-radius:4px}
+.sec{padding:12px 14px 4px}
+.sec+.sec{border-top:1px solid var(--rule);margin-top:8px}
+.sec>h3{font-size:11.5px;font-weight:600;color:var(--paint);margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline}
+.sec>h3 em{font-style:normal;color:var(--ivory);font-weight:500}
+.ctl{margin-bottom:11px}
+.ctl-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px}
+.ctl-label{color:var(--ivory)}
+.ctl-val{color:var(--paint);font-size:12px}
+/* slider drawn as an engraved scale with an index mark */
+.sl{position:relative;height:20px;cursor:ew-resize;touch-action:none;--t:50%}
+.sl-ticks,.sl-hi{position:absolute;left:0;right:0;bottom:2px;height:11px;
+  background:
+   repeating-linear-gradient(90deg,currentColor 0,currentColor 1px,transparent 1px,transparent calc((100% - 1px)/4)) bottom/100% 11px no-repeat,
+   repeating-linear-gradient(90deg,currentColor 0,currentColor 1px,transparent 1px,transparent calc((100% - 1px)/40)) bottom/100% 5px no-repeat}
+.sl-ticks{color:rgba(236,231,219,.2)}
+.sl-hi{color:rgba(236,231,219,.85);clip-path:inset(0 calc(100% - var(--t)) 0 0)}
+.sl-band{position:absolute;left:0;right:0;top:2px;height:5px;border-radius:1px;display:none}
+.sl.grad .sl-band{display:block}
+.sl.grad .sl-ticks,.sl.grad .sl-hi{height:8px;background-size:100% 8px,100% 4px}
+.sl.grad .sl-hi{color:rgba(236,231,219,.2);clip-path:none}
+.sl-index{position:absolute;top:0;bottom:0;left:var(--t);width:2px;margin-left:-1px;background:var(--index);border-radius:1px;transition:transform .12s}
+.sl-index::before{content:"";position:absolute;left:-3px;top:-1px;border:4px solid transparent;border-top-color:var(--index);border-bottom:0}
+.sl:hover .sl-index,.sl.drag .sl-index{transform:scaleX(1.5)}
+.seg{display:flex;border:1px solid var(--rule-2);border-radius:3px;overflow:hidden}
+.seg button{flex:1;padding:6px 4px;color:var(--paint);position:relative;font-size:12px}
+.seg button+button{border-left:1px solid var(--rule)}
+.seg button.on{color:var(--ivory);background:var(--graphite-2)}
+.seg button.on::after{content:"";position:absolute;left:30%;right:30%;bottom:0;height:2px;background:var(--index)}
+.sw{display:flex;gap:7px;flex-wrap:wrap}
+.sw button{width:22px;height:22px;border-radius:2px;border:1px solid rgba(255,255,255,.22);position:relative}
+.sw button.on{outline:1.5px solid var(--ivory);outline-offset:2px}
+.row{display:flex;gap:6px;margin-bottom:11px}
+.btn{flex:1;padding:7px 8px;border:1px solid var(--rule-2);border-radius:3px;color:var(--ivory);font-size:12px;text-align:center}
+.btn:hover{background:var(--graphite-2)}
+.btn:disabled{opacity:.35;pointer-events:none}
+.note{color:var(--paint);font-size:11.5px;line-height:1.5;margin-bottom:10px}
+.note kbd{font:inherit;color:var(--ivory);border:1px solid var(--rule-2);border-radius:2px;padding:0 4px;margin:0 1px}
+
+/* ---------- 2D tool dock ---------- */
+#dock{position:fixed;left:12px;top:calc(var(--bar-h) + 12px);width:44px;z-index:15;background:rgba(23,24,27,.93);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid var(--rule-2);border-radius:4px;box-shadow:0 24px 60px rgba(0,0,0,.55);padding:3px 0;
+  transition:transform .5s cubic-bezier(.6,0,.2,1),opacity .35s;max-height:calc(100vh - var(--bar-h) - 24px);overflow:visible}
+#dock.off{transform:translateX(-70px);opacity:0;pointer-events:none}
+#dock button{width:42px;height:35px;display:grid;place-items:center;color:var(--paint);position:relative}
+#dock button svg{width:20px;height:20px}
+#dock button:hover{color:var(--ivory)}
+#dock button.on{color:var(--ivory);background:var(--graphite-2)}
+#dock button.on::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:2px;background:var(--index)}
+#dock hr{border:0;border-top:1px solid var(--rule);margin:3px 0}
+#dock button::after{content:attr(data-tip);position:absolute;left:50px;top:50%;transform:translateY(-50%);white-space:nowrap;background:var(--graphite);border:1px solid var(--rule-2);
+  padding:5px 9px;border-radius:3px;font-size:11.5px;color:var(--ivory);opacity:0;pointer-events:none;transition:opacity .12s .25s}
+#dock button:hover::after{opacity:1}
+@media (max-height:760px){#dock button{height:30px}}
+
+#hint{position:fixed;left:14px;bottom:12px;z-index:10;color:var(--paint);font-size:11.5px;text-shadow:0 1px 3px #000;transition:opacity .3s;pointer-events:none;max-width:60vw}
+#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,10px);z-index:30;background:var(--graphite);border:1px solid var(--rule-2);border-radius:3px;padding:8px 14px;
+  opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:40}
+#flash.on{animation:fl .32s ease-out}
+@keyframes fl{0%{opacity:.35}100%{opacity:0}}
+#fatal{position:fixed;inset:0;display:none;place-items:center;z-index:50;background:#000;padding:40px}
+#fatal div{max-width:560px;font-size:14px;line-height:1.6}
+#fatal pre{margin-top:14px;color:var(--paint);font:12px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;user-select:text;-webkit-user-select:text;max-height:50vh;overflow:auto}
+@media (max-width:1180px){.brand span,.menu-btn small,.mode button span{display:none}.stat{min-width:60px;padding:0 9px}}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01s!important;animation-duration:.01s!important}}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="ov"></canvas>
+
+<header id="bar">
+  <div class="brand">
+    <svg viewBox="0 0 20 20" fill="none"><path d="M10 3.2 17 15.8H3z" stroke="#ece7db" stroke-width="1.3" stroke-linejoin="round"/><path d="M0 12.2 7.4 9.6" stroke="#ece7db" stroke-width="1.1"/><path d="M11.9 9.3 20 10.6" stroke="#ff5a5a" stroke-width="1.1"/><path d="M12.2 10.3 20 12.6" stroke="#ffd24a" stroke-width="1.1"/><path d="M12.5 11.3 20 14.6" stroke="#5fd08a" stroke-width="1.1"/><path d="M12.8 12.3 20 16.6" stroke="#5b8cff" stroke-width="1.1"/></svg>
+    <span>光谱</span>
+  </div>
+  <div class="mode" id="mode">
+    <button data-m="3d" class="on"><b>三维</b><span>光路追踪</span></button>
+    <button data-m="2d"><b>平面</b><span>光学台</span></button>
+    <i class="tick"></i>
+  </div>
+  <div class="menu" id="preset">
+    <button class="menu-btn"><small>预设</small><b id="presetName"></b><svg viewBox="0 0 10 10"><path d="M1 3l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+    <div class="menu-pop" id="presetPop"></div>
+  </div>
+  <div class="grow"></div>
+  <div class="hist off" id="hist">
+    <button class="ib" id="undo" title="撤销"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5.5 3 2.5 6l3 3"/><path d="M2.5 6h6.5a4 4 0 0 1 0 8H6"/></svg></button>
+    <button class="ib" id="redo" title="重做"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.5 3l3 3-3 3"/><path d="M13.5 6H7a4 4 0 0 0 0 8h3"/></svg></button>
+  </div>
+  <div class="stats">
+    <div class="stat"><b id="st1">0</b><span id="st1l">每像素采样</span></div>
+    <div class="stat"><b id="st2">0.0 ms</b><span>帧时间</span></div>
+    <div class="stat"><b id="st3">100%</b><span>分辨率</span></div>
+  </div>
+  <button id="shot" title="保存当前画面"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 5.5h3l1.2-2h4.6l1.2 2h3v9h-13z" stroke-linejoin="round"/><circle cx="9" cy="9.8" r="2.7"/></svg>保存图片</button>
+</header>
+
+<aside id="dock" class="off"></aside>
+
+<aside id="panel">
+  <div class="p-head" id="phead"><i class="knurl"></i><div class="p-title" id="ptitle">光路追踪</div><button id="collapse" title="收起面板"><svg viewBox="0 0 10 10"><path d="M1 7l4-4 4 4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button></div>
+  <div class="p-wrap"><div class="p-body" id="p3d"></div><div class="p-body gone" id="p2d"></div></div>
+</aside>
+
+<div id="hint"></div>
+<div id="toast"></div>
+<div id="flash"></div>
+<div id="fatal"><div><b id="fatalTitle"></b><pre id="fatalMsg"></pre></div></div>
+
+<script>
+(() => {
+'use strict';
+/* =====================================================================================
+   Spectra: light-physics playground
+   -------------------------------------------------------------------------------------
+   Layout of this file
+     1. Core utilities, colour science (JS mirror of the GLSL pipeline), WebGL helpers
+     2. Shared GLSL: spectral sampling, CIE matching, dispersion, Fresnel, tone mapping
+     3. UI kit: custom slider / segmented control / swatches
+     4. Mode3D: progressive spectral path tracer + photon-mapped caustics
+     5. Mode2D: GPU spectral light table + editor
+     6. App shell: top bar, mode transition, stats, screenshot, main loop
+   ===================================================================================== */
+
+const $ = (s, r = document) => r.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const TAU = Math.PI * 2, DEG = Math.PI / 180;
+const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+/* ---------- colour science ---------------------------------------------------------- */
+const LMIN = 380, LMAX = 700;
+const Color = (() => {
+  const g = (l, mu, s1, s2) => { const t = (l - mu) * (l < mu ? s1 : s2); return Math.exp(-0.5 * t * t); };
+  // CIE 1931 2-degree observer, multi-lobe Gaussian fit (Wyman, Sloan & Shirley 2013)
+  const xyz = l => [
+    0.362 * g(l, 442.0, 0.0624, 0.0374) + 1.056 * g(l, 599.8, 0.0264, 0.0323) - 0.065 * g(l, 501.1, 0.0490, 0.0382),
+    0.821 * g(l, 568.8, 0.0213, 0.0247) + 0.286 * g(l, 530.9, 0.0613, 0.0322),
+    1.217 * g(l, 437.0, 0.0845, 0.0278) + 0.681 * g(l, 459.0, 0.0385, 0.0725)];
+  const toRGB = ([x, y, z]) => [3.2404542 * x - 1.5371385 * y - 0.4985314 * z, -0.9692660 * x + 1.8760108 * y + 0.0415560 * z, 0.0556434 * x - 0.2040259 * y + 1.0572252 * z];
+  const rgb = l => toRGB(xyz(l));
+  // Planck's law, normalised to 1 at 560 nm so the numbers stay in float range
+  const planck = (l, T) => Math.pow(560 / l, 5) * (Math.exp(1.4388e7 / (560 * T)) - 1) / (Math.exp(1.4388e7 / (l * T)) - 1);
+  const kCache = new Map();
+  // normalisation so a blackbody at T integrates to luminance Y = 1
+  const K = T => { T = Math.round(T); if (!kCache.has(T)) { let s = 0; for (let l = LMIN; l <= LMAX; l++) s += xyz(l)[1] * planck(l, T); kCache.set(T, 1 / s); } return kCache.get(T); };
+  const whiteE = (() => { const s = [0, 0, 0]; for (let l = LMIN; l <= LMAX; l++) { const c = rgb(l); s[0] += c[0]; s[1] += c[1]; s[2] += c[2]; } return s; })();
+  const fix = c => { // desaturate towards luminance until in gamut
+    const Y = Math.max(0, 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]), m = Math.min(c[0], c[1], c[2]);
+    if (m < 0) { const k = Y / (Y - m + 1e-9); c = c.map(v => Y + (v - Y) * k); }
+    return c.map(v => Math.max(0, v));
+  };
+  const enc = v => Math.round(255 * clamp(v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055, 0, 1));
+  const css = (c, a = 1) => { const m = Math.max(c[0], c[1], c[2], 1e-6); return `rgba(${enc(c[0] / m)},${enc(c[1] / m)},${enc(c[2] / m)},${a})`; };
+  const tempRGB = T => { const s = [0, 0, 0]; for (let l = LMIN; l <= LMAX; l += 2) { const c = rgb(l), p = planck(l, T); s[0] += c[0] * p; s[1] += c[1] * p; s[2] += c[2] * p; } return fix(s); };
+  const waveCSS = (l, a = 1) => css(fix(rgb(l)), a);
+  const tempCSS = (T, a = 1) => css(tempRGB(T), a);
+  const gradient = (fn, a, b, n = 14) => 'linear-gradient(90deg,' + Array.from({ length: n + 1 }, (_, i) => fn(a + (b - a) * i / n)).join(',') + ')';
+  return { xyz, rgb, planck, K, whiteE, fix, waveCSS, tempCSS, gradient, lum: l => xyz(l)[1] };
+})();
+
+/* ---------- WebGL helpers ----------------------------------------------------------- */
+const glCanvas = $('#gl'), ovCanvas = $('#ov');
+const gl = glCanvas.getContext('webgl2', { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: false });
+const GLX = {};
+function fatal(title, msg) {
+  $('#fatal').style.display = 'grid'; $('#fatalTitle').textContent = title; $('#fatalMsg').textContent = msg || '';
+  throw new Error(title + (msg ? '\n' + msg : ''));
+}
+if (!gl) fatal('WebGL2 is not available in this browser.', 'Spectra needs WebGL2 with floating-point render targets. A current Chrome or Safari on a Mac has both.');
+if (!gl.getExtension('EXT_color_buffer_float')) fatal('This GPU cannot render to floating-point textures.', 'The EXT_color_buffer_float extension is missing.');
+GLX.floatBlend = !!gl.getExtension('EXT_float_blend');
+// Accumulation format: 32-bit float when it can be blended, otherwise 16-bit (always blendable).
+GLX.ACC = GLX.floatBlend ? gl.RGBA32F : gl.RGBA16F;
+GLX.ACC_T = GLX.floatBlend ? gl.FLOAT : gl.HALF_FLOAT;
+
+function compileShader(type, src, name) {
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    const log = gl.getShaderInfoLog(s) || '';
+    const numbered = src.split('\n').map((l, i) => String(i + 1).padStart(4) + '  ' + l).join('\n');
+    console.error('Shader compile failed: ' + name + '\n' + log + '\n' + numbered);
+    fatal('A shader failed to compile (' + name + ').', log);
+  }
+  return s;
+}
+function program(vs, fs, name) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compileShader(gl.VERTEX_SHADER, vs, name + '.vert'));
+  gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fs, name + '.frag'));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) fatal('A shader failed to link (' + name + ').', gl.getProgramInfoLog(p));
+  const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i); const nm = info.name.replace(/\[0\]$/, ''); u[nm] = gl.getUniformLocation(p, info.name); }
+  return { p, u, name };
+}
+function texture(w, h, ifmt, fmt, type, filter = gl.NEAREST, data = null) {
+  const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, ifmt, w, h, 0, fmt, type, data);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter === gl.LINEAR_MIPMAP_LINEAR ? gl.LINEAR : filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  t.w = w; t.h = h; return t;
+}
+function framebuffer(...texs) {
+  const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  texs.forEach((t, i) => gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0 + i, gl.TEXTURE_2D, t, 0));
+  gl.drawBuffers(texs.map((_, i) => gl.COLOR_ATTACHMENT0 + i));
+  const st = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  if (st !== gl.FRAMEBUFFER_COMPLETE) fatal('A render target could not be created.', 'Framebuffer status 0x' + st.toString(16));
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); f.w = texs[0].w; f.h = texs[0].h; return f;
+}
+const bindTex = (unit, tex, loc) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(loc, unit); };
+const target = (fbo, w, h) => { gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.viewport(0, 0, w, h); };
+const clearTarget = fbo => { gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); };
+const vao = gl.createVertexArray(); gl.bindVertexArray(vao);   // all geometry comes from gl_VertexID
+const drawFS = () => gl.drawArrays(gl.TRIANGLES, 0, 3);
+gl.disable(gl.DEPTH_TEST);
+
+/* =====================================================================================
+   2. Shared GLSL
+   ===================================================================================== */
+// Wavelengths are importance-sampled with pdf ∝ sech²(k(λ − 538)), which follows the eye's
+// luminous efficiency closely enough to remove most colour noise.
+const WK = 0.0072, WC = 538;
+const WA = Math.tanh(WK * (LMIN - WC)), WB = Math.tanh(WK * (LMAX - WC));
+const DISP_MAX = 0.045;   // Cauchy B coefficient (µm²) at dispersion slider = 1. Crown glass is about 0.004.
+
+const GLSL_HEAD = `#version 300 es
+precision highp float; precision highp int; precision highp sampler2D;
+`;
+const VS_FULL = `#version 300 es
+out vec2 vUv;
+void main(){ vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2)); vUv=p; gl_Position=vec4(p*2.0-1.0,0.0,1.0); }
+`;
+
+const GLSL_SPECTRAL = `
+// ---- spectral colour pipeline (shared by every shader in both modes) ----
+const float PI=3.14159265359;
+float sampleLambda(float u){ return ${WC.toFixed(1)} + atanh(${WA} + u*${WB - WA})/${WK}; }
+float pdfLambda(float l){ float c=cosh(${WK}*(l-${WC.toFixed(1)})); return ${WK / (WB - WA)}/(c*c); }
+float lobe(float l,float mu,float a,float b){ float t=(l-mu)*(l<mu?a:b); return exp(-0.5*t*t); }
+vec3 cieXYZ(float l){
+  return vec3(0.362*lobe(l,442.0,0.0624,0.0374)+1.056*lobe(l,599.8,0.0264,0.0323)-0.065*lobe(l,501.1,0.0490,0.0382),
+              0.821*lobe(l,568.8,0.0213,0.0247)+0.286*lobe(l,530.9,0.0613,0.0322),
+              1.217*lobe(l,437.0,0.0845,0.0278)+0.681*lobe(l,459.0,0.0385,0.0725));
+}
+const mat3 XYZ2RGB=mat3(3.2404542,-0.9692660,0.0556434, -1.5371385,1.8760108,-0.2040259, -0.4985314,0.0415560,1.0572252);
+vec3 wavelengthRGB(float l){ return XYZ2RGB*cieXYZ(l); }
+// blackbody spectrum, normalised to 1 at 560 nm
+float planck(float l,float T){ return pow(560.0/l,5.0)*(exp(1.4388e7/(560.0*T))-1.0)/(exp(1.4388e7/(l*T))-1.0); }
+// Cauchy dispersion: nd is the index at the sodium D line (589 nm), B in µm²
+float iorAt(float nd,float B,float l){ float um=l*0.001; return nd+B*(1.0/(um*um)-2.88256); }
+// smooth RGB -> reflectance spectrum (three overlapping bands that sum to one)
+float rgbToSpec(vec3 c,float l){ float wb=1.0-smoothstep(465.0,510.0,l); float wr=smoothstep(565.0,610.0,l); return c.b*wb+c.r*wr+c.g*(1.0-wb-wr); }
+// unpolarised Fresnel reflectance for a dielectric; eta = n_incident / n_transmitted
+float fresnel(float ci,float eta,out float ct){
+  float s2=eta*eta*(1.0-ci*ci); if(s2>=1.0){ ct=0.0; return 1.0; }
+  ct=sqrt(1.0-s2); float rs=(eta*ci-ct)/(eta*ci+ct); float rp=(ci-eta*ct)/(ci+eta*ct); return 0.5*(rs*rs+rp*rp);
+}
+`;
+
+const GLSL_RNG = `
+uint rngState;
+uint pcg(uint v){ uint s=v*747796405u+2891336453u; uint w=((s>>((s>>28u)+4u))^s)*277803737u; return (w>>22u)^w; }
+void seed(ivec2 p,uint f){ rngState=pcg(uint(p.x)+pcg(uint(p.y)+pcg(f))); }
+float rnd(){ rngState=pcg(rngState); return float(rngState>>8)*(1.0/16777216.0); }
+vec2 disk(vec2 u){ float r=sqrt(u.x),a=6.2831853*u.y; return r*vec2(cos(a),sin(a)); }
+`;
+
+const GLSL_DISPLAY = `
+// ---- display: gamut compression, ACES (Hill fit), sRGB encode, dither ----
+vec3 gamutFix(vec3 c){
+  float Y=max(dot(c,vec3(0.2126,0.7152,0.0722)),0.0); float m=min(c.r,min(c.g,c.b));
+  if(m<0.0) c=Y+(c-Y)*(Y/(Y-m+1e-9));
+  return max(c,0.0);
+}
+vec3 aces(vec3 c){
+  const mat3 A=mat3(0.59719,0.07600,0.02840, 0.35458,0.90834,0.13383, 0.04823,0.01566,0.83777);
+  const mat3 B=mat3(1.60475,-0.10208,-0.00327, -0.53108,1.10813,-0.07276, -0.07367,-0.00605,1.07602);
+  c=A*c; c=(c*(c+0.0245786)-0.000090537)/(c*(0.983729*c+0.4329510)+0.238081); return clamp(B*c,0.0,1.0);
+}
+vec3 toSRGB(vec3 c){ return mix(12.92*c,1.055*pow(max(c,1e-6),vec3(1.0/2.4))-0.055,step(0.0031308,c)); }
+float ign(vec2 p){ return fract(52.9829189*fract(dot(p,vec2(0.06711056,0.00583715)))); }
+// manual bilinear fetch, so 32-bit float textures need no filtering extension
+vec4 bilin(sampler2D t,vec2 px,ivec2 mx){
+  px-=0.5; ivec2 i=ivec2(floor(px)); vec2 f=px-vec2(i);
+  vec4 a=texelFetch(t,clamp(i,ivec2(0),mx),0), b=texelFetch(t,clamp(i+ivec2(1,0),ivec2(0),mx),0);
+  vec4 c=texelFetch(t,clamp(i+ivec2(0,1),ivec2(0),mx),0), d=texelFetch(t,clamp(i+ivec2(1,1),ivec2(0),mx),0);
+  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
+}
+// wide glow from the mip chain of a small half-float copy of the image
+vec3 bloom(sampler2D b,vec2 uv){
+  vec2 ts=1.0/vec2(textureSize(b,0)); vec3 s=vec3(0.0); float ws=0.0;
+  for(int i=0;i<6;i++){
+    float l=float(i)+0.5, w=1.0/(1.0+float(i)*0.55); vec2 o=ts*exp2(l)*0.5;
+    s+=w*0.25*(textureLod(b,uv+o,l).rgb+textureLod(b,uv-o,l).rgb+textureLod(b,uv+vec2(o.x,-o.y),l).rgb+textureLod(b,uv+vec2(-o.x,o.y),l).rgb);
+    ws+=w;
+  }
+  return s/ws;
+}
+`;
+
+// Small copy of the averaged image (plus optional additive layer) for the bloom mip chain.
+const FS_RESOLVE = GLSL_HEAD + GLSL_DISPLAY + `
+uniform sampler2D uAccum,uHaze; uniform vec2 uSub,uHazeSub; uniform float uNorm,uHazeNorm,uThreshold,uMax;
+in vec2 vUv; out vec4 o;
+void main(){
+  vec3 c=bilin(uAccum,vUv*uSub,ivec2(uSub)-1).rgb*uNorm;
+  if(uHazeNorm>0.0) c+=bilin(uHaze,vUv*uHazeSub,ivec2(uHazeSub)-1).rgb*uHazeNorm;
+  c=gamutFix(c); float l=max(c.r,max(c.g,c.b));
+  c*=smoothstep(uThreshold*0.5,uThreshold*1.6+1e-4,l);
+  o=vec4(c*min(1.0,uMax/max(l,1e-4)),1.0);   // cap the brightest sources so their glow stays local
+}`;
+
+// Plain copy by texel; used to fold one frame of rays into the running average.
+const FS_COPY = GLSL_HEAD + `
+uniform sampler2D uTex; uniform float uScale; out vec4 o;
+void main(){ o=texelFetch(uTex,ivec2(gl_FragCoord.xy),0)*uScale; }`;
+
+/* =====================================================================================
+   3. UI kit: every control is built from divs and pointer events, nothing native
+   ===================================================================================== */
+function Slider(o) {
+  const root = el('div', 'ctl');
+  const head = el('div', 'ctl-head'), lab = el('span', 'ctl-label', o.label), val = el('span', 'ctl-val');
+  head.append(lab, val);
+  const sl = el('div', 'sl' + (o.track ? ' grad' : '')); sl.tabIndex = 0; sl.setAttribute('role', 'slider'); sl.setAttribute('aria-label', o.label);
+  const band = el('div', 'sl-band'); if (o.track) band.style.background = o.track;
+  sl.append(band, el('div', 'sl-ticks'), el('div', 'sl-hi'), el('div', 'sl-index'));
+  root.append(head, sl);
+  let v = o.value;
+  const toT = x => o.log ? Math.log(x / o.min) / Math.log(o.max / o.min) : (x - o.min) / (o.max - o.min);
+  const fromT = t => { let x = o.log ? o.min * Math.pow(o.max / o.min, t) : o.min + (o.max - o.min) * t; if (o.step) x = Math.round(x / o.step) * o.step; return clamp(x, o.min, o.max); };
+  const paint = () => { sl.style.setProperty('--t', (clamp(toT(v), 0, 1) * 100).toFixed(2) + '%'); val.textContent = o.fmt ? o.fmt(v) : v.toFixed(2); };
+  const setV = (nv, commit) => { nv = clamp(nv, o.min, o.max); if (nv !== v) { v = nv; paint(); o.onInput && o.onInput(v); } if (commit && o.onCommit) o.onCommit(v); };
+  const fromEvent = e => { const r = sl.getBoundingClientRect(); setV(fromT(clamp((e.clientX - r.left) / r.width, 0, 1))); };
+  sl.addEventListener('pointerdown', e => {
+    e.preventDefault(); sl.focus(); sl.setPointerCapture(e.pointerId); sl.classList.add('drag'); fromEvent(e);
+    const mv = ev => fromEvent(ev);
+    const up = () => { sl.classList.remove('drag'); sl.removeEventListener('pointermove', mv); sl.removeEventListener('pointerup', up); sl.removeEventListener('pointercancel', up); o.onCommit && o.onCommit(v); };
+    sl.addEventListener('pointermove', mv); sl.addEventListener('pointerup', up); sl.addEventListener('pointercancel', up);
+  });
+  sl.addEventListener('dblclick', () => { if (o.def != null) setV(o.def, true); });
+  sl.addEventListener('keydown', e => {
+    const d = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0; if (!d) return;
+    e.preventDefault(); e.stopPropagation(); setV(fromT(clamp(toT(v) + d * (e.shiftKey ? .1 : .02), 0, 1)), true);
+  });
+  root.set = x => { v = x; paint(); }; root.get = () => v; root.label = t => { lab.textContent = t; };
+  paint(); return root;
+}
+function Seg(o) {
+  const root = el('div', 'ctl');
+  if (o.label) { const h = el('div', 'ctl-head'); h.append(el('span', 'ctl-label', o.label)); root.append(h); }
+  const seg = el('div', 'seg'); root.append(seg);
+  let v = o.value;
+  const btns = o.options.map(op => { const b = el('button', '', op.label); b.onclick = () => { if (v !== op.v) { v = op.v; paint(); o.onChange(v); } }; seg.append(b); return b; });
+  const paint = () => btns.forEach((b, i) => b.classList.toggle('on', o.options[i].v === v));
+  root.set = x => { v = x; paint(); }; paint(); return root;
+}
+function Swatches(o) {
+  const root = el('div', 'ctl'); const h = el('div', 'ctl-head'); const lab = el('span', 'ctl-label', o.label), val = el('span', 'ctl-val'); h.append(lab, val);
+  const sw = el('div', 'sw'); root.append(h, sw); let v = o.value;
+  const btns = o.colors.map((c, i) => { const b = el('button'); b.title = c.name; b.style.background = c.css; b.onclick = () => { if (v !== i) { v = i; paint(); o.onChange(i); } }; sw.append(b); return b; });
+  const paint = () => { btns.forEach((b, i) => b.classList.toggle('on', i === v)); val.textContent = v >= 0 && o.colors[v] ? o.colors[v].name : '混合'; };
+  root.set = x => { v = x; paint(); }; root.label = t => { lab.textContent = t; }; paint(); return root;
+}
+function Section(title) {
+  const root = el('div', 'sec'); const h = el('h3'); const t = el('span', '', title), em = el('em'); h.append(t, em); root.append(h);
+  root.add = (...c) => { root.append(...c); return root; };
+  root.sub = s => { em.textContent = s || ''; };
+  return root;
+}
+function Buttons(list) { const r = el('div', 'row'); list.forEach(b => { const e = el('button', 'btn', b.label); e.onclick = b.fn; if (b.ref) b.ref(e); r.append(e); }); return r; }
+let toastT = 0;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 1800); }
+
+// Glass tints shared by both modes (transmittance per unit length at density 1)
+const TINTS = [
+  { name: '无色', c: [1, 1, 1] }, { name: '水蓝', c: [0.45, 0.88, 0.95] }, { name: '翠绿', c: [0.42, 0.9, 0.55] },
+  { name: '琥珀', c: [0.98, 0.74, 0.32] }, { name: '玫红', c: [0.97, 0.52, 0.62] }, { name: '紫晶', c: [0.68, 0.48, 0.95] }, { name: '烟灰', c: [0.5, 0.5, 0.52] }];
+TINTS.forEach(t => { t.css = t.name === '无色' ? 'linear-gradient(135deg,#f4f6fa,#aeb6c4)' : `rgb(${t.c.map(v => Math.round(255 * Math.pow(v, 1 / 2.2))).join(',')})`; });
+
+/* =====================================================================================
+   4. Mode3D shaders
+   ===================================================================================== */
+// Analytic scene shared by the path tracer and the photon tracer.
+const GLSL_SCENE3D = `
+uniform vec4 uSph;            // glass sphere: centre, radius
+uniform vec3 uPrP;            // prism: base centre
+uniform vec3 uPrN[3];         // prism: outward normals of the three side faces
+uniform vec2 uPrD;            // prism: inradius, height
+uniform vec3 uCrP;            // crystal (dodecahedron): centre
+uniform vec3 uCrN[6];         // crystal: six slab axes
+uniform float uCrR;           // crystal: inradius
+uniform vec3 uRgP;            // metal ring: base centre
+uniform vec3 uRgD;            // metal ring: outer radius, inner radius, height
+uniform vec4 uTint[3];        // prism, sphere, crystal: transmittance rgb, density
+uniform vec3 uMetal;          // ring reflectance at normal incidence
+uniform float uIor,uDisp;
+uniform vec3 uLP,uLD,uLT,uLB; // spot: position, direction, tangent frame
+uniform vec4 uLC;             // spot: cos(inner), cos(outer), radius, intensity
+uniform vec2 uLS;             // spot: temperature, normalisation
+uniform vec4 uBox;            // softbox: height, half-x, half-z, radiance
+uniform vec2 uBoxS;           // softbox: temperature, normalisation
+uniform vec3 uWhiteE;
+
+const float EPS=1e-4, OFF=3e-4, INF=1e20;
+const int ID_FLOOR=1,ID_PRISM=2,ID_SPHERE=3,ID_CRYS=4,ID_RING=5,ID_SPOT=6,ID_BOX=7,ID_PTOP=8;
+struct Hit{ float t; vec3 n; int id; };
+
+float spotF(float c){ return smoothstep(uLC.y,uLC.x,c); }
+
+bool iSphere(vec3 ro,vec3 rd,out float t){
+  vec3 oc=ro-uSph.xyz; float b=dot(oc,rd),c=dot(oc,oc)-uSph.w*uSph.w,h=b*b-c;
+  if(h<0.0) return false; h=sqrt(h); t=-b-h; if(t<EPS){ t=-b+h; if(t<EPS) return false; } return true;
+}
+// convex solids are intersected as the overlap of their half-space intervals
+bool iPrism(vec3 ro,vec3 rd,out float t,out vec3 n){
+  vec3 o=ro-uPrP; float tN=-INF,tF=INF; vec3 nN=vec3(0.0),nF=vec3(0.0);
+  if(abs(rd.y)<1e-7){ if(o.y<0.0||o.y>uPrD.y) return false; }
+  else{ float i=1.0/rd.y,t0=-o.y*i,t1=(uPrD.y-o.y)*i; vec3 n0=vec3(0.0,-1.0,0.0),n1=vec3(0.0,1.0,0.0);
+        if(t0>t1){ float s=t0;t0=t1;t1=s; n0=-n0;n1=-n1; } tN=t0;nN=n0;tF=t1;nF=n1; }
+  for(int k=0;k<3;k++){ vec3 a=uPrN[k]; float dn=dot(a,rd),on=dot(a,o)-uPrD.x;
+    if(abs(dn)<1e-7){ if(on>0.0) return false; continue; }
+    float tt=-on/dn; if(dn<0.0){ if(tt>tN){tN=tt;nN=a;} } else { if(tt<tF){tF=tt;nF=a;} } }
+  if(tN>tF) return false;
+  if(tN>EPS){ t=tN;n=nN;return true; } if(tF>EPS){ t=tF;n=nF;return true; } return false;
+}
+bool iCrystal(vec3 ro,vec3 rd,out float t,out vec3 n){
+  vec3 o=ro-uCrP; float tN=-INF,tF=INF; vec3 nN=vec3(0.0),nF=vec3(0.0);
+  for(int k=0;k<6;k++){ vec3 a=uCrN[k]; float dn=dot(a,rd),on=dot(a,o);
+    if(abs(dn)<1e-7){ if(abs(on)>uCrR) return false; continue; }
+    float i=1.0/dn,t0=(-uCrR-on)*i,t1=(uCrR-on)*i; vec3 n0=-a,n1=a;
+    if(t0>t1){ float s=t0;t0=t1;t1=s; n0=a;n1=-a; }
+    if(t0>tN){tN=t0;nN=n0;} if(t1<tF){tF=t1;nF=n1;} }
+  if(tN>tF) return false;
+  if(tN>EPS){ t=tN;n=nN;return true; } if(tF>EPS){ t=tF;n=nF;return true; } return false;
+}
+// an opaque band: outer wall, inner wall and the flat top rim
+bool iRing(vec3 ro,vec3 rd,out float t,out vec3 n){
+  vec3 o=ro-uRgP; float best=INF; float a=dot(rd.xz,rd.xz);
+  if(a>1e-9){ float b=dot(o.xz,rd.xz),oo=dot(o.xz,o.xz);
+    float d1=b*b-a*(oo-uRgD.x*uRgD.x);
+    if(d1>0.0){ float t1=(-b-sqrt(d1))/a; if(t1>EPS){ float y=o.y+t1*rd.y; if(y>=0.0&&y<=uRgD.z){ best=t1; vec2 q=o.xz+t1*rd.xz; n=vec3(q.x,0.0,q.y)/uRgD.x; } } }
+    float d2=b*b-a*(oo-uRgD.y*uRgD.y);
+    if(d2>0.0){ float t2=(-b+sqrt(d2))/a; if(t2>EPS&&t2<best){ float y=o.y+t2*rd.y; if(y>=0.0&&y<=uRgD.z){ best=t2; vec2 q=o.xz+t2*rd.xz; n=-vec3(q.x,0.0,q.y)/uRgD.y; } } }
+  }
+  if(rd.y<-1e-7){ float tc=(uRgD.z-o.y)/rd.y; if(tc>EPS&&tc<best){ vec2 q=o.xz+tc*rd.xz; float r2=dot(q,q); if(r2>=uRgD.y*uRgD.y&&r2<=uRgD.x*uRgD.x){ best=tc; n=vec3(0.0,1.0,0.0); } } }
+  t=best; return best<INF;
+}
+Hit trace(vec3 ro,vec3 rd,bool emitters){
+  Hit h; h.t=INF; h.id=0; h.n=vec3(0.0,1.0,0.0); float t; vec3 n;
+  if(rd.y<0.0){ t=-ro.y/rd.y; if(t>EPS){ h.t=t; h.id=ID_FLOOR; } }
+  if(iSphere(ro,rd,t)&&t<h.t){ h.t=t; h.id=ID_SPHERE; h.n=(ro+rd*t-uSph.xyz)/uSph.w; }
+  if(iPrism(ro,rd,t,n)&&t<h.t){ h.t=t; h.id=abs(n.y)>0.5&&ro.y+rd.y*t>0.5?ID_PTOP:ID_PRISM; h.n=n; }   // the prism's top end face is ground glass
+  if(iCrystal(ro,rd,t,n)&&t<h.t){ h.t=t; h.id=ID_CRYS; h.n=n; }
+  if(iRing(ro,rd,t,n)&&t<h.t){ h.t=t; h.id=ID_RING; h.n=n; }
+  if(emitters){
+    float dn=dot(rd,uLD);
+    if(dn<-1e-5){ t=dot(uLP-ro,uLD)/dn; if(t>EPS&&t<h.t){ vec3 q=ro+rd*t-uLP; if(dot(q,q)<uLC.z*uLC.z){ h.t=t; h.id=ID_SPOT; h.n=uLD; } } }
+    if(rd.y>1e-5&&uBox.w>0.0){ t=(uBox.x-ro.y)/rd.y; if(t>EPS&&t<h.t){ vec2 q=ro.xz+rd.xz*t; if(abs(q.x)<uBox.y&&abs(q.y)<uBox.z){ h.t=t; h.id=ID_BOX; h.n=vec3(0.0,-1.0,0.0); } } }
+  }
+  return h;
+}
+bool occluded(vec3 ro,vec3 rd,float tmax){
+  float t; vec3 n;
+  if(iSphere(ro,rd,t)&&t<tmax) return true;
+  if(iPrism(ro,rd,t,n)&&t<tmax) return true;
+  if(iCrystal(ro,rd,t,n)&&t<tmax) return true;
+  if(iRing(ro,rd,t,n)&&t<tmax) return true;
+  return false;
+}
+`;
+
+/* ---------- progressive spectral path tracer ---------------------------------------- */
+const FS_PT = GLSL_HEAD + GLSL_SPECTRAL + GLSL_RNG + GLSL_SCENE3D + `
+uniform vec2 uRes; uniform uint uFrame;
+uniform vec3 uCamP,uCamR,uCamU,uCamF; uniform float uTanFov,uAspect,uShift,uAperture,uFocus;
+uniform int uMaxBounce;
+uniform sampler2D uCaustic; uniform float uCausticNorm,uCausticExtent,uCausticSize;
+uniform vec2 uFloor;   // diffuse albedo, roughness of the gloss coat
+uniform float uClamp;
+out vec4 o;
+
+// photon-mapped caustic irradiance on the floor (RGB), bilinear
+vec3 causticE(vec2 xz){
+  vec2 uv=xz/uCausticExtent*0.5+0.5; if(any(lessThan(uv,vec2(0.0)))||any(greaterThan(uv,vec2(1.0)))) return vec3(0.0);
+  vec2 st=uv*uCausticSize-0.5; ivec2 i=ivec2(floor(st)); vec2 f=st-vec2(i); ivec2 mx=ivec2(int(uCausticSize)-1);
+  vec3 a=texelFetch(uCaustic,clamp(i,ivec2(0),mx),0).rgb, b=texelFetch(uCaustic,clamp(i+ivec2(1,0),ivec2(0),mx),0).rgb;
+  vec3 c=texelFetch(uCaustic,clamp(i+ivec2(0,1),ivec2(0),mx),0).rgb, d=texelFetch(uCaustic,clamp(i+ivec2(1,1),ivec2(0),mx),0).rgb;
+  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y)*uCausticNorm;
+}
+float ggxD(float nh,float a){ float a2=a*a,d=nh*nh*(a2-1.0)+1.0; return a2/(PI*d*d); }
+float smithG1(float nv,float a){ float a2=a*a; return 2.0*nv/(nv+sqrt(a2+(1.0-a2)*nv*nv)); }
+// floor: diffuse base under a GGX gloss coat. Returns the BSDF value and the pdf of the sampler below.
+float floorBsdf(vec3 wo,vec3 wi,float alb,float a,out float pdf){
+  vec3 h=normalize(wo+wi); float nh=h.y,vh=max(dot(wo,h),1e-4);
+  float D=ggxD(nh,a),F=0.04+0.96*pow(1.0-vh,5.0);
+  pdf=0.5*D*nh/(4.0*vh)+0.5*wi.y/PI;
+  return D*smithG1(wo.y,a)*smithG1(wi.y,a)*F/(4.0*wo.y*wi.y)+(1.0-F)*alb/PI;
+}
+float envI(vec3 rd){ float h=clamp(rd.y,0.0,1.0); return uBox.w*(0.006+0.02*pow(1.0-h,5.0)); }
+// Three tall strip lights that only mirror-like paths from the camera can see: they give glass and metal
+// their edge highlights without adding any noise to the floor (a reflection card, in studio terms).
+float strips(vec3 rd){
+  float az=atan(rd.z,rd.x), el=asin(clamp(rd.y,-1.0,1.0));
+  float e=smoothstep(0.02,0.10,el)*(1.0-smoothstep(0.85,1.1,el));
+  float d1=abs(mod(az-2.62+PI,2.0*PI)-PI), d2=abs(mod(az+1.6+PI,2.0*PI)-PI), d3=abs(mod(az-0.5+PI,2.0*PI)-PI);
+  return e*((1.0-smoothstep(0.10,0.17,d1))+0.6*(1.0-smoothstep(0.045,0.085,d2))+0.8*(1.0-smoothstep(0.07,0.12,d3)));
+}
+
+void main(){
+  ivec2 ip=ivec2(gl_FragCoord.xy); seed(ip,uFrame);
+  vec2 px=gl_FragCoord.xy+vec2(rnd(),rnd())-0.5;
+  vec2 ndc=px/uRes*2.0-1.0; ndc.x+=uShift;
+  vec3 rd=normalize(uCamF+ndc.x*uAspect*uTanFov*uCamR+ndc.y*uTanFov*uCamU), ro=uCamP;
+  if(uAperture>0.0){ // thin lens
+    vec3 fp=ro+rd*(uFocus/dot(rd,uCamF)); vec2 d=disk(vec2(rnd(),rnd()))*uAperture; ro+=uCamR*d.x+uCamU*d.y; rd=normalize(fp-ro);
+  }
+  // four stratified wavelengths share the path until dispersion separates them
+  float u0=rnd(); vec4 lam,ipdf,sSpot,sBox;
+  for(int i=0;i<4;i++){ float l=sampleLambda(fract(u0+0.25*float(i))); lam[i]=l; ipdf[i]=1.0/pdfLambda(l); sSpot[i]=planck(l,uLS.x)*uLS.y; sBox[i]=planck(l,uBoxS.x)*uBoxS.y; }
+  vec4 thr=vec4(1.0),L=vec4(0.0); vec3 thrC=vec3(1.0),Lc=vec3(0.0);
+  bool specCam=true,specSince=false,single=false; float lastPdf=1.0,depth=1e4; int medium=0;
+
+  for(int b=0;b<=uMaxBounce;b++){
+    Hit h=trace(ro,rd,true);
+    if(b==0&&h.id!=0) depth=h.t;
+    if(h.id==0){ L+=thr*sBox*(envI(rd)+(b>0&&specCam?strips(rd)*uBox.w*2.4:0.0)); break; }
+    if(medium!=0){ // Beer-Lambert absorption along the segment inside tinted glass
+      vec4 tn=uTint[medium-2];
+      if(tn.a>0.0){ float k=tn.a*h.t; for(int i=0;i<4;i++) thr[i]*=pow(max(rgbToSpec(tn.rgb,lam[i]),0.02),k); thrC*=pow(max(tn.rgb,vec3(0.02)),vec3(k)); }
+    }
+    vec3 p=ro+rd*h.t;
+    if(h.id==ID_BOX){
+      float w=1.0;
+      if(!specCam&&!specSince){ float pl=h.t*h.t/(4.0*uBox.y*uBox.z*max(rd.y,1e-4)); w=lastPdf*lastPdf/(lastPdf*lastPdf+pl*pl); }
+      L+=thr*sBox*(uBox.w*w); break;
+    }
+    if(h.id==ID_SPOT){
+      if(specCam){ float c=dot(-rd,uLD); L+=thr*sSpot*(uLC.w*max(spotF(c),0.02)/(PI*uLC.z*uLC.z*max(c,0.25))); }
+      break;
+    }
+    if(h.id==ID_FLOOR||h.id==ID_PTOP){ // the two matte, upward-facing surfaces: floor and the prism's ground-glass top
+      if(rd.y>=0.0) break;                 // reached the ground face from inside the prism: absorbed
+      bool fl=h.id==ID_FLOOR; float alb=fl?uFloor.x:0.7, a=fl?uFloor.y:0.55;
+      vec3 wo=-rd; wo.y=max(wo.y,1e-3); float pdf;
+      if(fl){
+        float Fo=0.04+0.96*pow(1.0-wo.y,5.0);
+        vec3 cw=single?wavelengthRGB(lam.x)*ipdf.x/uWhiteE:vec3(1.0);
+        Lc+=thrC*cw*((1.0-Fo)*alb/PI)*causticE(p.xz);
+      }
+      vec3 sp=p+vec3(0.0,OFF,0.0);
+      { // next-event estimation: spot
+        vec2 dj=disk(vec2(rnd(),rnd()))*uLC.z; vec3 q=uLP+uLT*dj.x+uLB*dj.y; vec3 wi=q-sp; float d2=dot(wi,wi),dist=sqrt(d2); wi/=dist;
+        float f=spotF(dot(-wi,uLD));
+        if(f>0.0&&wi.y>1e-3&&!occluded(sp,wi,dist)){ float bs=floorBsdf(wo,wi,alb,a,pdf); L+=thr*sSpot*(bs*wi.y*uLC.w*f/d2); }
+      }
+      if(uBox.w>0.0){ // next-event estimation: softbox, MIS against BSDF sampling
+        vec3 q=vec3((rnd()*2.0-1.0)*uBox.y,uBox.x,(rnd()*2.0-1.0)*uBox.z); vec3 wi=q-sp; float d2=dot(wi,wi),dist=sqrt(d2); wi/=dist;
+        if(wi.y>1e-3&&!occluded(sp,wi,dist)){ float bs=floorBsdf(wo,wi,alb,a,pdf); float pl=d2/(4.0*uBox.y*uBox.z*wi.y); L+=thr*sBox*(uBox.w*bs*wi.y/pl*(pl*pl/(pl*pl+pdf*pdf))); }
+      }
+      vec3 wi;
+      if(rnd()<0.5){ float u=rnd(); float ct=sqrt((1.0-u)/(1.0+(a*a-1.0)*u)),st=sqrt(max(0.0,1.0-ct*ct)),ph=6.2831853*rnd(); wi=reflect(-wo,normalize(vec3(st*cos(ph),ct,st*sin(ph)))); }
+      else { vec2 d=disk(vec2(rnd(),rnd())); wi=vec3(d.x,sqrt(max(0.0,1.0-dot(d,d))),d.y); }
+      wi=normalize(wi); if(wi.y<=1e-3) break;
+      float bs=floorBsdf(wo,wi,alb,a,pdf); float wgt=bs*wi.y/max(pdf,1e-6);
+      thr*=wgt; thrC*=wgt; lastPdf=pdf; specCam=false; specSince=false; ro=sp; rd=wi;
+    } else if(h.id==ID_RING){
+      float s5=pow(1.0-clamp(-dot(rd,h.n),0.0,1.0),5.0);
+      for(int i=0;i<4;i++){ float f0=rgbToSpec(uMetal,lam[i]); thr[i]*=f0+(1.0-f0)*s5; }
+      thrC*=uMetal+(1.0-uMetal)*s5;
+      ro=p+h.n*OFF; rd=reflect(rd,h.n); specSince=true;
+    } else { // glass: Fresnel-weighted choice between reflection and refraction
+      bool ent=dot(rd,h.n)<0.0; vec3 nn=ent?h.n:-h.n;
+      float ng=iorAt(uIor,uDisp,lam.x),eta=ent?1.0/ng:ng,ci=-dot(rd,nn),ct;
+      float F=fresnel(ci,eta,ct);
+      if(rnd()<F){ ro=p+nn*OFF; rd=reflect(rd,nn); }
+      else {
+        ro=p-nn*OFF; rd=normalize(eta*rd+(eta*ci-ct)*nn); medium=ent?h.id:0;
+        if(uDisp>0.0&&!single){ single=true; thr=vec4(thr.x*4.0,0.0,0.0,0.0); }  // refraction angle depends on wavelength: keep the hero only
+      }
+      specSince=true;
+    }
+    if(b>=3){ float q=clamp(max(thrC.r,max(thrC.g,thrC.b)),0.05,1.0); if(rnd()>q) break; thr/=q; thrC/=q; }
+  }
+  vec3 c=vec3(0.0); for(int i=0;i<4;i++) c+=wavelengthRGB(lam[i])*(L[i]*ipdf[i]); c*=0.25;
+  float m=max(abs(c.r),max(abs(c.g),abs(c.b))); if(m>uClamp) c*=uClamp/m;
+  c+=Lc; if(any(isnan(c))||any(isinf(c))) c=vec3(0.0);
+  o=vec4(c,depth);
+}`;
+
+/* ---------- photon tracer: spot -> glass/metal -> floor ------------------------------ */
+const FS_PHOTON = GLSL_HEAD + GLSL_SPECTRAL + GLSL_RNG + GLSL_SCENE3D + `
+uniform uint uFrame; uniform int uConeN; uniform vec4 uCone[5]; uniform vec4 uConeB[5];
+layout(location=0) out vec4 o0;   // floor x, floor z, wavelength, power (0 when it never lands)
+layout(location=1) out vec4 o1;   // first specular vertex, power at emission
+layout(location=2) out vec4 o2;   // last specular vertex, number of specular vertices
+layout(location=3) out vec4 o3;   // end point, power at the end
+void main(){
+  ivec2 ip=ivec2(gl_FragCoord.xy); seed(ip,uFrame);
+  float lam=sampleLambda(rnd()); float w=planck(lam,uLS.x)*uLS.y/pdfLambda(lam);
+  o0=vec4(0.0,0.0,lam,0.0); o1=vec4(0.0); o2=vec4(0.0); o3=vec4(0.0);
+  if(uConeN==0) return;
+  // importance: aim only at cones that contain a refracting or reflecting object
+  float u=rnd(); int k=uConeN-1; for(int i=0;i<uConeN;i++){ if(u<uConeB[i].x){ k=i; break; } }
+  vec3 ax=uCone[k].xyz; float cm=uCone[k].w;
+  float ct=1.0-rnd()*(1.0-cm),st=sqrt(max(0.0,1.0-ct*ct)),ph=6.2831853*rnd();
+  vec3 t1=normalize(cross(ax,abs(ax.y)<0.99?vec3(0.0,1.0,0.0):vec3(1.0,0.0,0.0))),t2=cross(ax,t1);
+  vec3 rd=normalize(ax*ct+(t1*cos(ph)+t2*sin(ph))*st);
+  float f=spotF(dot(rd,uLD)); if(f<=0.0) return;
+  float pw=uLC.w*f*uConeB[k].y*w, pw0=pw;
+  vec2 dj=disk(vec2(rnd(),rnd()))*uLC.z; vec3 ro=uLP+uLT*dj.x+uLB*dj.y;
+  int req=int(uConeB[k].z);
+  Hit h=trace(ro,rd,false);
+  if(h.id==0||h.id==ID_FLOOR){ // went straight past everything: only useful for drawing the beam
+    if(req<0){ vec3 e=ro+rd*(h.id==0?40.0:h.t); o1=vec4(e,pw0); o2=vec4(e,0.0); o3=vec4(e,pw0); }
+    return;
+  }
+  if((req>0&&h.id!=req)||h.id==ID_PTOP) return;
+  vec3 v1=ro+rd*h.t,vl=v1,endp=v1; int ns=0,medium=0; bool landed=false,done=false;
+  for(int b=0;b<14;b++){
+    vec3 p=ro+rd*h.t;
+    if(medium!=0){ vec4 tn=uTint[medium-2]; if(tn.a>0.0) pw*=pow(max(rgbToSpec(tn.rgb,lam),0.02),tn.a*h.t); }
+    ns++; vl=p;
+    if(h.id==ID_RING){
+      float f0=rgbToSpec(uMetal,lam); pw*=f0+(1.0-f0)*pow(1.0-clamp(-dot(rd,h.n),0.0,1.0),5.0);
+      ro=p+h.n*OFF; rd=reflect(rd,h.n);
+    } else {
+      bool ent=dot(rd,h.n)<0.0; vec3 nn=ent?h.n:-h.n;
+      float ng=iorAt(uIor,uDisp,lam),eta=ent?1.0/ng:ng,ci=-dot(rd,nn),c2;
+      float F=fresnel(ci,eta,c2);
+      if(rnd()<F){ ro=p+nn*OFF; rd=reflect(rd,nn); }
+      else { ro=p-nn*OFF; rd=normalize(eta*rd+(eta*ci-c2)*nn); medium=ent?h.id:0; }
+    }
+    h=trace(ro,rd,false);
+    if(h.id==0){ endp=ro+rd*40.0; done=true; break; }
+    if(h.id==ID_FLOOR){ endp=ro+rd*h.t; landed=medium==0; done=true; break; }
+    if(h.id==ID_PTOP){ endp=ro+rd*h.t; pw=0.0; done=true; break; }
+  }
+  if(!done){ pw=0.0; endp=vl; }
+  if(landed) o0=vec4(endp.xz,lam,pw);
+  o1=vec4(v1,pw0); o2=vec4(vl,float(ns)); o3=vec4(endp,pw);
+}`;
+
+// Photons are splatted as points into the floor irradiance map.
+const VS_SPLAT = GLSL_HEAD + GLSL_SPECTRAL + `
+uniform sampler2D uPh0; uniform float uExtent,uPoint; uniform int uW;
+out vec3 vCol;
+void main(){
+  vec4 a=texelFetch(uPh0,ivec2(gl_VertexID%uW,gl_VertexID/uW),0);
+  gl_PointSize=uPoint;
+  if(a.w<=0.0){ gl_Position=vec4(2.0,2.0,0.0,1.0); vCol=vec3(0.0); return; }
+  vCol=wavelengthRGB(a.z)*a.w; gl_Position=vec4(a.xy/uExtent,0.0,1.0);
+}`;
+const FS_SPLAT = GLSL_HEAD + `
+uniform float uPoint; in vec3 vCol; out vec4 o;
+void main(){
+  float g=1.0;
+  if(uPoint>1.5){ vec2 d=(gl_PointCoord-0.5)*uPoint; float s=uPoint/4.4; g=exp(-dot(d,d)/(2.0*s*s))/(6.2831853*s*s*0.911); }
+  o=vec4(vCol*g,1.0);
+}`;
+
+// The same photon paths drawn as lines through a faint haze, so the beam is visible in the air.
+const VS_HAZE = GLSL_HEAD + GLSL_SPECTRAL + `
+uniform sampler2D uPh0,uPh1,uPh2,uPh3; uniform int uW;
+uniform vec3 uCamP,uCamR,uCamU,uCamF,uLP; uniform float uTanFov,uAspect,uShift; uniform vec2 uRes;
+out vec3 vCol; out float vDist; out float vTol;
+vec4 proj(vec3 p){ vec3 v=p-uCamP; float z=dot(v,uCamF); return vec4(dot(v,uCamR)/(uAspect*uTanFov)-uShift*z,dot(v,uCamU)/uTanFov,0.0,z); }
+void main(){
+  int ph=gl_VertexID/6,k=gl_VertexID%6,sg=k/2,en=k%2; ivec2 tc=ivec2(ph%uW,ph/uW);
+  vec4 a0=texelFetch(uPh0,tc,0),a1=texelFetch(uPh1,tc,0),a2=texelFetch(uPh2,tc,0),a3=texelFetch(uPh3,tc,0);
+  gl_Position=vec4(2.0,2.0,0.0,1.0); vCol=vec3(0.0); vDist=0.0; vTol=0.03;
+  if(a1.w<=0.0) return;
+  int ns=int(a2.w+0.5); vec3 A,B; float pw;
+  if(sg==0){ A=uLP; B=ns==0?a3.xyz:a1.xyz; pw=a1.w; }
+  else if(sg==1){ if(ns!=2) return; A=a1.xyz; B=a2.xyz; pw=0.5*(a1.w+a3.w); vTol=1.5; }   // inside the glass: show it through the front face
+  else { if(ns==0||a3.w<=0.0) return; A=a2.xyz; B=a3.xyz; pw=a3.w; }
+  float zA=dot(A-uCamP,uCamF),zB=dot(B-uCamP,uCamF); const float NEAR=0.05;
+  if(zA<NEAR&&zB<NEAR) return;
+  if(zA<NEAR) A=mix(A,B,(NEAR-zA)/(zB-zA)); else if(zB<NEAR) B=mix(B,A,(NEAR-zB)/(zA-zB));
+  vec4 cA=proj(A),cB=proj(B); vec2 d=(cB.xy/cB.w-cA.xy/cA.w)*0.5*uRes;
+  float lr=max(max(abs(d.x),abs(d.y)),0.75);
+  vec3 P=en==0?A:B; float dist=length(P-uCamP);
+  // in-scattered radiance per pixel is proportional to beam length per pixel over distance squared
+  vCol=wavelengthRGB(a0.z)*(pw*length(B-A)/lr/max(dist*dist,0.05)); vDist=dist;
+  gl_Position=en==0?cA:cB;
+}`;
+const FS_HAZE = GLSL_HEAD + `
+uniform sampler2D uAccum; uniform float uRatio;
+in vec3 vCol; in float vDist; in float vTol; out vec4 o;
+void main(){
+  float sd=texelFetch(uAccum,ivec2(gl_FragCoord.xy*uRatio),0).a;   // averaged primary-hit distance from the path tracer
+  if(vDist>sd+vTol) discard;
+  o=vec4(vCol,1.0);
+}`;
+
+const FS_DISPLAY3D = GLSL_HEAD + GLSL_DISPLAY + `
+uniform sampler2D uAccum,uHaze,uBloom; uniform vec2 uSub,uHazeSub; uniform float uHazeNorm,uExposure,uBloomAmt,uAlpha,uZoom;
+in vec2 vUv; out vec4 o;
+void main(){
+  vec2 uv=(vUv-0.5)/uZoom+0.5;
+  if(any(lessThan(uv,vec2(0.0)))||any(greaterThan(uv,vec2(1.0)))){ o=vec4(0.0,0.0,0.0,uAlpha); return; }
+  vec3 c=bilin(uAccum,uv*uSub,ivec2(uSub)-1).rgb;
+  if(uHazeNorm>0.0) c+=bilin(uHaze,uv*uHazeSub,ivec2(uHazeSub)-1).rgb*uHazeNorm;
+  c=gamutFix(c*uExposure)+bloom(uBloom,uv)*uBloomAmt;
+  c=aces(c); vec2 q=uv-0.5; c*=1.0-0.4*dot(q,q);
+  c=toSRGB(c)+(ign(gl_FragCoord.xy)-0.5)/255.0;
+  o=vec4(c,uAlpha);
+}`;
+
+/* =====================================================================================
+   4. Mode3D: state, passes, interaction
+   ===================================================================================== */
+const Shell = { W: 1, H: 1, pr: 1, cssW: 1, cssH: 1, shift: 0, ft: 16.7, panelW: 0, dockW: 0 };   // filled in by the app shell
+
+const Mode3D = (() => {
+  const v3 = {
+    sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]], mul: (a, s) => [a[0] * s, a[1] * s, a[2] * s],
+    dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+    len: a => Math.hypot(a[0], a[1], a[2]), norm: a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+  };
+  // fixed dimensions of the props (world unit is roughly a hand-width)
+  const SPH_R = 0.56, PR_IN = 0.33, PR_H = 1.2, CR_R = 0.5, RG_O = 0.62, RG_I = 0.565, RG_H = 0.34, GAP = 0.002;
+  const LIGHT_DIST = 7.5, LIGHT_R = 0.035, LIGHT_I = 1100, TANFOV = Math.tan(19 * DEG);
+  const BOX = { y: 6.5, hx: 3.6, hz: 2.4, L: 1.1, T: 6000 };
+  const CE = 7, CS = 2048;               // caustic map: half-extent on the floor, resolution
+  const PW = 1024, PH = 1024, HAZE_ROWS = 48;   // photon texture; rows of it drawn as haze beams
+  const SPP_CAP = 4000, PHOTON_CAP = 2e9, HAZE_CAP = 1500;
+  const METALS = [{ name: '金', c: [1.0, 0.77, 0.34] }, { name: '铜', c: [0.96, 0.64, 0.54] }, { name: '铬', c: [0.82, 0.83, 0.85] }];
+  METALS.forEach(m => { m.css = `rgb(${m.c.map(v => Math.round(255 * Math.pow(v, 1 / 2.2))).join(',')})`; });
+  const NAMES = { prism: '棱镜', sphere: '球体', crystal: '晶体', ring: '金属环' };
+  const GLASS = ['prism', 'sphere', 'crystal'];
+
+  const S = {
+    cam: { yaw: 0.35, pitch: 0.62, dist: 9.5, tx: 0.9, ty: 0.2, tz: 0.5 },
+    light: { az: 180, el: 9, width: 0.55, aim: 'prism', temp: 6200, fill: 0.2, haze: 0.6 },
+    ior: 1.5, disp: 0.75, aperture: 0, focus: 9, bounces: 8, exposure: 3.5, res: 0.75,
+    objs: { prism: { x: 0, z: 0, rot: -40, tint: 0, dens: 0 }, sphere: { x: 1.5, z: -2.3, rot: 0, tint: 0, dens: 0 }, crystal: { x: -1.5, z: -2.4, rot: 20, tint: 5, dens: 0.6 }, ring: { x: -2.9, z: 1.3, rot: 0, metal: 0 } },
+    floor: { alb: 0.22, rough: 0.1 }, sel: null, preset: 0
+  };
+  const PRESETS = [
+    { name: '棱镜分光', note: '一束白光穿过薄雾，散成光谱。', s: {
+      cam: { yaw: 0.35, pitch: 0.62, dist: 9.5, tx: 0.9, ty: 0.2, tz: 0.5 }, light: { az: 180, el: 9, width: 0.55, aim: 'prism', temp: 6200, fill: 0.2, haze: 0.6 },
+      ior: 1.5, disp: 0.75, aperture: 0, focus: 9, bounces: 8, exposure: 3.5,
+      objs: { prism: { x: 0, z: 0, rot: -40, tint: 0, dens: 0 }, sphere: { x: 1.5, z: -2.3, rot: 0, tint: 0, dens: 0 }, crystal: { x: -1.5, z: -2.4, rot: 20, tint: 5, dens: 0.6 }, ring: { x: -2.9, z: 1.3, rot: 0, metal: 0 } } } },
+    { name: '焦散水池', note: '上方的宽光束透过有色玻璃，聚到地面上。', s: {
+      cam: { yaw: 0.25, pitch: 0.86, dist: 8.2, tx: 0.2, ty: 0, tz: 0.35 }, light: { az: 222, el: 50, width: 15, aim: 'center', temp: 5600, fill: 1.3, haze: 0 },
+      ior: 1.5, disp: 0.3, aperture: 0, focus: 8, bounces: 9, exposure: -2,
+      objs: { prism: { x: -2.3, z: -1.2, rot: 15, tint: 0, dens: 0 }, sphere: { x: 0.15, z: 0.0, rot: 0, tint: 1, dens: 0.5 }, crystal: { x: 1.75, z: -0.55, rot: 30, tint: 2, dens: 0.55 }, ring: { x: -0.95, z: 1.45, rot: 0, metal: 0 } } } },
+    { name: '水晶堂', note: '低角度暖光、紫水晶、长色影和浅景深。', s: {
+      cam: { yaw: -0.52, pitch: 0.27, dist: 7.4, tx: 0.2, ty: 0.45, tz: 0.2 }, light: { az: 152, el: 17, width: 13, aim: 'center', temp: 3600, fill: 0.45, haze: 0 },
+      ior: 1.62, disp: 0.55, aperture: 0.07, focus: 7.2, bounces: 10, exposure: 0.6,
+      objs: { prism: { x: -1.75, z: 0.35, rot: 10, tint: 1, dens: 0.25 }, sphere: { x: 1.5, z: 0.95, rot: 0, tint: 4, dens: 0.45 }, crystal: { x: 0, z: 0, rot: 12, tint: 5, dens: 0.9 }, ring: { x: 1.2, z: -1.7, rot: 0, metal: 1 } } } }
+  ];
+
+  let P = {}, T = {}, F = {}, D = {};
+  let sceneDirty = true, camDirty = true, spp = 0, photons = 0, hazeFrames = 0, frameId = 1;
+  let scale = 0.75, moveScale = 0.45, lastMove = -1e9, sw = 1, sh = 1, hw = 1, hh = 1;
+  let drag = null, C = {}, panelEls = {}, burst = 1, burstHold = 0;
+  const touchScene = () => { sceneDirty = true; }, touchCam = () => { camDirty = true; };
+  const moved = () => { lastMove = performance.now(); };
+
+  /* ---- derived scene data ---- */
+  function camera() {
+    const c = S.cam, cp = Math.cos(c.pitch), sp = Math.sin(c.pitch);
+    const pos = [c.tx + c.dist * cp * Math.sin(c.yaw), c.ty + c.dist * sp, c.tz + c.dist * cp * Math.cos(c.yaw)];
+    const f = v3.norm(v3.sub([c.tx, c.ty, c.tz], pos)), r = v3.norm(v3.cross(f, [0, 1, 0])), u = v3.cross(r, f);
+    return { pos, f, r, u };
+  }
+  function bounds() {
+    const o = S.objs;
+    return [
+      { key: 'prism', id: 2, c: [o.prism.x, PR_H / 2, o.prism.z], R: Math.hypot(PR_IN * 2, PR_H / 2), ring: PR_IN * 2 },
+      { key: 'sphere', id: 3, c: [o.sphere.x, SPH_R, o.sphere.z], R: SPH_R, ring: SPH_R },
+      { key: 'crystal', id: 4, c: [o.crystal.x, CR_R + GAP, o.crystal.z], R: CR_R * 1.26, ring: CR_R * 1.2 },
+      { key: 'ring', id: 5, c: [o.ring.x, RG_H / 2, o.ring.z], R: Math.hypot(RG_O, RG_H / 2), ring: RG_O }];
+  }
+  const CRYS_AXES = (() => { // dodecahedron face axes, rotated so one face lies flat on the floor
+    const ph = (1 + Math.sqrt(5)) / 2, a = Math.atan(ph), c = Math.cos(-a), s = Math.sin(-a);
+    return [[0, 1, ph], [0, 1, -ph], [1, ph, 0], [1, -ph, 0], [ph, 0, 1], [ph, 0, -1]].map(v => { const n = v3.norm(v); return [n[0], n[1] * c - n[2] * s, n[1] * s + n[2] * c]; });
+  })();
+  function derive() {
+    const o = S.objs, L = S.light;
+    D.sph = [o.sphere.x, SPH_R, o.sphere.z, SPH_R];
+    D.prP = [o.prism.x, GAP, o.prism.z];
+    D.prN = [270, 30, 150].flatMap(a => { const r = (a + o.prism.rot) * DEG; return [Math.cos(r), 0, Math.sin(r)]; });
+    D.crP = [o.crystal.x, CR_R + GAP, o.crystal.z];
+    const cr = Math.cos(o.crystal.rot * DEG), sr = Math.sin(o.crystal.rot * DEG);
+    D.crN = CRYS_AXES.flatMap(n => [n[0] * cr + n[2] * sr, n[1], -n[0] * sr + n[2] * cr]);
+    D.rgP = [o.ring.x, 0, o.ring.z];
+    D.tint = GLASS.flatMap(k => [...TINTS[o[k].tint].c, o[k].tint ? o[k].dens : 0]);
+    const B = bounds();
+    let tg = L.aim === 'center' ? [B.reduce((s, b) => s + b.c[0], 0) / 4, 0.35, B.reduce((s, b) => s + b.c[2], 0) / 4] : B.find(b => b.key === L.aim).c.slice();
+    if (L.aim === 'prism') tg[1] = 0.62;
+    const az = L.az * DEG, elv = L.el * DEG;
+    D.lp = v3.add(tg, v3.mul([Math.cos(elv) * Math.cos(az), Math.sin(elv), Math.cos(elv) * Math.sin(az)], LIGHT_DIST));
+    D.ld = v3.norm(v3.sub(tg, D.lp));
+    D.lt = v3.norm(v3.cross(D.ld, Math.abs(D.ld[1]) < 0.99 ? [0, 1, 0] : [1, 0, 0])); D.lb = v3.cross(D.ld, D.lt);
+    const outer = L.width * DEG; D.cosO = Math.cos(outer); D.cosI = Math.cos(outer * 0.8);
+    // photon importance cones
+    const spotOmega = TAU * (1 - D.cosO), list = [];
+    for (const b of B) {
+      const v = v3.sub(b.c, D.lp), d = v3.len(v), sn = Math.min(0.999, (b.R * 1.03 + LIGHT_R) / d), ang = Math.acos(clamp(v3.dot(v3.mul(v, 1 / d), D.ld), -1, 1));
+      if (ang - Math.asin(sn) > outer) continue;
+      const cm = Math.sqrt(1 - sn * sn); list.push({ axis: v3.mul(v, 1 / d), cm, omega: TAU * (1 - cm), req: b.id });
+    }
+    const sum = list.reduce((s, c) => s + c.omega, 0);
+    const cones = (!list.length || sum >= spotOmega * 0.9) ? [{ axis: D.ld, cm: D.cosO, omega: spotOmega, req: -1, p: 1 }] : list.map(c => Object.assign(c, { p: c.omega / sum }));
+    D.coneN = cones.length; D.cone = new Float32Array(20); D.coneB = new Float32Array(20); let cdf = 0;
+    cones.forEach((c, i) => { cdf += c.p; D.cone.set([...c.axis, c.cm], i * 4); D.coneB.set([i === cones.length - 1 ? 2 : cdf, c.omega / c.p, c.req, 0], i * 4); });
+  }
+  function setScene(p) {
+    const u = p.u, o = S.objs;
+    gl.uniform4fv(u.uSph, D.sph); gl.uniform3fv(u.uPrP, D.prP); gl.uniform3fv(u.uPrN, D.prN); gl.uniform2f(u.uPrD, PR_IN, PR_H);
+    gl.uniform3fv(u.uCrP, D.crP); gl.uniform3fv(u.uCrN, D.crN); gl.uniform1f(u.uCrR, CR_R);
+    gl.uniform3fv(u.uRgP, D.rgP); gl.uniform3f(u.uRgD, RG_O, RG_I, RG_H);
+    gl.uniform4fv(u.uTint, D.tint); gl.uniform3fv(u.uMetal, METALS[o.ring.metal].c);
+    gl.uniform1f(u.uIor, S.ior); gl.uniform1f(u.uDisp, S.disp * DISP_MAX);
+    gl.uniform3fv(u.uLP, D.lp); gl.uniform3fv(u.uLD, D.ld); gl.uniform3fv(u.uLT, D.lt); gl.uniform3fv(u.uLB, D.lb);
+    gl.uniform4f(u.uLC, D.cosI, D.cosO, LIGHT_R, LIGHT_I); gl.uniform2f(u.uLS, S.light.temp, Color.K(S.light.temp));
+    gl.uniform4f(u.uBox, BOX.y, BOX.hx, BOX.hz, BOX.L * S.light.fill); gl.uniform2f(u.uBoxS, BOX.T, Color.K(BOX.T));
+    gl.uniform3fv(u.uWhiteE, Color.whiteE);
+  }
+  function setCam(p, cam) {
+    const u = p.u;
+    gl.uniform3fv(u.uCamP, cam.pos); gl.uniform3fv(u.uCamR, cam.r); gl.uniform3fv(u.uCamU, cam.u); gl.uniform3fv(u.uCamF, cam.f);
+    gl.uniform1f(u.uTanFov, TANFOV); gl.uniform1f(u.uAspect, Shell.W / Shell.H); gl.uniform1f(u.uShift, Shell.shift);
+  }
+
+  /* ---- setup ---- */
+  function init() {
+    P.pt = program(VS_FULL, FS_PT, 'path tracer'); P.photon = program(VS_FULL, FS_PHOTON, 'photon tracer');
+    P.splat = program(VS_SPLAT, FS_SPLAT, 'caustic splat'); P.haze = program(VS_HAZE, FS_HAZE, 'haze beams');
+    P.resolve = program(VS_FULL, FS_RESOLVE, 'bloom resolve'); P.display = program(VS_FULL, FS_DISPLAY3D, 'display 3D');
+    T.caustic = texture(CS, CS, GLX.ACC, gl.RGBA, GLX.ACC_T); F.caustic = framebuffer(T.caustic);
+    T.ph = [0, 1, 2, 3].map(() => texture(PW, PH, gl.RGBA32F, gl.RGBA, gl.FLOAT)); F.ph = framebuffer(...T.ph);
+    buildPanel();
+  }
+  function resize() {
+    for (const k of ['accum', 'haze', 'bloom']) { if (T[k]) { gl.deleteTexture(T[k]); gl.deleteFramebuffer(F[k]); } }
+    const W = Shell.W, H = Shell.H;
+    T.accum = texture(W, H, GLX.ACC, gl.RGBA, GLX.ACC_T); F.accum = framebuffer(T.accum);
+    T.haze = texture(Math.ceil(W / 2), Math.ceil(H / 2), GLX.ACC, gl.RGBA, GLX.ACC_T); F.haze = framebuffer(T.haze);
+    T.bloom = texture(Math.ceil(W / 4), Math.ceil(H / 4), gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR_MIPMAP_LINEAR); F.bloom = framebuffer(T.bloom);
+    gl.bindTexture(gl.TEXTURE_2D, T.bloom); gl.generateMipmap(gl.TEXTURE_2D);
+    clearTarget(F.accum); clearTarget(F.haze); scale = -1; camDirty = true;
+  }
+
+  /* ---- one frame of work ---- */
+  function update() {
+    const now = performance.now(), moving = !!drag || now - lastMove < 160;
+    if (moving) { // hold the frame rate by trading resolution
+      if (Shell.ft > 23) moveScale *= 0.93; else if (Shell.ft < 18.5) moveScale *= 1.03;
+      moveScale = clamp(moveScale, 0.2, S.res);
+    }
+    const s = moving ? Math.min(Math.round(moveScale * 20) / 20, S.res) : S.res;
+    if (s !== scale) { scale = s; sw = Math.max(8, Math.round(Shell.W * s)); sh = Math.max(8, Math.round(Shell.H * s)); hw = Math.ceil(sw / 2); hh = Math.ceil(sh / 2); camDirty = true; }
+    if (sceneDirty) { derive(); photons = 0; clearTarget(F.caustic); sceneDirty = false; camDirty = true; }
+    if (camDirty) { spp = 0; hazeFrames = 0; clearTarget(F.haze); camDirty = false; }
+    const cam = camera(), wantHaze = S.light.haze > 0 && hazeFrames < HAZE_CAP, wantPhotons = photons < PHOTON_CAP;
+    gl.disable(gl.BLEND);
+
+    if (wantHaze || wantPhotons) { // photons: trace, then splat into the floor map
+      const rows = moving || Shell.ft > 40 ? 256 : Shell.ft > 22 ? 512 : PH, n = PW * rows;   // up to a million photons a frame when there is headroom
+      target(F.ph, PW, rows); gl.useProgram(P.photon.p); setScene(P.photon);
+      gl.uniform1ui(P.photon.u.uFrame, frameId++); gl.uniform1i(P.photon.u.uConeN, D.coneN); gl.uniform4fv(P.photon.u.uCone, D.cone); gl.uniform4fv(P.photon.u.uConeB, D.coneB);
+      drawFS();
+      if (wantPhotons) {
+        target(F.caustic, CS, CS); gl.useProgram(P.splat.p); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+        bindTex(0, T.ph[0], P.splat.u.uPh0); gl.uniform1f(P.splat.u.uExtent, CE); gl.uniform1i(P.splat.u.uW, PW);
+        gl.uniform1f(P.splat.u.uPoint, clamp(15 / Math.pow(1 + photons / 262144 * 0.5, 0.36), 3, 15));   // kernel shrinks as the map fills in
+        gl.drawArrays(gl.POINTS, 0, n); gl.disable(gl.BLEND); photons += n;
+      }
+    }
+    if (moving) burst = 1;
+    else if (Shell.ft > 25 && burst > 1) { burst--; burstHold = now + 20000; }
+    else if (Shell.ft < 18.5 && now > burstHold) { burst = Math.min(4, burst + 1); burstHold = now + 700; }
+    if (spp < SPP_CAP) { // path-traced samples, each folded into the running average
+      target(F.accum, sw, sh); const u = P.pt.u; gl.useProgram(P.pt.p); setScene(P.pt); setCam(P.pt, cam);
+      gl.uniform2f(u.uRes, sw, sh); gl.uniform1ui(u.uFrame, frameId++); gl.uniform1f(u.uAperture, S.aperture); gl.uniform1f(u.uFocus, S.focus);
+      gl.uniform1i(u.uMaxBounce, S.bounces); gl.uniform2f(u.uFloor, S.floor.alb, S.floor.rough); gl.uniform1f(u.uClamp, 24);
+      bindTex(0, T.caustic, u.uCaustic); gl.uniform1f(u.uCausticNorm, photons ? 1 / (photons * Math.pow(2 * CE / CS, 2)) : 0); gl.uniform1f(u.uCausticExtent, CE); gl.uniform1f(u.uCausticSize, CS);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.CONSTANT_ALPHA, gl.ONE_MINUS_CONSTANT_ALPHA);
+      for (let i = 0; i < burst; i++) { gl.uniform1ui(u.uFrame, frameId++); gl.blendColor(0, 0, 0, 1 / (spp + 1)); drawFS(); spp++; }
+      gl.disable(gl.BLEND);
+    }
+    if (wantHaze) { // beams in the air: the photon paths as additive lines, depth-tested against the traced image
+      target(F.haze, hw, hh); const u = P.haze.u; gl.useProgram(P.haze.p); setCam(P.haze, cam);
+      T.ph.forEach((t, i) => bindTex(i, t, u['uPh' + i])); bindTex(4, T.accum, u.uAccum);
+      gl.uniform1i(u.uW, PW); gl.uniform3fv(u.uLP, D.lp); gl.uniform2f(u.uRes, hw, hh); gl.uniform1f(u.uRatio, sw / hw);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.drawArrays(gl.LINES, 0, PW * HAZE_ROWS * 6); gl.disable(gl.BLEND); hazeFrames++;
+    }
+    // small copy for the glow
+    target(F.bloom, T.bloom.w, T.bloom.h); const u = P.resolve.u; gl.useProgram(P.resolve.p);
+    bindTex(0, T.accum, u.uAccum); bindTex(1, T.haze, u.uHaze); gl.uniform2f(u.uSub, sw, sh); gl.uniform2f(u.uHazeSub, hw, hh);
+    gl.uniform1f(u.uNorm, Math.pow(2, S.exposure)); gl.uniform1f(u.uHazeNorm, hazeNorm() * Math.pow(2, S.exposure)); gl.uniform1f(u.uThreshold, 1.1); gl.uniform1f(u.uMax, 14);
+    drawFS(); gl.bindTexture(gl.TEXTURE_2D, T.bloom); gl.generateMipmap(gl.TEXTURE_2D);
+  }
+  const hazeNorm = () => S.light.haze > 0 && hazeFrames > 0 ? S.light.haze * 2.2 * (hh / TANFOV) / (PW * HAZE_ROWS * hazeFrames) : 0;
+  function display(alpha, zoom) {
+    const u = P.display.u; gl.useProgram(P.display.p);
+    bindTex(0, T.accum, u.uAccum); bindTex(1, T.haze, u.uHaze); bindTex(2, T.bloom, u.uBloom);
+    gl.uniform2f(u.uSub, sw, sh); gl.uniform2f(u.uHazeSub, hw, hh); gl.uniform1f(u.uHazeNorm, hazeNorm());
+    gl.uniform1f(u.uExposure, Math.pow(2, S.exposure)); gl.uniform1f(u.uBloomAmt, 0.11); gl.uniform1f(u.uAlpha, alpha); gl.uniform1f(u.uZoom, zoom);
+    drawFS();
+  }
+
+  /* ---- picking and pointer interaction ---- */
+  function rayAt(x, y) {
+    const cam = camera(), nx = (x / Shell.cssW * 2 - 1 + Shell.shift) * (Shell.W / Shell.H) * TANFOV, ny = (1 - y / Shell.cssH * 2) * TANFOV;
+    return { o: cam.pos, d: v3.norm(v3.add(cam.f, v3.add(v3.mul(cam.r, nx), v3.mul(cam.u, ny)))), cam };
+  }
+  function project(p, cam) {
+    const v = v3.sub(p, cam.pos), z = v3.dot(v, cam.f); if (z < 0.05) return null;
+    return [((v3.dot(v, cam.r) / (z * TANFOV * Shell.W / Shell.H) - Shell.shift) * 0.5 + 0.5) * Shell.cssW, (0.5 - v3.dot(v, cam.u) / (z * TANFOV) * 0.5) * Shell.cssH];
+  }
+  function pick(x, y) {
+    const r = rayAt(x, y); let best = null;
+    for (const b of bounds()) { const oc = v3.sub(r.o, b.c), bb = v3.dot(oc, r.d), h = bb * bb - (v3.dot(oc, oc) - b.R * b.R * 0.9); if (h < 0) continue; const t = -bb - Math.sqrt(h); if (t > 0 && (!best || t < best.t)) best = { key: b.key, t }; }
+    return best;
+  }
+  function floorPoint(x, y) { const r = rayAt(x, y); if (r.d[1] > -1e-3) return null; const t = -r.o[1] / r.d[1]; return t > 60 ? null : [r.o[0] + r.d[0] * t, r.o[2] + r.d[2] * t, t]; }
+  function select(k) { if (S.sel !== k) { S.sel = k; refreshSelection(); } }
+  const Pointer = {
+    down(e, x, y) {
+      const hit = e.button === 0 ? pick(x, y) : null;
+      drag = { x, y, btn: e.button, travel: 0 };
+      if (hit) { select(hit.key); const fp = floorPoint(x, y), o = S.objs[hit.key]; if (fp) { drag.obj = hit.key; drag.off = [o.x - fp[0], o.z - fp[1]]; } }
+    },
+    move(e, x, y) {
+      if (!drag) { ovCanvas.style.cursor = pick(x, y) ? 'grab' : 'default'; return; }
+      const dx = x - drag.x, dy = y - drag.y; drag.x = x; drag.y = y; drag.travel += Math.abs(dx) + Math.abs(dy);
+      if (drag.obj) {
+        const o = S.objs[drag.obj];
+        if (e.shiftKey) { o.rot = ((o.rot + dx * 0.6) % 360 + 540) % 360 - 180; C.rot && C.rot.set(o.rot); }
+        else { const fp = floorPoint(x, y); if (fp) { o.x = clamp(fp[0] + drag.off[0], -6, 6); o.z = clamp(fp[1] + drag.off[1], -6, 6); } }
+        ovCanvas.style.cursor = 'grabbing'; touchScene(); moved();
+      } else {
+        const c = S.cam;
+        if (drag.btn === 2 || e.shiftKey) { const cam = camera(), k = c.dist * 0.0016; c.tx += (-cam.r[0] * dx + cam.u[0] * dy) * k; c.ty = clamp(c.ty + cam.u[1] * dy * k, 0, 3); c.tz += (-cam.r[2] * dx + cam.u[2] * dy) * k; }
+        else { c.yaw -= dx * 0.006; c.pitch = clamp(c.pitch + dy * 0.006, 0.03, 1.52); }
+        touchCam(); moved();
+      }
+    },
+    up(e, x, y) { if (drag && !drag.obj && drag.travel < 4 && drag.btn === 0) select(null); drag = null; ovCanvas.style.cursor = 'default'; },
+    wheel(e) { // scroll and pinch both dolly the camera
+      const c = S.cam, k = e.ctrlKey ? 0.012 : e.deltaMode ? 0.05 : 0.0022;
+      c.dist = clamp(c.dist * Math.exp(clamp(e.deltaY, -160, 160) * k), 2.2, 26); touchCam(); moved();
+    },
+    dbl(e, x, y) { // focus where you point
+      const r = rayAt(x, y), hit = pick(x, y), fp = floorPoint(x, y); let t = hit ? hit.t : fp ? fp[2] : null; if (t == null) return;
+      S.focus = clamp(t * v3.dot(r.d, r.cam.f), 1, 30); C.focus.set(S.focus); if (S.aperture === 0) { S.aperture = 0.06; C.aperture.set(0.06); }
+      touchCam(); toast('Focus set to ' + S.focus.toFixed(1));
+    },
+    key(e) { if (e.key === 'Escape') select(null); }
+  };
+  function overlay(ctx) {
+    if (!S.sel) return;
+    const cam = camera(), b = bounds().find(b => b.key === S.sel), pts = [];
+    for (let i = 0; i <= 72; i++) { const a = i / 72 * TAU, p = project([b.c[0] + Math.cos(a) * b.ring * 1.22, 0.004, b.c[2] + Math.sin(a) * b.ring * 1.22], cam); if (!p) return; pts.push(p); }
+    ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+    ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 3; ctx.stroke(); ctx.strokeStyle = 'rgba(255,138,60,.95)'; ctx.lineWidth = 1.25; ctx.stroke();
+    const lo = pts.reduce((m, p) => p[1] > m[1] ? p : m, pts[0]);
+    ctx.font = '600 11.5px "Avenir Next",Avenir,"Segoe UI",sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(NAMES[S.sel], lo[0] + 1, lo[1] + 17); ctx.fillStyle = '#ece7db'; ctx.fillText(NAMES[S.sel], lo[0], lo[1] + 16);
+  }
+
+  /* ---- panel ---- */
+  function buildPanel() {
+    const root = $('#p3d'), L = S.light;
+    const deg = v => v.toFixed(0) + '°';
+    const light = Section('光源');
+    C.az = Slider({ label: '角度', min: 0, max: 360, step: 1, value: L.az, def: 180, fmt: deg, onInput: v => { L.az = v; touchScene(); moved(); } });
+    C.el = Slider({ label: '仰角', min: 2, max: 85, step: 0.5, value: L.el, def: 9, fmt: v => v.toFixed(1) + '°', onInput: v => { L.el = v; touchScene(); moved(); } });
+    C.width = Slider({ label: '光束宽度', min: 0.25, max: 30, log: true, value: L.width, def: 0.55, fmt: v => v.toFixed(v < 3 ? 2 : 1) + '°', onInput: v => { L.width = v; touchScene(); moved(); } });
+    C.aim = Seg({ label: '照向', options: [{ v: 'prism', label: '棱镜' }, { v: 'sphere', label: '球体' }, { v: 'crystal', label: '晶体' }, { v: 'center', label: '中心' }], value: L.aim, onChange: v => { L.aim = v; touchScene(); } });
+    C.temp = Slider({ label: '色温', min: 1800, max: 12000, step: 50, value: L.temp, def: 6200, track: Color.gradient(Color.tempCSS, 1800, 12000), fmt: v => v.toFixed(0) + ' K', onInput: v => { L.temp = v; touchScene(); moved(); } });
+    C.fill = Slider({ label: '补光', min: 0, max: 2, step: 0.01, value: L.fill, def: 0.5, onInput: v => { L.fill = v; touchCam(); moved(); } });
+    C.haze = Slider({ label: '薄雾', min: 0, max: 1.5, step: 0.01, value: L.haze, def: 0.6, onInput: v => { const was = L.haze; L.haze = v; if (!was) touchCam(); } });
+    light.add(C.az, C.el, C.width, C.aim, C.temp, C.fill, C.haze);
+
+    const glass = Section('玻璃');
+    C.disp = Slider({ label: '色散', min: 0, max: 1, step: 0.01, value: S.disp, def: 0.5, fmt: v => v === 0 ? '关' : (v * DISP_MAX / 0.0042).toFixed(1) + '× 冕牌', onInput: v => { S.disp = v; touchScene(); moved(); } });
+    C.ior = Slider({ label: '折射率', min: 1.1, max: 2.4, step: 0.005, value: S.ior, def: 1.5, fmt: v => v.toFixed(3), onInput: v => { S.ior = v; touchScene(); moved(); } });
+    const tintTargets = () => S.sel && GLASS.includes(S.sel) ? [S.sel] : GLASS;
+    C.tint = Swatches({ label: '染色', colors: TINTS, value: 0, onChange: i => { tintTargets().forEach(k => { const o = S.objs[k]; o.tint = i; if (i && !o.dens) o.dens = 0.6; }); refreshSelection(); touchScene(); } });
+    C.dens = Slider({ label: '染色浓度', min: 0, max: 3, step: 0.01, value: 0.6, def: 0.6, onInput: v => { tintTargets().forEach(k => { S.objs[k].dens = v; }); touchScene(); moved(); } });
+    glass.add(C.disp, C.ior, C.tint, C.dens); panelEls.glass = glass;
+
+    const obj = Section('选中物体');
+    C.rot = Slider({ label: '旋转', min: -180, max: 180, step: 1, value: 0, def: 0, fmt: deg, onInput: v => { if (S.sel) { S.objs[S.sel].rot = v; touchScene(); moved(); } } });
+    C.metal = Swatches({ label: '金属', colors: METALS, value: 0, onChange: i => { S.objs.ring.metal = i; touchScene(); } });
+    panelEls.note = el('div', 'note', '点选场景里的物体。拖动可在地面上移动，按住 Shift 再拖可以旋转。');
+    obj.add(panelEls.note, C.rot, C.metal); panelEls.obj = obj;
+
+    const lens = Section('相机');
+    C.aperture = Slider({ label: '光圈', min: 0, max: 0.3, step: 0.002, value: S.aperture, def: 0, fmt: v => v === 0 ? '针孔' : 'f/' + (0.9 / v).toFixed(1), onInput: v => { S.aperture = v; touchCam(); moved(); } });
+    C.focus = Slider({ label: '对焦距离', min: 1.5, max: 20, step: 0.05, value: S.focus, def: 9, fmt: v => v.toFixed(2), onInput: v => { S.focus = v; touchCam(); moved(); } });
+    lens.add(C.aperture, C.focus);
+
+    const render = Section('渲染');
+    C.bounces = Slider({ label: '反弹次数', min: 2, max: 16, step: 1, value: S.bounces, def: 8, fmt: v => v.toFixed(0), onInput: v => { S.bounces = v; touchCam(); } });
+    C.exposure = Slider({ label: '曝光', min: -4, max: 7, step: 0.05, value: S.exposure, def: 0, fmt: v => (v > 0 ? '+' : '') + v.toFixed(2) + ' EV', onInput: v => { S.exposure = v; } });
+    C.res = Seg({ label: '静止时分辨率', options: [{ v: 0.5, label: '50%' }, { v: 0.75, label: '75%' }, { v: 1, label: '100%' }], value: S.res, onChange: v => { S.res = v; } });
+    render.add(C.bounces, C.exposure, C.res);
+    root.append(light, glass, obj, lens, render);
+    refreshSelection();
+  }
+  function refreshSelection() {
+    const k = S.sel, o = k ? S.objs[k] : null, isGlass = k && GLASS.includes(k);
+    panelEls.obj.sub(k ? NAMES[k] : '未选'); panelEls.note.style.display = k ? 'none' : '';
+    C.rot.style.display = k && k !== 'sphere' && k !== 'ring' ? '' : 'none'; if (o) C.rot.set(o.rot);
+    C.metal.style.display = k === 'ring' ? '' : 'none'; C.metal.set(S.objs.ring.metal);
+    panelEls.glass.sub(isGlass ? '仅' + NAMES[k] : '全部玻璃');
+    const ts = (isGlass ? [k] : GLASS).map(g => S.objs[g]);
+    C.tint.set(ts.every(t => t.tint === ts[0].tint) ? ts[0].tint : -1); C.dens.set(ts[0].dens || 0.6);
+  }
+  function refreshPanel() {
+    const L = S.light; C.az.set(L.az); C.el.set(L.el); C.width.set(L.width); C.aim.set(L.aim); C.temp.set(L.temp); C.fill.set(L.fill); C.haze.set(L.haze);
+    C.disp.set(S.disp); C.ior.set(S.ior); C.aperture.set(S.aperture); C.focus.set(S.focus); C.bounces.set(S.bounces); C.exposure.set(S.exposure); C.res.set(S.res);
+    refreshSelection();
+  }
+  function applyPreset(i) {
+    const p = JSON.parse(JSON.stringify(PRESETS[i].s));
+    Object.assign(S.cam, p.cam); Object.assign(S.light, p.light); for (const k in p.objs) Object.assign(S.objs[k], p.objs[k]);
+    for (const k of ['ior', 'disp', 'aperture', 'focus', 'bounces', 'exposure']) S[k] = p[k];
+    S.preset = i; S.sel = null; refreshPanel(); touchScene();
+  }
+
+  return {
+    id: '3d', title: '光路追踪', S, init, resize, update, display, overlay, Pointer, applyPreset,
+    presets: PRESETS, get preset() { return S.preset; }, dirty: touchCam,
+    stats: () => ({ v: spp >= SPP_CAP ? spp + ' ✓' : String(spp), l: '每像素采样', scale }),
+    hint: '拖拽环视，滚轮或双指缩放，右键平移。点选物体后可以在地面上拖动。双击对焦。',
+    canUndo: false, shotOverlay: false, debug: () => ({ spp, photons, hazeFrames, scale, sw, sh, burst, sel: S.sel }), project: p => project(p, camera())
+  };
+})();
+
+/* =====================================================================================
+   5. Mode2D shaders
+   Ray state lives in two float textures:  pos = (x, y, dir.x, dir.y)
+                                           col = (wavelength, throughput after the last event, intensity on arrival, alive)
+   ===================================================================================== */
+const MAXP = 160;         // primitives (segments + arcs) in the scene texture
+const MAXL = 8;           // lights
+const RAY_W = 1024;       // ray-state texture width
+
+// Emit one ray per texel from the lights.
+const FS_INIT2D = GLSL_HEAD + GLSL_SPECTRAL + GLSL_RNG + `
+uniform uint uFrame; uniform int uLightN; uniform vec4 uL0[${MAXL}],uL1[${MAXL}],uL2[${MAXL}];
+layout(location=0) out vec4 oPos; layout(location=1) out vec4 oCol;
+void main(){
+  ivec2 ip=ivec2(gl_FragCoord.xy); seed(ip,uFrame);
+  oPos=vec4(0.0); oCol=vec4(550.0,0.0,0.0,0.0);
+  if(uLightN==0) return;
+  float u=rnd(); int k=uLightN-1; for(int i=0;i<uLightN;i++){ if(u<uL1[i].w){ k=i; break; } }
+  vec4 a=uL0[k],b=uL1[k],c=uL2[k]; int type=int(b.x+0.5);
+  vec2 dir=a.zw,pos=a.xy; float lam,w;
+  if(type==3){ lam=c.x+(rnd()-0.5)*3.0; w=c.y; }                                    // monochromatic laser
+  else { lam=sampleLambda(rnd()); w=planck(lam,c.x)*c.y/pdfLambda(lam); }           // blackbody white
+  if(type==2){ float an=6.2831853*rnd(); dir=vec2(cos(an),sin(an)); }               // point light
+  else {
+    pos+=vec2(-dir.y,dir.x)*(rnd()-0.5)*b.y;                                        // aperture width
+    float sp=(rnd()-0.5)*b.z,cs=cos(sp),sn=sin(sp); dir=vec2(dir.x*cs-dir.y*sn,dir.x*sn+dir.y*cs);   // cone spread
+  }
+  oPos=vec4(pos,dir); oCol=vec4(lam,w,w,1.0);
+}`;
+
+// Advance every ray to its next surface and apply the interaction there.
+const FS_TRACE2D = GLSL_HEAD + GLSL_SPECTRAL + GLSL_RNG + `
+uniform sampler2D uPos,uCol,uScene; uniform int uCount; uniform uint uFrame; uniform float uBias;
+layout(location=0) out vec4 oPos; layout(location=1) out vec4 oCol;
+const float EPS=0.02, FAR=1e5;
+float cross2(vec2 a,vec2 b){ return a.x*b.y-a.y*b.x; }
+void main(){
+  ivec2 ip=ivec2(gl_FragCoord.xy); seed(ip,uFrame);
+  vec4 P=texelFetch(uPos,ip,0),C=texelFetch(uCol,ip,0);
+  vec2 o=P.xy,d=P.zw; float lam=C.x,thr=C.y;
+  if(thr<=0.0){ oPos=P; oCol=vec4(lam,0.0,0.0,0.0); return; }
+  float tB=FAR; int hit=-1; vec2 n=vec2(0.0);
+  for(int i=0;i<uCount;i++){
+    vec4 A=texelFetch(uScene,ivec2(i,0),0),B=texelFetch(uScene,ivec2(i,1),0);
+    if(B.w<0.5){ // segment a -> b, stored normal
+      vec2 e=A.zw-A.xy,w=o-A.xy; float den=cross2(d,e); if(abs(den)<1e-9) continue;
+      float t=cross2(e,w)/den,s=cross2(d,w)/den;
+      if(t>EPS&&t<tB&&s>=0.0&&s<=1.0){ tB=t; hit=i; n=B.xy; }
+    } else {     // arc: centre, radius, orientation sign; B = mid direction, cos(half span)
+      vec2 oc=o-A.xy; float b=dot(oc,d),c=dot(oc,oc)-A.z*A.z,h=b*b-c; if(h<=0.0) continue; h=sqrt(h);
+      float t=-b-h;
+      if(t>EPS&&t<tB){ vec2 q=(oc+t*d)/A.z; if(dot(q,B.xy)>=B.z){ tB=t; hit=i; n=q*A.w; } }
+      t=-b+h;
+      if(t>EPS&&t<tB){ vec2 q=(oc+t*d)/A.z; if(dot(q,B.xy)>=B.z){ tB=t; hit=i; n=q*A.w; } }
+    }
+  }
+  vec2 p=o+d*tB;
+  if(hit<0){ oPos=vec4(p,d); oCol=vec4(lam,0.0,thr,0.0); return; }
+  vec4 M=texelFetch(uScene,ivec2(hit,2),0),K=texelFetch(uScene,ivec2(hit,3),0);
+  int mat=int(M.x+0.5); float arrive=thr,nt=0.0; vec2 nd=d;
+  if(mat==0){ // glass
+    bool ent=dot(d,n)<0.0; vec2 nn=ent?n:-n;
+    if(!ent&&M.w>0.0) arrive*=pow(max(rgbToSpec(K.rgb,lam),0.02),M.w*tB*0.01);   // Beer-Lambert over the path inside
+    float ng=iorAt(M.y,M.z,lam),eta=ent?1.0/ng:ng,ci=-dot(d,nn),ct; float F=fresnel(ci,eta,ct);
+    // sample reflection a little more often than Fresnel says, so faint internal bounces (rainbows) resolve quickly
+    float pr=F>=1.0?1.0:mix(F,0.5,uBias);
+    if(rnd()<pr){ nd=reflect(d,nn); nt=arrive*F/pr; }
+    else { nd=normalize(eta*d+(eta*ci-ct)*nn); nt=arrive*(1.0-F)/(1.0-pr); }
+  } else if(mat==1){ nd=reflect(d,n); nt=arrive*K.w; }                               // mirror
+  else if(mat==3){ // diffuse: cosine-weighted scatter back to the incoming side
+    vec2 nn=dot(d,n)<0.0?n:-n; float s=rnd()*2.0-1.0; nd=nn*sqrt(max(0.0,1.0-s*s))+vec2(-nn.y,nn.x)*s; nt=arrive*K.w;
+  }
+  oPos=vec4(p,nd); oCol=vec4(lam,nt,arrive,1.0);
+}`;
+
+// Draw every ray segment as a line; colour comes from its wavelength.
+const VS_LINES2D = GLSL_HEAD + GLSL_SPECTRAL + `
+uniform sampler2D uPosA,uPosB,uColA,uColB; uniform vec4 uView; uniform vec2 uRes; uniform uint uFrame;
+out vec3 vCol;
+uint h32(uint v){ uint s=v*747796405u+2891336453u; uint w=((s>>((s>>28u)+4u))^s)*277803737u; return (w>>22u)^w; }
+void main(){
+  int ray=gl_VertexID>>1,en=gl_VertexID&1; ivec2 tc=ivec2(ray%${RAY_W},ray/${RAY_W});
+  vec4 ca=texelFetch(uColA,tc,0);
+  if(ca.y<=0.0){ gl_Position=vec4(2.0,2.0,0.0,1.0); vCol=vec3(0.0); return; }
+  vec4 pa=texelFetch(uPosA,tc,0),pb=texelFetch(uPosB,tc,0),cb=texelFetch(uColB,tc,0);
+  vec2 a=(pa.xy-uView.xy)*uView.zw,b=(pb.xy-uView.xy)*uView.zw;
+  vec2 dp=(b-a)*0.5*uRes; float ln=length(dp);
+  float bias=ln>0.0?ln/max(abs(dp.x),abs(dp.y)):1.0;          // a diagonal line covers fewer pixels per unit length
+  uint hh=h32(uint(ray)+h32(uFrame)); vec2 jit=(vec2(float(hh&65535u),float(hh>>16u))/65535.0-0.5)*2.0/uRes;   // sub-pixel jitter = antialiasing
+  vCol=wavelengthRGB(ca.x)*((en==0?ca.y:cb.z)*bias);
+  gl_Position=vec4((en==0?a:b)+jit,0.0,1.0);
+}`;
+const FS_LINES2D = GLSL_HEAD + `in vec3 vCol; out vec4 o; void main(){ o=vec4(vCol,1.0); }`;
+
+const FS_DISPLAY2D = GLSL_HEAD + GLSL_DISPLAY + `
+uniform sampler2D uAccum,uBloom; uniform vec2 uSub; uniform float uNorm,uBloomAmt,uAlpha,uZoom,uPxW;
+uniform vec2 uViewC,uViewH;   // world centre and half-extent of the view
+in vec2 vUv; out vec4 o;
+void main(){
+  vec2 uv=(vUv-0.5)/uZoom+0.5;
+  if(any(lessThan(uv,vec2(0.0)))||any(greaterThan(uv,vec2(1.0)))){ o=vec4(0.0,0.0,0.0,uAlpha); return; }
+  vec3 c=bilin(uAccum,uv*uSub,ivec2(uSub)-1).rgb*uNorm;
+  c=gamutFix(c)+bloom(uBloom,uv)*uBloomAmt;
+  c=aces(c);
+  // the table: faint cool falloff and a dot grid every 50 units
+  vec2 q=uv-0.5; c+=vec3(0.010,0.012,0.016)*(1.0-smoothstep(0.1,0.9,length(q)*1.3));
+  vec2 wp=uViewC+vec2(q.x,-q.y)*2.0*uViewH; vec2 g=(fract(wp/50.0+0.5)-0.5)*50.0;
+  vec2 g2=(fract(wp/250.0+0.5)-0.5)*250.0;
+  c+=vec3(0.055,0.058,0.065)*(1.0-smoothstep(0.7,1.5,length(g)/uPxW))+vec3(0.06)*(1.0-smoothstep(1.2,2.0,length(g2)/uPxW));
+  c=toSRGB(c)+(ign(gl_FragCoord.xy)-0.5)/255.0;
+  o=vec4(c,uAlpha);
+}`;
+
+/* =====================================================================================
+   5. Mode2D: scene model, GPU passes, editor
+   ===================================================================================== */
+const Mode2D = (() => {
+  const GLASS_DEF = { ior: 1.52, disp: 0.3, tint: 0, dens: 1 };
+  const TYPES = {
+    lens: { name: '凸透镜', mat: 0, def: { h: 110, curv: 0.55, thick: 8, ...GLASS_DEF } },
+    clens: { name: '凹透镜', mat: 0, def: { h: 110, curv: 0.55, thick: 14, ...GLASS_DEF } },
+    prism: { name: '棱镜', mat: 0, def: { r: 105, ...GLASS_DEF } },
+    block: { name: '玻璃块', mat: 0, def: { w: 120, h: 55, ...GLASS_DEF } },
+    ball: { name: '玻璃球', mat: 0, def: { r: 80, ...GLASS_DEF } },
+    fiber: { name: '玻璃条', mat: 0, def: { w: 34, lead: 120, R: 170, bend: 60, ...GLASS_DEF, disp: 0.1 } },
+    mirror: { name: '平面镜', mat: 1, def: { len: 220 } },
+    cmirror: { name: '曲面镜', mat: 1, def: { h: 120, curv: 0.5 } },
+    wall: { name: '吸光墙', mat: 2, def: { len: 220 } },
+    diffuser: { name: '漫反射面', mat: 3, def: { len: 220, albedo: 0.75 } },
+    laser: { name: '激光', light: 0, gain: 1, def: { power: 1, temp: 6500, width: 5 } },
+    flash: { name: '手电', light: 1, gain: 2.5, def: { power: 1, temp: 5200, width: 36, spread: 26 } },
+    point: { name: '点光源', light: 2, gain: 7, def: { power: 1, temp: 4200 } },
+    mono: { name: '单色激光', light: 3, gain: 1, def: { power: 1, wave: 532, width: 5 } }
+  };
+  const ICON = {
+    select: '<path d="M5 2.5v13l3.4-3 2.2 5 1.9-.8-2.2-5H15z"/>',
+    lens: '<path d="M10 2c3.4 3.4 3.4 12.6 0 16-3.4-3.4-3.4-12.6 0-16z"/>',
+    clens: '<path d="M6 2h8c-2.6 4-2.6 12 0 16H6c2.6-4 2.6-12 0-16z"/>',
+    prism: '<path d="M10 3.5 17.5 16h-15z"/>',
+    block: '<rect x="3" y="6.5" width="14" height="7"/>',
+    ball: '<circle cx="10" cy="10" r="6.5"/>',
+    fiber: '<path d="M1.5 10.5c4 0 4.5-5 8.5-5s4.5 5 8.5 5M1.5 14.5c4 0 4.5-5 8.5-5s4.5 5 8.5 5"/>',
+    mirror: '<path d="M4 15 15 4M7.5 15.5l2 2M11 12l2 2M14.5 8.5l2 2"/>',
+    cmirror: '<path d="M12 3c-5 3.5-5 10.5 0 14M8.6 6.3l-2-1.2M8 10H5.6M8.6 13.7l-2 1.2"/>',
+    wall: '<path d="M4 10h12" stroke-width="3.2"/>',
+    diffuser: '<path d="M3.5 13.5h13" stroke-dasharray="1.6 1.9" stroke-width="2"/><path d="M6.5 10 5 6.5M10 10V6M13.5 10 15 6.5"/>',
+    laser: '<rect x="2" y="7.5" width="6" height="5"/><path d="M9.5 10H18"/>',
+    flash: '<rect x="2" y="7.5" width="5" height="5"/><path d="M8.5 9 18 4.5M8.5 10H18M8.5 11l9.5 4.5"/>',
+    point: '<circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v3M10 14.5v3M2.5 10h3M14.5 10h3M4.7 4.7l2.1 2.1M13.2 13.2l2.1 2.1M4.7 15.3l2.1-2.1M13.2 6.8l2.1-2.1"/>',
+    mono: '<rect x="2" y="7.5" width="6" height="5"/><path d="M9.5 10H18" stroke="#5fe08a" stroke-width="2"/>'
+  };
+  const TOOLS = [['select', '选择并移动'], null, ['lens', '凸透镜'], ['clens', '凹透镜'], ['prism', '棱镜'], ['block', '玻璃块'], ['ball', '玻璃球'], ['fiber', '弯曲玻璃条'], null,
+    ['mirror', '平面镜'], ['cmirror', '曲面镜'], ['wall', '吸光墙'], ['diffuser', '漫反射面'], null, ['laser', '白光激光'], ['flash', '手电'], ['point', '点光源'], ['mono', '单色激光']];
+
+  const S = { objs: [], sel: null, tool: 'select', view: { cx: 0, cy: 0, zoom: 1 }, rays: 60000, bounces: 12, exposure: 0, res: 0.75, preset: 0 };
+  let nextId = 1, P = {}, T = {}, F = {}, C = {}, panelEls = {};
+  let sceneDirty = true, dirty = true, frames = 0, raysTotal = 0, raysRate = 0, frameId = 1, gov = 1, scale = -1, sw = 1, sh = 1;
+  let lastEdit = -1e9, drag = null, lightN = 0, primN = 0, powerTotal = 1, lastN = 0;
+  let history = [], hIndex = -1;
+  const FRAME_CAP = 6000, BRIGHT = 24;
+  const sceneData = new Float32Array(MAXP * 4 * 4), L0 = new Float32Array(MAXL * 4), L1 = new Float32Array(MAXL * 4), L2 = new Float32Array(MAXL * 4);
+  const isLight = o => TYPES[o.type].light != null;
+  const make = (type, props) => Object.assign({ id: nextId++, type, x: 0, y: 0, rot: 0, s: 1 }, JSON.parse(JSON.stringify(TYPES[type].def)), props || {});
+  const touch = () => { sceneDirty = true; lastEdit = performance.now(); };
+  const sel = () => S.objs.find(o => o.id === S.sel) || null;
+
+  /* ---- geometry: every shape is a loop of line and arc edges in local coordinates ---- */
+  const geomCache = new Map();
+  function geom(o) {
+    const sig = [o.type, o.h, o.curv, o.thick, o.r, o.w, o.len, o.lead, o.R, o.bend].join();
+    const hit = geomCache.get(o.id); if (hit && hit.sig === sig) return hit;
+    const E = [], L = (x0, y0, x1, y1) => { if (Math.hypot(x1 - x0, y1 - y0) > 1e-6) E.push({ t: 0, x0, y0, x1, y1 }); }, A = (cx, cy, r, a0, a1) => E.push({ t: 1, cx, cy, r, a0, a1 });
+    let closed = true, start = null;
+    switch (o.type) {
+      case 'lens': { const al = Math.asin(clamp(o.curv, 0.02, 0.985)), R = o.h / Math.sin(al), te = o.thick / 2, cx = te - R * Math.cos(al);
+        A(cx, 0, R, -al, al); L(te, o.h, -te, o.h); A(-cx, 0, R, Math.PI - al, Math.PI + al); L(-te, -o.h, te, -o.h); break; }
+      case 'clens': { const al = Math.asin(clamp(o.curv, 0.02, 0.985)), R = o.h / Math.sin(al), tc = o.thick / 2, xe = tc + R * (1 - Math.cos(al));
+        A(-tc - R, 0, R, -al, al); L(-xe, o.h, xe, o.h); A(tc + R, 0, R, Math.PI - al, Math.PI + al); L(xe, -o.h, -xe, -o.h); break; }
+      case 'prism': { const r = o.r, c = r * 0.8660254; L(0, -r, c, r / 2); L(c, r / 2, -c, r / 2); L(-c, r / 2, 0, -r); break; }
+      case 'block': L(-o.w, -o.h, o.w, -o.h), L(o.w, -o.h, o.w, o.h), L(o.w, o.h, -o.w, o.h), L(-o.w, o.h, -o.w, -o.h); break;
+      case 'ball': A(0, 0, o.r, 0, TAU); break;
+      case 'fiber': { // a strip that swings left, right, then left again: follow one wall forward and the other back
+        const b = o.bend * DEG, hw = o.w / 2, pieces = [{ len: o.lead }, { sw: b }, { sw: -2 * b }, { sw: b }, { len: o.lead }];
+        let p = [0, 0], th = 0; const fw = [], bk = [];
+        for (const pc of pieces) {
+          const dir = [Math.cos(th), Math.sin(th)], n = [-dir[1], dir[0]];
+          if (pc.len != null) { const q = [p[0] + dir[0] * pc.len, p[1] + dir[1] * pc.len];
+            fw.push({ t: 0, x0: p[0] + n[0] * hw, y0: p[1] + n[1] * hw, x1: q[0] + n[0] * hw, y1: q[1] + n[1] * hw });
+            bk.push({ t: 0, x0: q[0] - n[0] * hw, y0: q[1] - n[1] * hw, x1: p[0] - n[0] * hw, y1: p[1] - n[1] * hw }); p = q;
+          } else if (Math.abs(pc.sw) > 1e-4) { const sg = Math.sign(pc.sw), c = [p[0] + n[0] * o.R * sg, p[1] + n[1] * o.R * sg], a0 = Math.atan2(-n[1] * sg, -n[0] * sg), a1 = a0 + pc.sw;
+            fw.push({ t: 1, cx: c[0], cy: c[1], r: o.R - hw * sg, a0, a1 }); bk.push({ t: 1, cx: c[0], cy: c[1], r: o.R + hw * sg, a0: a1, a1: a0 });
+            p = [c[0] + o.R * Math.cos(a1), c[1] + o.R * Math.sin(a1)]; th += pc.sw; }
+        }
+        const dir = [Math.cos(th), Math.sin(th)], n = [-dir[1], dir[0]];
+        L(0, -hw, 0, hw); E.push(...fw); L(p[0] + n[0] * hw, p[1] + n[1] * hw, p[0] - n[0] * hw, p[1] - n[1] * hw); E.push(...bk.reverse());
+        start = [0, 0]; break; }
+      case 'mirror': case 'wall': case 'diffuser': L(-o.len / 2, 0, o.len / 2, 0); closed = false; break;
+      case 'cmirror': { const al = Math.asin(clamp(o.curv, 0.02, 0.985)), R = o.h / Math.sin(al); A(R, 0, R, Math.PI - al, Math.PI + al); closed = false; break; }
+      default: closed = false;
+    }
+    // polyline for drawing, hit-testing and the bounding box
+    let poly = [];
+    for (const e of E) {
+      if (e.t === 0) { poly.push([e.x0, e.y0]); if (!closed) poly.push([e.x1, e.y1]); }
+      else { const n = Math.max(2, Math.ceil(Math.abs(e.a1 - e.a0) / (5 * DEG))); for (let i = 0; i < (closed ? n : n + 1); i++) { const a = e.a0 + (e.a1 - e.a0) * i / n; poly.push([e.cx + e.r * Math.cos(a), e.cy + e.r * Math.sin(a)]); } }
+    }
+    if (isLight(o)) poly = [[-30, -9], [2, -9], [2, 9], [-30, 9]];
+    let bb = [1e9, 1e9, -1e9, -1e9]; for (const p of poly) { bb[0] = Math.min(bb[0], p[0]); bb[1] = Math.min(bb[1], p[1]); bb[2] = Math.max(bb[2], p[0]); bb[3] = Math.max(bb[3], p[1]); }
+    if (o.type === 'fiber') { // centre the strip on its own origin so handles sit around it
+      const ox = (bb[0] + bb[2]) / 2, oy = (bb[1] + bb[3]) / 2;
+      for (const e of E) { if (e.t === 0) { e.x0 -= ox; e.x1 -= ox; e.y0 -= oy; e.y1 -= oy; } else { e.cx -= ox; e.cy -= oy; } }
+      poly.forEach(p => { p[0] -= ox; p[1] -= oy; }); bb = [bb[0] - ox, bb[1] - oy, bb[2] - ox, bb[3] - oy]; start = [-ox, -oy];
+    }
+    // outward normals: step a hair off each edge and ask which side is inside
+    const inside = (x, y) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+    const prims = E.map(e => {
+      if (e.t === 0) { const dx = e.x1 - e.x0, dy = e.y1 - e.y0, l = Math.hypot(dx, dy); let nx = dy / l, ny = -dx / l;
+        if (closed && inside((e.x0 + e.x1) / 2 + nx * 0.05, (e.y0 + e.y1) / 2 + ny * 0.05)) { nx = -nx; ny = -ny; } return { t: 0, x0: e.x0, y0: e.y0, x1: e.x1, y1: e.y1, nx, ny }; }
+      const mid = (e.a0 + e.a1) / 2, half = Math.abs(e.a1 - e.a0) / 2; let sgn = 1;
+      if (closed && half < Math.PI - 1e-3 && inside(e.cx + (e.r + 0.05) * Math.cos(mid), e.cy + (e.r + 0.05) * Math.sin(mid))) sgn = -1;
+      return { t: 1, cx: e.cx, cy: e.cy, r: e.r, mid, half, sgn };
+    });
+    const g = { sig, prims, poly, closed, bb, inside, start }; geomCache.set(o.id, g); return g;
+  }
+  const toWorld = (o, x, y) => { const c = Math.cos(o.rot), s = Math.sin(o.rot); return [o.x + o.s * (x * c - y * s), o.y + o.s * (x * s + y * c)]; };
+  const toLocal = (o, x, y) => { const c = Math.cos(o.rot), s = Math.sin(o.rot), dx = (x - o.x) / o.s, dy = (y - o.y) / o.s; return [dx * c + dy * s, -dx * s + dy * c]; };
+
+  /* ---- view ---- */
+  const zp = () => Shell.cssH / 1000 * S.view.zoom;
+  const w2s = (x, y) => [Shell.cssW / 2 + (x - S.view.cx) * zp(), Shell.cssH / 2 + (y - S.view.cy) * zp()];
+  const s2w = (x, y) => [S.view.cx + (x - Shell.cssW / 2) / zp(), S.view.cy + (y - Shell.cssH / 2) / zp()];
+  function fitView() {
+    const left = 68, right = Shell.panelW, top = 58, fw = Shell.cssW - left - right, fh = Shell.cssH - top - 28;
+    const z = Math.min(fw / 1400, fh / 880); S.view.zoom = z / (Shell.cssH / 1000);
+    S.view.cx = -((left + fw / 2) - Shell.cssW / 2) / z; S.view.cy = -((top + fh / 2) - Shell.cssH / 2) / z; dirty = true;
+  }
+
+  /* ---- upload the scene to the GPU ---- */
+  function upload() {
+    sceneData.fill(0); let n = 0; const put = (row, i, a, b, c, d) => { const k = (row * MAXP + i) * 4; sceneData[k] = a; sceneData[k + 1] = b; sceneData[k + 2] = c; sceneData[k + 3] = d; };
+    for (const o of S.objs) {
+      if (isLight(o)) continue; const g = geom(o), ty = TYPES[o.type], cr = Math.cos(o.rot), sr = Math.sin(o.rot);
+      for (const p of g.prims) {
+        if (n >= MAXP) break;
+        if (p.t === 0) { const a = toWorld(o, p.x0, p.y0), b = toWorld(o, p.x1, p.y1); put(0, n, a[0], a[1], b[0], b[1]); put(1, n, p.nx * cr - p.ny * sr, p.nx * sr + p.ny * cr, 0, 0); }
+        else { const c = toWorld(o, p.cx, p.cy); put(0, n, c[0], c[1], p.r * o.s, p.sgn); put(1, n, Math.cos(p.mid + o.rot), Math.sin(p.mid + o.rot), p.half >= Math.PI - 1e-3 ? -2 : Math.cos(p.half), 1); }
+        if (ty.mat === 0) { const t = TINTS[o.tint || 0]; put(2, n, 0, o.ior, o.disp * DISP_MAX, o.tint ? o.dens : 0); put(3, n, t.c[0], t.c[1], t.c[2], 1); }
+        else { put(2, n, ty.mat, 0, 0, 0); put(3, n, 1, 1, 1, ty.mat === 1 ? 0.96 : ty.mat === 3 ? o.albedo : 0); }
+        n++;
+      }
+    }
+    primN = n;
+    gl.bindTexture(gl.TEXTURE_2D, T.scene); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, MAXP, 4, gl.RGBA, gl.FLOAT, sceneData);
+    const lights = S.objs.filter(isLight).slice(0, MAXL); lightN = lights.length; powerTotal = lights.reduce((s, o) => s + o.power * TYPES[o.type].gain, 0) || 1; let cdf = 0;
+    lights.forEach((o, i) => {
+      const ty = TYPES[o.type]; cdf += o.power * ty.gain / powerTotal;
+      L0.set([o.x, o.y, Math.cos(o.rot), Math.sin(o.rot)], i * 4); L1.set([ty.light, o.width || 0, (o.spread || 0) * DEG, i === lights.length - 1 ? 2 : cdf], i * 4);
+      L2.set(ty.light === 3 ? [o.wave, 0.9 / Math.max(Color.lum(o.wave), 0.2), 0, 0] : [o.temp, Color.K(o.temp), 0, 0], i * 4);
+    });
+  }
+
+  /* ---- setup ---- */
+  function init() {
+    P.init = program(VS_FULL, FS_INIT2D, 'ray emit'); P.trace = program(VS_FULL, FS_TRACE2D, 'ray trace 2D'); P.lines = program(VS_LINES2D, FS_LINES2D, 'ray lines');
+    P.copy = program(VS_FULL, FS_COPY, 'accumulate'); P.resolve = program(VS_FULL, FS_RESOLVE, 'bloom resolve 2D'); P.display = program(VS_FULL, FS_DISPLAY2D, 'display 2D');
+    T.scene = texture(MAXP, 4, gl.RGBA32F, gl.RGBA, gl.FLOAT);
+    T.st = [0, 1].map(() => [texture(RAY_W, 1024, gl.RGBA32F, gl.RGBA, gl.FLOAT), texture(RAY_W, 1024, gl.RGBA32F, gl.RGBA, gl.FLOAT)]);
+    F.st = T.st.map(t => framebuffer(t[0], t[1]));
+    buildDock(); buildPanel(); loadPreset(0, true);
+  }
+  function resize() {
+    for (const k of ['lines', 'avg', 'bloom']) if (T[k]) { gl.deleteTexture(T[k]); gl.deleteFramebuffer(F[k]); }
+    T.lines = texture(Shell.W, Shell.H, GLX.ACC, gl.RGBA, GLX.ACC_T); F.lines = framebuffer(T.lines);
+    T.avg = texture(Shell.W, Shell.H, GLX.ACC, gl.RGBA, GLX.ACC_T); F.avg = framebuffer(T.avg);
+    T.bloom = texture(Math.ceil(Shell.W / 4), Math.ceil(Shell.H / 4), gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, gl.LINEAR_MIPMAP_LINEAR); F.bloom = framebuffer(T.bloom);
+    gl.bindTexture(gl.TEXTURE_2D, T.bloom); gl.generateMipmap(gl.TEXTURE_2D);
+    clearTarget(F.avg); scale = -1; dirty = true;
+  }
+  const norm = () => Math.pow(2, S.exposure) * BRIGHT * powerTotal * zp() * Shell.pr * scale;
+
+  /* ---- one frame: emit, then (trace one bounce, draw its segments) repeated ---- */
+  function update(dt) {
+    const now = performance.now(), busy = !!drag || now - lastEdit < 180;
+    if (Shell.ft > 27) gov *= 0.93; else if (Shell.ft < 19) gov = Math.min(1, gov * 1.03); gov = clamp(gov, 0.04, 1);
+    const s = busy ? Math.min(S.res, 0.5) : S.res;
+    if (s !== scale) { scale = s; sw = Math.max(8, Math.round(Shell.W * s)); sh = Math.max(8, Math.round(Shell.H * s)); dirty = true; }
+    if (sceneDirty) { upload(); sceneDirty = false; dirty = true; }
+    if (dirty) { frames = 0; raysTotal = 0; dirty = false; clearTarget(F.avg); }
+    gl.disable(gl.BLEND); lastN = 0;
+    if (frames < FRAME_CAP && lightN > 0) {
+      const rows = clamp(Math.round(S.rays * gov / RAY_W), 4, 1024), N = rows * RAY_W; let cur = 0;
+      target(F.st[0], RAY_W, rows); gl.useProgram(P.init.p);
+      gl.uniform1ui(P.init.u.uFrame, frameId++); gl.uniform1i(P.init.u.uLightN, lightN); gl.uniform4fv(P.init.u.uL0, L0); gl.uniform4fv(P.init.u.uL1, L1); gl.uniform4fv(P.init.u.uL2, L2);
+      drawFS();
+      clearTarget(F.lines);
+      const z = zp(), vx = z * 2 / Shell.cssW, vy = -z * 2 / Shell.cssH, jit = frameId;
+      for (let b = 0; b <= S.bounces; b++) {
+        target(F.st[1 - cur], RAY_W, rows); let u = P.trace.u; gl.useProgram(P.trace.p);
+        bindTex(0, T.st[cur][0], u.uPos); bindTex(1, T.st[cur][1], u.uCol); bindTex(2, T.scene, u.uScene);
+        gl.uniform1i(u.uCount, primN); gl.uniform1ui(u.uFrame, frameId++); gl.uniform1f(u.uBias, 0.25);
+        drawFS();
+        target(F.lines, sw, sh); u = P.lines.u; gl.useProgram(P.lines.p);
+        bindTex(0, T.st[cur][0], u.uPosA); bindTex(1, T.st[1 - cur][0], u.uPosB); bindTex(2, T.st[cur][1], u.uColA); bindTex(3, T.st[1 - cur][1], u.uColB);
+        gl.uniform4f(u.uView, S.view.cx, S.view.cy, vx, vy); gl.uniform2f(u.uRes, sw, sh); gl.uniform1ui(u.uFrame, jit);
+        gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE); gl.drawArrays(gl.LINES, 0, N * 2); gl.disable(gl.BLEND);
+        cur = 1 - cur;
+      }
+      // fold this frame into the running average
+      target(F.avg, sw, sh); gl.useProgram(P.copy.p); bindTex(0, T.lines, P.copy.u.uTex); gl.uniform1f(P.copy.u.uScale, 1 / N);
+      gl.enable(gl.BLEND); gl.blendColor(0, 0, 0, 1 / (frames + 1)); gl.blendFunc(gl.CONSTANT_ALPHA, gl.ONE_MINUS_CONSTANT_ALPHA); drawFS(); gl.disable(gl.BLEND);
+      frames++; raysTotal += N; lastN = N;
+    }
+    raysRate += ((lastN / Math.max(dt, 1) * 1000) - raysRate) * 0.08;
+    target(F.bloom, T.bloom.w, T.bloom.h); const u = P.resolve.u; gl.useProgram(P.resolve.p);
+    bindTex(0, T.avg, u.uAccum); bindTex(1, T.avg, u.uHaze); gl.uniform2f(u.uSub, sw, sh); gl.uniform2f(u.uHazeSub, sw, sh);
+    gl.uniform1f(u.uNorm, norm()); gl.uniform1f(u.uHazeNorm, 0); gl.uniform1f(u.uThreshold, 0.35); gl.uniform1f(u.uMax, 4);
+    drawFS(); gl.bindTexture(gl.TEXTURE_2D, T.bloom); gl.generateMipmap(gl.TEXTURE_2D);
+  }
+  function display(alpha, zoom) {
+    const u = P.display.u, z = zp(); gl.useProgram(P.display.p);
+    bindTex(0, T.avg, u.uAccum); bindTex(1, T.bloom, u.uBloom); gl.uniform2f(u.uSub, sw, sh);
+    gl.uniform1f(u.uNorm, norm()); gl.uniform1f(u.uBloomAmt, 0.3); gl.uniform1f(u.uAlpha, alpha); gl.uniform1f(u.uZoom, zoom);
+    gl.uniform2f(u.uViewC, S.view.cx, S.view.cy); gl.uniform2f(u.uViewH, Shell.cssW / (2 * z), Shell.cssH / (2 * z)); gl.uniform1f(u.uPxW, 1 / z);
+    drawFS();
+  }
+
+  /* ---- overlay: object outlines, light bodies, selection handles ---- */
+  function pathOf(ctx, o, g) {
+    ctx.beginPath(); g.poly.forEach((p, i) => { const w = toWorld(o, p[0], p[1]), s = w2s(w[0], w[1]); i ? ctx.lineTo(s[0], s[1]) : ctx.moveTo(s[0], s[1]); }); if (g.closed) ctx.closePath();
+  }
+  function drawObj(ctx, o) {
+    const ty = TYPES[o.type], g = geom(o);
+    if (isLight(o)) {
+      const s = w2s(o.x, o.y), mono = ty.light === 3, col = mono ? Color.waveCSS(o.wave) : Color.tempCSS(o.temp);
+      ctx.save(); ctx.translate(s[0], s[1]); ctx.rotate(o.rot); ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(236,231,219,.75)'; ctx.fillStyle = '#1b1c20';
+      if (ty.light === 2) { ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, TAU); ctx.fill(); ctx.stroke(); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 3, 0, TAU); ctx.fill(); }
+      else {
+        const hw = Math.max(6, Math.min(o.width * zp() / 2 + 3, 400)), back = ty.light === 1 ? 7 : hw;
+        ctx.beginPath(); ctx.moveTo(-1, -hw); ctx.lineTo(-10, -hw); ctx.lineTo(-30, -back); ctx.lineTo(-30, back); ctx.lineTo(-10, hw); ctx.lineTo(-1, hw); ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-1, -hw + 2); ctx.lineTo(-1, hw - 2); ctx.stroke();
+      }
+      ctx.restore(); return;
+    }
+    pathOf(ctx, o, g); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.setLineDash([]);
+    if (ty.mat === 0) {
+      const t = TINTS[o.tint || 0].c, k = o.tint ? 0.13 : 0.05; ctx.fillStyle = `rgba(${Math.round(t[0] * 235)},${Math.round(t[1] * 240)},${Math.round(t[2] * 255)},${k})`; ctx.fill();
+      ctx.strokeStyle = 'rgba(214,226,246,.42)'; ctx.lineWidth = 1; ctx.stroke();
+    } else if (ty.mat === 1) { ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 5; ctx.stroke(); ctx.strokeStyle = '#cfd3da'; ctx.lineWidth = 2.2; ctx.stroke(); }
+    else if (ty.mat === 2) { ctx.strokeStyle = '#3a3c42'; ctx.lineWidth = 5; ctx.stroke(); ctx.strokeStyle = '#6b6e76'; ctx.lineWidth = 1; ctx.stroke(); }
+    else { ctx.strokeStyle = 'rgba(236,231,219,.8)'; ctx.lineWidth = 3; ctx.setLineDash([2, 5]); ctx.stroke(); ctx.setLineDash([]); }
+  }
+  // selection frame in screen space: four corners, a rotate grip, scale grips on the corners
+  function frameOf(o) {
+    const g = geom(o), light = isLight(o), z = light ? 1 / zp() : 1, pad = (light ? 5 : 9) / zp() / o.s;
+    const b = light ? [-34 * z, -13 * z, 6 * z, 13 * z] : [g.bb[0] - pad, g.bb[1] - pad, g.bb[2] + pad, g.bb[3] + pad];
+    const os = light ? Object.assign({}, o, { s: 1 }) : o;
+    const cs = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]].map(p => { const w = toWorld(os, p[0], p[1]); return w2s(w[0], w[1]); });
+    const c = w2s(o.x, o.y); let rot = null;
+    if (o.type !== 'point' && o.type !== 'ball') {
+      if (light) rot = [c[0] + Math.cos(o.rot) * 52, c[1] + Math.sin(o.rot) * 52];
+      else { const m = [(cs[0][0] + cs[1][0]) / 2, (cs[0][1] + cs[1][1]) / 2], d = [Math.sin(o.rot), -Math.cos(o.rot)]; rot = [m[0] + d[0] * 24, m[1] + d[1] * 24, m[0], m[1]]; }
+    }
+    return { cs, c, rot, scale: !light };
+  }
+  function overlay(ctx, opt) {
+    for (const o of S.objs) drawObj(ctx, o);
+    if (opt && opt.shot) return;
+    const o = sel(); if (!o) return;
+    const f = frameOf(o);
+    ctx.strokeStyle = 'rgba(255,138,60,.8)'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.beginPath(); f.cs.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
+    if (f.rot) { ctx.beginPath(); if (f.rot.length > 2) ctx.moveTo(f.rot[2], f.rot[3]); else ctx.moveTo(f.c[0] + Math.cos(o.rot) * 8, f.c[1] + Math.sin(o.rot) * 8); ctx.lineTo(f.rot[0], f.rot[1]); ctx.stroke();
+      ctx.fillStyle = '#17181b'; ctx.strokeStyle = '#ff8a3c'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(f.rot[0], f.rot[1], 5, 0, TAU); ctx.fill(); ctx.stroke(); }
+    if (f.scale) for (const p of f.cs) { ctx.fillStyle = '#17181b'; ctx.strokeStyle = '#ff8a3c'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.rect(p[0] - 4, p[1] - 4, 8, 8); ctx.fill(); ctx.stroke(); }
+  }
+
+  /* ---- hit testing ---- */
+  function hitObj(x, y) {
+    const w = s2w(x, y), tol = 7 / zp();
+    for (let i = S.objs.length - 1; i >= 0; i--) {
+      const o = S.objs[i], g = geom(o);
+      if (isLight(o)) { const c = w2s(o.x, o.y), dx = x - c[0], dy = y - c[1], lx = dx * Math.cos(o.rot) + dy * Math.sin(o.rot), ly = -dx * Math.sin(o.rot) + dy * Math.cos(o.rot);
+        if (o.type === 'point' ? Math.hypot(dx, dy) < 12 : (lx > -34 && lx < 6 && Math.abs(ly) < Math.max(11, Math.min(o.width * zp() / 2 + 5, 400)))) return o; continue; }
+      const l = toLocal(o, w[0], w[1]);
+      if (g.closed) { if (g.inside(l[0], l[1])) return o; }
+      const t = tol / o.s;
+      for (let k = 0; k < g.poly.length - (g.closed ? 0 : 1); k++) { const a = g.poly[k], b = g.poly[(k + 1) % g.poly.length], ex = b[0] - a[0], ey = b[1] - a[1], q = clamp(((l[0] - a[0]) * ex + (l[1] - a[1]) * ey) / (ex * ex + ey * ey || 1), 0, 1);
+        if (Math.hypot(l[0] - a[0] - ex * q, l[1] - a[1] - ey * q) < t) return o; }
+    }
+    return null;
+  }
+  function hitHandle(x, y) {
+    const o = sel(); if (!o) return null; const f = frameOf(o);
+    if (f.rot && Math.hypot(x - f.rot[0], y - f.rot[1]) < 10) return 'rotate';
+    if (f.scale) for (const p of f.cs) if (Math.hypot(x - p[0], y - p[1]) < 9) return 'scale';
+    return null;
+  }
+
+  /* ---- undo / redo ---- */
+  const snapshot = () => JSON.stringify(S.objs);
+  function commit() { const s = snapshot(); if (history[hIndex] === s) return; history = history.slice(0, hIndex + 1); history.push(s); if (history.length > 120) history.shift(); hIndex = history.length - 1; syncHist(); }
+  function restore(i) { if (i < 0 || i >= history.length) return; hIndex = i; S.objs = JSON.parse(history[i]); nextId = Math.max(nextId, ...S.objs.map(o => o.id + 1)); if (!sel()) S.sel = null; touch(); buildSel(); syncHist(); }
+  const undo = () => restore(hIndex - 1), redo = () => restore(hIndex + 1);
+  function syncHist() { $('#undo').disabled = hIndex <= 0; $('#redo').disabled = hIndex >= history.length - 1; }
+
+  /* ---- editing ---- */
+  function select(id) { if (S.sel !== id) { S.sel = id; buildSel(); } }
+  function setTool(t) { S.tool = t; document.querySelectorAll('#dock button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); ovCanvas.style.cursor = t === 'select' ? 'default' : 'crosshair'; }
+  function remove() { const o = sel(); if (!o) return; S.objs = S.objs.filter(x => x !== o); S.sel = null; touch(); commit(); buildSel(); }
+  function duplicate() { const o = sel(); if (!o || !room(o.type)) return; const c = JSON.parse(JSON.stringify(o)); c.id = nextId++; c.x += 30 / zp() * 0.6; c.y += 30 / zp() * 0.6; S.objs.push(c); S.sel = c.id; touch(); commit(); buildSel(); }
+  const LINEAR = ['mirror', 'wall', 'diffuser'], APERTURE = ['lens', 'clens', 'cmirror'];
+  function room(type) { // the GPU scene has fixed capacity
+    if (TYPES[type].light != null) { if (S.objs.filter(isLight).length >= MAXL) { toast('The table holds up to ' + MAXL + ' lights'); return false; } }
+    else if (primN > MAXP - 12) { toast('The table is full. Remove an object to add another'); return false; }
+    return true;
+  }
+  const Pointer = {
+    down(e, x, y) {
+      const w = s2w(x, y);
+      if (e.button !== 0) { drag = { mode: 'pan', x, y }; return; }
+      if (S.tool !== 'select') { if (!room(S.tool)) return; const o = make(S.tool, { x: w[0], y: w[1] }); S.objs.push(o); S.sel = o.id; drag = { mode: 'place', o, x0: w[0], y0: w[1], sx: x, sy: y }; touch(); buildSel(); return; }
+      const h = hitHandle(x, y), o0 = sel();
+      if (h === 'rotate') { const c = w2s(o0.x, o0.y); drag = { mode: 'rotate', o: o0, a0: Math.atan2(y - c[1], x - c[0]), r0: o0.rot }; return; }
+      if (h === 'scale') { const c = w2s(o0.x, o0.y); drag = { mode: 'scale', o: o0, d0: Math.hypot(x - c[0], y - c[1]), s0: o0.s }; return; }
+      const o = hitObj(x, y);
+      if (o) { select(o.id); drag = { mode: 'move', o, ox: o.x - w[0], oy: o.y - w[1], moved: false }; ovCanvas.style.cursor = 'grabbing'; }
+      else { drag = { mode: 'pan', x, y, click: true, travel: 0 }; }
+    },
+    move(e, x, y) {
+      const w = s2w(x, y);
+      if (!drag) { if (S.tool !== 'select') return; const h = hitHandle(x, y); ovCanvas.style.cursor = h === 'rotate' ? 'alias' : h === 'scale' ? 'nwse-resize' : hitObj(x, y) ? 'grab' : 'default'; return; }
+      const o = drag.o;
+      if (drag.mode === 'pan') { S.view.cx -= (x - drag.x) / zp(); S.view.cy -= (y - drag.y) / zp(); if (drag.travel != null) drag.travel += Math.abs(x - drag.x) + Math.abs(y - drag.y); drag.x = x; drag.y = y; dirty = true; lastEdit = performance.now(); return; }
+      if (drag.mode === 'move') { o.x = w[0] + drag.ox; o.y = w[1] + drag.oy; drag.moved = true; }
+      else if (drag.mode === 'rotate') { const c = w2s(o.x, o.y), a = Math.atan2(y - c[1], x - c[0]); o.rot = isLight(o) ? a : drag.r0 + a - drag.a0; if (e.shiftKey) o.rot = Math.round(o.rot / (15 * DEG)) * 15 * DEG; drag.moved = true; }
+      else if (drag.mode === 'scale') { const c = w2s(o.x, o.y); o.s = clamp(drag.s0 * Math.hypot(x - c[0], y - c[1]) / Math.max(drag.d0, 1), 0.15, 8); drag.moved = true; }
+      else if (drag.mode === 'place') { // dragging while placing draws the object out
+        const dx = w[0] - drag.x0, dy = w[1] - drag.y0, d = Math.hypot(dx, dy); if (Math.hypot(x - drag.sx, y - drag.sy) < 6) return;
+        if (LINEAR.includes(o.type)) { o.x = drag.x0 + dx / 2; o.y = drag.y0 + dy / 2; o.rot = Math.atan2(dy, dx); o.len = Math.max(d, 10); }
+        else if (APERTURE.includes(o.type)) { o.x = drag.x0 + dx / 2; o.y = drag.y0 + dy / 2; o.rot = Math.atan2(dy, dx) - Math.PI / 2; o.h = Math.max(d / 2, 8); }
+        else if (isLight(o)) o.rot = Math.atan2(dy, dx);
+        else o.s = clamp(d / 110, 0.2, 8);
+      }
+      touch(); syncSel();
+    },
+    up(e, x, y) {
+      if (!drag) return; const d = drag; drag = null;
+      if (d.mode === 'pan') { if (d.click && d.travel < 4) select(null); return; }
+      if (d.mode === 'place') { commit(); if (!e.shiftKey) setTool('select'); buildSel(); return; }
+      if (d.moved) commit(); ovCanvas.style.cursor = 'default';
+    },
+    wheel(e) {
+      const wd = e.wheelDeltaY || 0, mouseWheel = e.deltaMode !== 0 || (e.deltaX === 0 && wd !== 0 && Math.abs(wd) % 120 === 0), v = S.view;   // notched wheel zooms, trackpad scroll pans
+      if (e.ctrlKey || mouseWheel) { const w0 = s2w(e.clientX, e.clientY); v.zoom = clamp(v.zoom * Math.exp(-clamp(e.deltaY, -160, 160) * (e.ctrlKey ? 0.012 : e.deltaMode ? 0.05 : 0.0025)), 0.25, 8); const w1 = s2w(e.clientX, e.clientY); v.cx += w0[0] - w1[0]; v.cy += w0[1] - w1[1]; }
+      else { v.cx += e.deltaX / zp(); v.cy += e.deltaY / zp(); }
+      dirty = true; lastEdit = performance.now();
+    },
+    dbl() { },
+    key(e) {
+      const mod = e.metaKey || e.ctrlKey, k = e.key.toLowerCase();
+      if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+      else if (mod && k === 'y') { e.preventDefault(); redo(); }
+      else if (mod && k === 'd') { e.preventDefault(); duplicate(); }
+      else if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); remove(); }
+      else if (e.key === 'Escape') { setTool('select'); select(null); }
+      else if (k === 'v' && !mod) setTool('select');
+      else if (e.key.startsWith('Arrow') && sel()) { e.preventDefault(); const o = sel(), st = (e.shiftKey ? 10 : 1) / zp(); o.x += e.key === 'ArrowRight' ? st : e.key === 'ArrowLeft' ? -st : 0; o.y += e.key === 'ArrowDown' ? st : e.key === 'ArrowUp' ? -st : 0; touch(); commit(); }
+    }
+  };
+
+  /* ---- panel ---- */
+  function buildDock() {
+    const d = $('#dock');
+    for (const t of TOOLS) { if (!t) { d.append(el('hr')); continue; }
+      const b = el('button', '', `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round">${ICON[t[0]]}</svg>`);
+      b.dataset.t = t[0]; b.dataset.tip = t[1]; b.setAttribute('aria-label', t[1]); b.onclick = () => setTool(t[0]); d.append(b); }
+    setTool('select');
+  }
+  function buildPanel() {
+    const root = $('#p2d');
+    panelEls.sel = Section('选中');
+    const table = Section('光学台');
+    C.rays = Slider({ label: '每帧光线数', min: 8000, max: 600000, log: true, step: 1000, value: S.rays, def: 60000, fmt: v => v >= 1e5 ? (v / 1000).toFixed(0) + 'k' : (v / 1000).toFixed(0) + 'k', onInput: v => { S.rays = v; } });
+    C.bounces = Slider({ label: '反弹上限', min: 1, max: 40, step: 1, value: S.bounces, def: 12, fmt: v => v.toFixed(0), onInput: v => { S.bounces = v; dirty = true; } });
+    C.exposure = Slider({ label: '曝光', min: -5, max: 6, step: 0.05, value: S.exposure, def: 0, fmt: v => (v > 0 ? '+' : '') + v.toFixed(2) + ' EV', onInput: v => { S.exposure = v; } });
+    C.res = Seg({ label: '静止时分辨率', options: [{ v: 0.5, label: '50%' }, { v: 0.75, label: '75%' }, { v: 1, label: '100%' }], value: S.res, onChange: v => { S.res = v; } });
+    table.add(C.rays, C.bounces, C.exposure, C.res);
+    const scene = Section('台面');
+    scene.add(Buttons([{ label: '适配画面', fn: fitView }, { label: '清空台面', fn: () => { S.objs = []; S.sel = null; touch(); commit(); buildSel(); } }]),
+      el('div', 'note', '先选工具，再点击放置或拖动绘制。拖空白处平移，滚轮或双指缩放。退格键删除，Ctrl+Z 撤销，Ctrl+D 复制，方向键微调。'));
+    root.append(panelEls.sel, table, scene); buildSel();
+  }
+  let selCtl = {};
+  function buildSel() {
+    const sec = panelEls.sel, o = sel(); while (sec.children.length > 1) sec.lastChild.remove(); selCtl = {};
+    if (!o) { sec.sub('未选'); sec.add(el('div', 'note', '选中一个物体后，可以改玻璃、形状或光源。')); return; }
+    const ty = TYPES[o.type]; sec.sub(ty.name);
+    const add = (key, opt) => { const c = Slider(Object.assign({ value: o[key], onInput: v => { o[key] = v; touch(); }, onCommit: commit }, opt)); selCtl[key] = { c, toUI: opt.toUI }; if (opt.toUI) c.set(opt.toUI(o[key])); sec.add(c); return c; };
+    if (ty.light != null) {
+      add('power', { label: '强度', min: 0.1, max: 12, log: true, def: 1, fmt: v => v.toFixed(2) + '×' });
+      if (ty.light === 3) add('wave', { label: '波长', min: 380, max: 700, step: 1, def: 532, track: Color.gradient(Color.waveCSS, 380, 700, 24), fmt: v => v.toFixed(0) + ' nm' });
+      else add('temp', { label: '色温', min: 1800, max: 12000, step: 50, def: ty.def.temp, track: Color.gradient(Color.tempCSS, 1800, 12000), fmt: v => v.toFixed(0) + ' K' });
+      if (ty.light !== 2) add('width', { label: '光束宽度', min: 1, max: ty.light === 1 ? 500 : 40, log: true, def: ty.def.width, fmt: v => v.toFixed(v < 10 ? 1 : 0) });
+      if (ty.light === 1) add('spread', { label: '锥角', min: 0, max: 120, step: 0.5, def: 26, fmt: v => v === 0 ? '平行光' : v.toFixed(1) + '°' });
+    }
+    if (ty.mat === 0) {
+      add('ior', { label: '折射率', min: 1.05, max: 2.5, step: 0.005, def: 1.52, fmt: v => v.toFixed(3) });
+      add('disp', { label: '色散', min: 0, max: 1, step: 0.01, def: 0.3, fmt: v => v === 0 ? '关' : (v * DISP_MAX / 0.0042).toFixed(1) + '× 冕牌' });
+      sec.add(Swatches({ label: '染色', colors: TINTS, value: o.tint || 0, onChange: i => { o.tint = i; touch(); commit(); } }));
+      add('dens', { label: '染色浓度', min: 0, max: 4, step: 0.02, def: 1 });
+    }
+    if (o.type === 'lens' || o.type === 'clens' || o.type === 'cmirror') add('curv', { label: '曲率', min: 0.05, max: 0.97, step: 0.005, def: ty.def.curv });
+    if (o.type === 'lens' || o.type === 'clens') add('thick', { label: o.type === 'lens' ? 'Edge thickness' : 'Centre thickness', min: 0, max: 80, step: 0.5, def: ty.def.thick, fmt: v => v.toFixed(1) });
+    if (o.type === 'block') { add('w', { label: '半宽', min: 10, max: 500, step: 1, def: 120, fmt: v => v.toFixed(0) }); add('h', { label: '半高', min: 5, max: 300, step: 1, def: 55, fmt: v => v.toFixed(0) }); }
+    if (o.type === 'fiber') { add('bend', { label: '弯曲', min: 0, max: 110, step: 1, def: 60, fmt: v => v.toFixed(0) + '°' }); add('w', { label: '条宽', min: 8, max: 90, step: 1, def: 34, fmt: v => v.toFixed(0) }); }
+    if (o.type === 'diffuser') add('albedo', { label: '反射率', min: 0.05, max: 1, step: 0.01, def: 0.75 });
+    if (o.type !== 'point' && o.type !== 'ball') add('rot', { label: '旋转', min: -180, max: 180, step: 1, def: 0, fmt: v => v.toFixed(0) + '°', toUI: r => ((r / DEG % 360) + 540) % 360 - 180, onInput: v => { o.rot = v * DEG; touch(); } });
+    if (ty.light == null) add('s', { label: '大小', min: 0.15, max: 8, log: true, def: 1, fmt: v => (v * 100).toFixed(0) + '%' });
+    sec.add(Buttons([{ label: '复制', fn: duplicate }, { label: '删除', fn: remove }]));
+  }
+  function syncSel() { const o = sel(); if (!o) return; for (const k in selCtl) selCtl[k].c.set(selCtl[k].toUI ? selCtl[k].toUI(o[k]) : o[k]); }
+
+  /* ---- presets ---- */
+  const PRESETS = [
+    { name: '牛顿棱镜', note: '一条白光从最小偏向角进入，在屏幕上散成光谱。', exposure: 0, bounces: 8, build: () => [
+      make('laser', { x: -546, y: 146, rot: -19.5 * DEG, width: 7, power: 1.6, temp: 6200 }), make('prism', { x: 0, y: 10, r: 130, disp: 0.55 }),
+      make('diffuser', { x: 575, y: 215, rot: 90 * DEG, len: 430, albedo: 0.5 })] },
+    { name: '雨滴彩虹', note: '一次内反射形成 42° 的主虹，两次形成较淡的 51° 副虹。', exposure: 2.2, bounces: 10, build: () => [
+      make('flash', { x: -650, y: -150, width: 42, spread: 0, power: 1.6, temp: 5800 }), make('flash', { x: -650, y: 150, width: 42, spread: 0, power: 1.6, temp: 5800 }),
+      make('ball', { x: 190, y: 0, r: 170, ior: 1.333, disp: 0.3 })] },
+    { name: '光纤', note: '光在弯曲玻璃条里靠全反射前进。', exposure: 0.4, bounces: 40, build: () => {
+      const f = make('fiber', { x: 40, y: 0, w: 38, lead: 150, R: 190, bend: 62, disp: 0.12 }), st = toWorld(f, ...geom(f).start);
+      return [f, make('flash', { x: st[0] - 46, y: st[1], width: 14, spread: 15, power: 1.6, temp: 5600 })]; } },
+    { name: '望远镜', note: '开普勒折射镜：物镜把平行光会聚，目镜再把它变回平行光。', exposure: 0.4, bounces: 8, build: () => [
+      make('flash', { x: -670, y: 0, width: 250, spread: 0, power: 3, temp: 6000 }),
+      make('lens', { x: -300, y: 0, h: 150, curv: 0.36, thick: 10, disp: 0.12 }), make('lens', { x: 198, y: 0, h: 58, curv: 0.48, thick: 6, disp: 0.12 }),
+      make('wall', { x: -47, y: -124, rot: 10.2 * DEG, len: 532 }), make('wall', { x: -47, y: 124, rot: -10.2 * DEG, len: 532 })] }
+  ];
+  function loadPreset(i, first) {
+    const p = PRESETS[i]; S.objs = p.build(); S.sel = null; S.exposure = p.exposure; S.bounces = p.bounces; S.preset = i;
+    C.exposure.set(S.exposure); C.bounces.set(S.bounces); setTool('select'); touch();
+    if (first) { history = [snapshot()]; hIndex = 0; } else commit();
+    buildSel(); syncHist();
+  }
+
+  return {
+    id: '2d', title: '光学台', S, init, resize, update, display, overlay, Pointer, applyPreset: i => { loadPreset(i); fitView(); },
+    presets: PRESETS, get preset() { return S.preset; }, dirty: () => { dirty = true; }, fitView, undo, redo,
+    stats: () => ({ v: raysTotal >= 1e9 ? (raysTotal / 1e9).toFixed(2) + ' B' : (raysTotal / 1e6).toFixed(1) + ' M', l: '条光线，' + (raysRate >= 1e6 ? (raysRate / 1e6).toFixed(1) + ' M' : (raysRate / 1e3).toFixed(0) + ' k') + ' 每秒', scale }),
+    hint: '在左侧选工具，再到台面上点击或拖动。拖动物体可以移动，角点改大小，圆点用来旋转。',
+    canUndo: true, shotOverlay: true, debug: () => ({ frames, raysTotal, primN, lightN, gov, scale, objs: S.objs, sel: S.sel, tool: S.tool, hist: [hIndex, history.length] }), w2s
+  };
+})();
+
+/* =====================================================================================
+   6. App shell
+   ===================================================================================== */
+const App = (() => {
+  const modes = { '3d': Mode3D, '2d': Mode2D };
+  const octx = ovCanvas.getContext('2d'), panel = $('#panel');
+  let cur = Mode3D, ovMode = Mode3D, trans = null, lastT = performance.now(), wantShot = false, statT = 0, panelMoved = false, hintT = 0;
+
+  function layout() {
+    const open = !panel.classList.contains('shut') && !panelMoved;
+    Shell.panelW = open ? panel.offsetWidth + 24 : 0;
+    const sh = Shell.panelW / Shell.cssW;
+    if (sh !== Shell.shift) { Shell.shift = sh; Mode3D.dirty(); }   // keep the 3D subject centred in the free area
+  }
+  function resize() {
+    const cw = window.innerWidth, ch = window.innerHeight, dpr = window.devicePixelRatio || 1;
+    const pr = Math.min(dpr, 2, Math.sqrt(4.6e6 / (cw * ch)));      // cap the pixel count so float buffers stay a sane size
+    Object.assign(Shell, { cssW: cw, cssH: ch, pr, W: Math.max(16, Math.round(cw * pr)), H: Math.max(16, Math.round(ch * pr)) });
+    glCanvas.width = Shell.W; glCanvas.height = Shell.H; ovCanvas.width = Math.round(cw * dpr); ovCanvas.height = Math.round(ch * dpr);
+    layout(); Mode3D.resize(); Mode2D.resize();
+  }
+
+  /* ---- top bar ---- */
+  function syncBar() {
+    document.querySelectorAll('#mode button').forEach(b => { const on = b.dataset.m === cur.id; b.classList.toggle('on', on); if (on) { const t = $('#mode .tick'); t.style.left = b.offsetLeft + 14 + 'px'; t.style.width = b.offsetWidth - 28 + 'px'; } });
+    $('#ptitle').textContent = cur.title; $('#p3d').classList.toggle('gone', cur.id !== '3d'); $('#p2d').classList.toggle('gone', cur.id !== '2d');
+    $('#dock').classList.toggle('off', cur.id !== '2d'); $('#hist').classList.toggle('off', !cur.canUndo);
+    const hint = $('#hint'); hint.textContent = cur.hint; hint.style.left = cur.id === '2d' ? '70px' : '14px'; hint.style.opacity = 1; clearTimeout(hintT); hintT = setTimeout(() => { hint.style.opacity = 0; }, 12000);
+    const pop = $('#presetPop'); pop.innerHTML = '';
+    cur.presets.forEach((p, i) => { const b = el('button', i === cur.preset ? 'on' : '', `<b>${p.name}</b><span>${p.note}</span>`); b.onclick = () => { cur.applyPreset(i); $('#preset').classList.remove('open'); syncBar(); }; pop.append(b); });
+    $('#presetName').textContent = cur.presets[cur.preset].name;
+  }
+  function switchMode(id) {
+    if (trans || cur.id === id) return;
+    const next = modes[id]; trans = { from: cur, to: next, t0: performance.now(), dur: 720 }; cur = next; drag = false;
+    ovCanvas.classList.add('fade'); ovCanvas.style.cursor = 'default';
+    setTimeout(() => { ovMode = next; ovCanvas.classList.remove('fade'); }, 300);
+    syncBar();
+  }
+  $('#mode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) switchMode(b.dataset.m); });
+  $('#preset .menu-btn').onclick = e => { e.stopPropagation(); $('#preset').classList.toggle('open'); };
+  window.addEventListener('pointerdown', e => { if (!e.target.closest('#preset')) $('#preset').classList.remove('open'); });
+  $('#undo').onclick = () => cur.undo && cur.undo(); $('#redo').onclick = () => cur.redo && cur.redo();
+  $('#shot').onclick = () => { wantShot = true; };
+  $('#collapse').onclick = () => { panel.classList.toggle('shut'); layout(); };
+  // the panel floats: drag it by its header
+  $('#phead').addEventListener('pointerdown', e => {
+    if (e.target.closest('#collapse')) return; const r = panel.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top, head = $('#phead'); head.setPointerCapture(e.pointerId);
+    const mv = ev => { panelMoved = true; panel.style.right = 'auto'; panel.style.left = clamp(ev.clientX - ox, 4, window.innerWidth - r.width - 4) + 'px'; panel.style.top = clamp(ev.clientY - oy, 50, window.innerHeight - 40) + 'px'; };
+    const up = () => { head.removeEventListener('pointermove', mv); head.removeEventListener('pointerup', up); layout(); };
+    head.addEventListener('pointermove', mv); head.addEventListener('pointerup', up);
+  });
+
+  /* ---- pointer routing to the active mode ---- */
+  let drag = false;
+  const xy = e => [e.clientX, e.clientY];
+  ovCanvas.addEventListener('pointerdown', e => { if (trans) return; ovCanvas.setPointerCapture(e.pointerId); drag = true; document.activeElement && document.activeElement.blur(); cur.Pointer.down(e, ...xy(e)); });
+  ovCanvas.addEventListener('pointermove', e => { if (!trans) cur.Pointer.move(e, ...xy(e)); });
+  const end = e => { if (drag) { drag = false; cur.Pointer.up(e, ...xy(e)); } };
+  ovCanvas.addEventListener('pointerup', end); ovCanvas.addEventListener('pointercancel', end);
+  ovCanvas.addEventListener('wheel', e => { e.preventDefault(); if (!trans) cur.Pointer.wheel(e); }, { passive: false });
+  // Safari reports trackpad pinches as gesture events instead of ctrl+wheel
+  let gScale = 1;
+  ovCanvas.addEventListener('gesturestart', e => { e.preventDefault(); gScale = e.scale; });
+  ovCanvas.addEventListener('gesturechange', e => { e.preventDefault(); if (trans) return; const r = e.scale / gScale; gScale = e.scale; cur.Pointer.wheel({ ctrlKey: true, deltaY: -Math.log(r) / 0.012, deltaX: 0, deltaMode: 0, clientX: e.clientX, clientY: e.clientY }); });
+  ovCanvas.addEventListener('dblclick', e => { if (!trans) cur.Pointer.dbl(e, ...xy(e)); });
+  ovCanvas.addEventListener('contextmenu', e => e.preventDefault());
+  window.addEventListener('keydown', e => { if (!trans) cur.Pointer.key(e); });
+  let rT = 0; window.addEventListener('resize', () => { clearTimeout(rT); rT = setTimeout(resize, 80); });
+
+  /* ---- screenshot: the render, plus the optics outlines in 2D ---- */
+  function shoot() {
+    const c = document.createElement('canvas'); c.width = Shell.W; c.height = Shell.H; const x = c.getContext('2d'); x.drawImage(glCanvas, 0, 0);
+    if (cur.shotOverlay) { x.setTransform(Shell.pr, 0, 0, Shell.pr, 0, 0); cur.overlay(x, { shot: true }); }
+    const d = new Date(), p = n => String(n).padStart(2, '0'), stamp = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+    c.toBlob(b => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `spectra-${cur.id}-${stamp}.png`; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }, 'image/png');
+    const f = $('#flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on'); toast('Saved PNG');
+  }
+
+  /* ---- main loop ---- */
+  function frame(t) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(t - lastT, 250); lastT = t; Shell.ft += (dt - Shell.ft) * 0.12;
+    cur.update(dt);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, Shell.W, Shell.H); gl.disable(gl.BLEND);
+    if (trans) { // cross-dissolve with a slight push-in: the outgoing mode keeps showing its last accumulated frame
+      const k = ease(clamp((t - trans.t0) / trans.dur, 0, 1));
+      trans.from.display(1, 1 + 0.14 * k);
+      gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); trans.to.display(k, 1.14 - 0.14 * k); gl.disable(gl.BLEND);
+      if (k >= 1) trans = null;
+    } else cur.display(1, 1);
+    if (wantShot) { wantShot = false; if (!trans) shoot(); }
+    const dpr = ovCanvas.width / Shell.cssW; octx.setTransform(dpr, 0, 0, dpr, 0, 0); octx.clearRect(0, 0, Shell.cssW, Shell.cssH); ovMode.overlay(octx);
+    if (t - statT > 160) { statT = t; const s = cur.stats(); $('#st1').textContent = s.v; $('#st1l').textContent = s.l; $('#st2').textContent = Shell.ft.toFixed(1) + ' ms'; $('#st3').textContent = Math.round(s.scale * 100) + '%'; }
+  }
+
+  Mode3D.init(); Mode2D.init(); resize(); Mode2D.fitView(); syncBar();
+  requestAnimationFrame(frame);
+  return { switchMode, get mode() { return cur.id; }, shoot: () => { wantShot = true; }, syncBar };
+})();
+window.__spectra = { App, Mode3D, Mode2D, Shell };
+
+})();
+</script>
+</body>
+</html>

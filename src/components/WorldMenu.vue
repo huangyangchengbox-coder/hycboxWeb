@@ -1,13 +1,23 @@
 <template>
-  <nav class="world-menu">
+  <nav class="world-menu" :class="{ flow }">
     <span class="wm-brand">hycBox · v2</span>
     <router-link to="/cosmos" class="wm-link" active-class="active">宇宙探索</router-link>
     <router-link to="/wildlife" class="wm-link" active-class="active">动物世界</router-link>
     <router-link to="/micro" class="wm-link" active-class="active">微观奇境</router-link>
     <router-link to="/saltline" class="wm-link" active-class="active">盐线港口</router-link>
+    <router-link to="/terrain" class="wm-link" active-class="active">地形岛</router-link>
+    <router-link to="/spectra" class="wm-link" active-class="active">光谱</router-link>
+    <router-link to="/formula" class="wm-link" active-class="active">公式像素</router-link>
+    <router-link to="/kerr" class="wm-link" active-class="active">旋转黑洞</router-link>
     <div class="wm-extra"><slot /></div>
   </nav>
 </template>
+
+<script setup>
+defineProps({
+  flow: { type: Boolean, default: false }
+})
+</script>
 
 <style scoped>
 .world-menu {
@@ -16,14 +26,21 @@
   top: 0;
   left: 0;
   right: 0;
-  height: 48px;
+  min-height: 48px;
+  height: auto;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
   padding: 0 0.9rem;
   background: rgba(0, 0, 0, 0.55);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   pointer-events: auto;
+}
+
+.world-menu.flow {
+  position: relative;
+  flex: none;
 }
 
 .wm-brand {
