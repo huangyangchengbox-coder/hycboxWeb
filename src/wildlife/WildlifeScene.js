@@ -5,7 +5,8 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { HABITATS } from './habitats.js'
 import { MIGRATIONS, SPECIALS } from './features.js'
-import { bubbleField, clearCreatureCaches, critter } from './creatures.js'
+import { bubbleField, clearCreatureCaches, critter, portraitAnimal } from './creatures.js'
+import { createFlock } from './flocks.js'
 import { buildAtlasSnake } from './snakeBuilder.js'
 
 function visiblePath(path) {
@@ -106,6 +107,9 @@ export class WildlifeScene {
     this.#migrations()
     this.#specials()
     this.#snakes()
+    this.#portrait()
+    this.flock = createFlock()
+    this.scene.add(this.flock.mesh)
     this.#weather()
     this.clock = new THREE.Clock()
     this.#resize()
@@ -137,6 +141,8 @@ export class WildlifeScene {
     for (const group of this.habitatGroups.values()) group.visible = false
     for (const group of this.specialGroups.values()) group.visible = false
     if (this.snakeGroup) this.snakeGroup.visible = false
+    if (this.portraitGroup) this.portraitGroup.visible = false
+    this.#showFlock(false)
     this.scene.fog.color.set('#07140f')
     this.renderer.setClearColor(0x07140f, 1)
     this.selectedId = null
@@ -153,6 +159,8 @@ export class WildlifeScene {
     this.migrationGroup.visible = false
     for (const item of this.specialGroups.values()) item.visible = false
     if (this.snakeGroup) this.snakeGroup.visible = false
+    if (this.portraitGroup) this.portraitGroup.visible = false
+    this.#showFlock(true)
     for (const [key, item] of this.habitatGroups) item.visible = key === id
     const habitat = HABITATS.find((item) => item.id === id)
     this.scene.fog.color.set(habitat.fog)
@@ -165,15 +173,92 @@ export class WildlifeScene {
   focusAnimal(id) {
     const body = this.bodies.find((item) => item.id === id && item.kind === 'animal')
     if (!body) return
-    if (this.view !== body.habitatId) this.showHabitat(body.habitatId, true)
-    this.selectedId = id
-    this.onSelect?.({ type: 'animal', ...body.meta })
-    const world = new THREE.Vector3()
-    body.anchor.getWorldPosition(world)
-    const aim = world.clone()
-    aim.y += 0.35
-    const offset = new THREE.Vector3(1.15, 0.7, 1.25).applyQuaternion(body.anchor.quaternion).multiplyScalar(1.85)
-    this.#fly(aim.clone().add(offset), aim, false)
+    this.showPortrait(body.meta)
+  }
+
+  showPortrait(meta) {
+    this.#restoreSceneLight()
+    this.view = 'portrait'
+    this.earth.visible = false
+    this.migrationGroup.visible = false
+    this.nightSafari = false
+    this.spot.intensity = 0
+    for (const item of this.habitatGroups.values()) item.visible = false
+    for (const item of this.specialGroups.values()) item.visible = false
+    if (this.snakeGroup) this.snakeGroup.visible = false
+    this.#showFlock(false)
+    this.portraitGroup.visible = true
+    this.#setPortraitModel(meta)
+    this.scene.fog.color.set('#1c2622')
+    this.renderer.setClearColor(0x1c2622, 1)
+    this.ambient.intensity = 0.62
+    this.selectedId = meta.id
+    this.onSelect?.({ type: 'animal', ...meta })
+    const large = ['tall', 'whale', 'shark', 'dolphin'].includes(meta.shape) || meta.id === 'elephant'
+    this.#fly(
+      new THREE.Vector3(large ? 0.8 : 1.15, large ? 1.7 : 1.05, large ? 5.6 : 3.15),
+      new THREE.Vector3(0, large ? 0.9 : 0.72, 0),
+      false
+    )
+  }
+
+  #setPortraitModel(meta) {
+    if (this.portraitModel) this.portraitAnchor.remove(this.portraitModel)
+    const model = portraitAnimal(meta)
+    model.position.y = 0.02
+    this.portraitAnchor.add(model)
+    this.portraitModel = model
+  }
+
+  #portrait() {
+    this.portraitGroup = new THREE.Group()
+    this.portraitGroup.visible = false
+    const groundGeo = new THREE.CircleGeometry(4.4, 32)
+    const plinthGeo = new THREE.CylinderGeometry(1.52, 1.64, 0.14, 28)
+    const ringGeo = new THREE.TorusGeometry(1.56, 0.012, 6, 36)
+    const stoneGeo = new THREE.DodecahedronGeometry(1, 0)
+    for (const geo of [groundGeo, plinthGeo, ringGeo, stoneGeo]) geo.userData.shared = true
+    const groundMat = new THREE.MeshStandardMaterial({ color: '#24302c', roughness: 1 })
+    const plinthMat = new THREE.MeshStandardMaterial({ color: '#35413f', roughness: 0.72, metalness: 0.12 })
+    const ringMat = new THREE.MeshStandardMaterial({ color: '#c58b50', roughness: 0.42, metalness: 0.4 })
+    const stoneMatA = new THREE.MeshStandardMaterial({ color: '#66736d', roughness: 1 })
+    const stoneMatB = new THREE.MeshStandardMaterial({ color: '#8d7761', roughness: 1 })
+    for (const mat of [groundMat, plinthMat, ringMat, stoneMatA, stoneMatB]) mat.userData.sharedCoat = true
+    const ground = new THREE.Mesh(groundGeo, groundMat)
+    ground.rotation.x = -Math.PI / 2
+    ground.position.y = -0.02
+    const plinth = new THREE.Mesh(plinthGeo, plinthMat)
+    plinth.position.y = 0.07
+    const ring = new THREE.Mesh(ringGeo, ringMat)
+    ring.rotation.x = Math.PI / 2
+    ring.position.y = 0.145
+    let s = 0x51a7
+    const rnd = () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296)
+    for (let i = 0; i < 8; i += 1) {
+      const angle = rnd() * Math.PI * 2
+      const radius = 2.05 + rnd() * 1.15
+      const size = 0.07 + rnd() * 0.06
+      const stone = new THREE.Mesh(stoneGeo, i % 2 ? stoneMatA : stoneMatB)
+      stone.position.set(Math.cos(angle) * radius, size * 0.35, Math.sin(angle) * radius)
+      stone.scale.set(size, size * 0.42, size)
+      stone.rotation.y = rnd() * Math.PI
+      this.portraitGroup.add(stone)
+    }
+    this.portraitAnchor = new THREE.Group()
+    this.portraitAnchor.position.y = 0.15
+    this.portraitAnchor.userData.baseY = 0.15
+    const rim = new THREE.DirectionalLight(0xb9d9ff, 0.42)
+    rim.position.set(2.4, 2.6, -1.8)
+    this.portraitGroup.add(ground, plinth, ring, this.portraitAnchor, rim)
+    this.scene.add(this.portraitGroup)
+    this.portraitStage = {
+      geos: [groundGeo, plinthGeo, ringGeo, stoneGeo],
+      mats: [groundMat, plinthMat, ringMat, stoneMatA, stoneMatB]
+    }
+  }
+
+  #showFlock(on) {
+    if (this.flock) this.flock.mesh.visible = !!on
   }
 
   setReduced(value) {
@@ -219,6 +304,8 @@ export class WildlifeScene {
     for (const group of this.habitatGroups.values()) group.visible = false
     for (const group of this.specialGroups.values()) group.visible = false
     if (this.snakeGroup) this.snakeGroup.visible = false
+    if (this.portraitGroup) this.portraitGroup.visible = false
+    this.#showFlock(false)
     this.scene.fog.color.set('#07140f')
     this.renderer.setClearColor(0x07140f, 1)
     this.selectedId = null
@@ -235,6 +322,8 @@ export class WildlifeScene {
     this.migrationGroup.visible = false
     for (const item of this.habitatGroups.values()) item.visible = false
     if (this.snakeGroup) this.snakeGroup.visible = false
+    if (this.portraitGroup) this.portraitGroup.visible = false
+    this.#showFlock(false)
     for (const [key, item] of this.specialGroups) item.visible = key === id
     const spec = SPECIALS[id]
     this.scene.fog.color.set(spec.fog)
@@ -250,6 +339,7 @@ export class WildlifeScene {
   }
 
   showSnakes() {
+    this.#restoreSceneLight()
     this.view = 'snakes'
     this.earth.visible = false
     this.migrationGroup.visible = false
@@ -257,7 +347,9 @@ export class WildlifeScene {
     this.spot.intensity = 0
     for (const item of this.habitatGroups.values()) item.visible = false
     for (const item of this.specialGroups.values()) item.visible = false
-    this.snakeGroup.visible = true
+    if (this.snakeGroup) this.snakeGroup.visible = true
+    if (this.portraitGroup) this.portraitGroup.visible = false
+    this.#showFlock(false)
     this.#paintSnakeScene(false)
     this.#fly(new THREE.Vector3(0.2, 1.35, 4.4), new THREE.Vector3(0, 0.35, 0), false)
   }
@@ -274,7 +366,7 @@ export class WildlifeScene {
   }
 
   #restoreSceneLight() {
-    if (this.view !== 'snakes') return
+    if (this.view !== 'snakes' && this.view !== 'portrait') return
     this.setHour(this.hour)
   }
 
@@ -480,13 +572,8 @@ export class WildlifeScene {
     const body = this.bodies.find((item) => item.id === data.id)
     if (!body) return
     if (body.kind === 'habitat') this.showHabitat(body.id, false)
-    else if (body.kind === 'animal') {
-      this.focusAnimal(body.id)
-      if (!fly) {
-        this.selectedId = body.id
-        this.onSelect?.({ type: 'animal', ...body.meta })
-      }
-    } else {
+    else if (body.kind === 'animal') this.focusAnimal(body.id)
+    else {
       this.selectedId = body.id
       this.onSelect?.({ type: body.kind, ...body.meta })
     }
@@ -557,10 +644,16 @@ export class WildlifeScene {
       body.hit.position.copy(body.anchor.position)
     }
     if (this.view === 'snakes') this.snakeModel?.userData.animate?.(t)
+    if (this.view === 'portrait') {
+      this.portraitModel?.userData.animate?.(t, 0.4)
+      const base = this.portraitAnchor?.userData.baseY || 0
+      this.portraitAnchor.position.y = base + Math.sin(t * 1.7) * 0.014
+    }
+    if (this.flock?.mesh.visible) this.flock.update(t)
   }
 
   #animateWeather(dt) {
-    const habitatView = this.view !== 'earth' && this.view !== 'migration' && this.view !== 'snakes' && !SPECIALS[this.view]
+    const habitatView = this.view !== 'earth' && this.view !== 'migration' && this.view !== 'snakes' && this.view !== 'portrait' && !SPECIALS[this.view]
     const active = this.weather !== 'sunny' && habitatView
     this.weatherMat.opacity = active ? (this.weather === 'storm' ? 0.9 : 0.55) : 0
     if (!active || this.reduced) return
@@ -655,6 +748,8 @@ export class WildlifeScene {
     window.removeEventListener('keydown', this._keyDown)
     window.removeEventListener('keyup', this._keyUp)
     this.controls?.dispose()
+    this.portraitStage?.geos.forEach((geo) => geo.dispose())
+    this.portraitStage?.mats.forEach((mat) => mat.dispose())
     this.scene?.traverse((obj) => {
       if (obj.geometry && !obj.geometry.userData?.shared) obj.geometry.dispose?.()
       const mats = obj.material ? (Array.isArray(obj.material) ? obj.material : [obj.material]) : []

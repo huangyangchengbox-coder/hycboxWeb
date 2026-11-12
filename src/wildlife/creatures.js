@@ -8,10 +8,18 @@ let eyeMat = null
 
 function eyeMaterial() {
   if (!eyeMat) {
-    eyeMat = new THREE.MeshStandardMaterial({ color: '#140c08', roughness: 0.25, metalness: 0.05 })
+    eyeMat = new THREE.MeshStandardMaterial({ color: '#1a120c', roughness: 0.16, metalness: 0 })
     eyeMat.userData.sharedCoat = true
   }
   return eyeMat
+}
+
+function mulberry32(seed) {
+  let s = seed >>> 0 || 1
+  return () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0
+    return s / 4294967296
+  }
 }
 
 function cachedGeo(key, build) {
@@ -53,6 +61,22 @@ function furTexture(kind) {
       ctx.arc(x, y, 2.5 + (i % 3), 0, Math.PI * 2)
       ctx.fill()
     }
+  } else if (kind === 'streak') {
+    const rnd = mulberry32(0x5e3a91)
+    ctx.fillStyle = '#c8c8c8'
+    ctx.fillRect(0, 0, 128, 128)
+    for (let i = 0; i < 900; i += 1) {
+      const x = rnd() * 128
+      const y = rnd() * 128
+      ctx.strokeStyle = i % 2 ? '#f2f2f2' : '#6a6a6a'
+      ctx.globalAlpha = 0.16
+      ctx.lineWidth = 0.6
+      ctx.beginPath()
+      ctx.moveTo(x, y)
+      ctx.lineTo(x + (rnd() - 0.5) * 1.4, y + 3 + rnd() * 7)
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
   } else if (kind === 'giraffe') {
     ctx.fillStyle = '#d7a15a'
     ctx.fillRect(0, 0, 128, 128)
@@ -453,9 +477,15 @@ function bird(color) {
 function limb(mat, dark, x, z, length) {
   const pivot = new THREE.Group()
   pivot.position.set(x, length, z)
-  const upper = mesh(cachedGeo(`limb:${length}:upper`, () => new THREE.CapsuleGeometry(0.055, length * 0.46, 3, 7)), mat)
+  const upper = mesh(
+    cachedGeo(`limb:${length}:upper`, () => new THREE.CylinderGeometry(0.064, 0.042, length * 0.46, 7, 1)),
+    mat
+  )
   upper.position.y = -length * 0.28
-  const lower = mesh(cachedGeo(`limb:${length}:lower`, () => new THREE.CapsuleGeometry(0.04, length * 0.42, 3, 6)), dark)
+  const lower = mesh(
+    cachedGeo(`limb:${length}:lower`, () => new THREE.CylinderGeometry(0.04, 0.028, length * 0.42, 7, 1)),
+    dark
+  )
   lower.position.y = -length * 0.72
   const foot = mesh(cachedGeo('limb:foot', () => new THREE.SphereGeometry(0.055, 8, 6)), dark)
   foot.scale.set(1.2, 0.45, 1.5)
@@ -665,6 +695,118 @@ function jellyfish(color) {
   return group
 }
 
+const FOX_PORTRAIT = {
+  'red-fox': { body: '#d06a2a', belly: '#f3e2c4', ear: '#c46a52', dark: '#24160f', earScale: 1, earSpread: 0.16 },
+  fennec: { body: '#e6c98a', belly: '#f7f1e4', ear: '#e8b8a0', dark: '#3a2a1c', earScale: 1.65, earSpread: 0.22 },
+  'arctic-fox': { body: '#f3f1ec', belly: '#fffaf4', ear: '#e4cfc4', dark: '#2c241c', earScale: 0.72, earSpread: 0.12 }
+}
+
+let highlightMat = null
+
+function highlightMaterial() {
+  if (!highlightMat) {
+    highlightMat = new THREE.MeshBasicMaterial({ color: '#fffaf4' })
+    highlightMat.userData.sharedCoat = true
+  }
+  return highlightMat
+}
+
+function placed(parent, geo, mat, pos, scale, rot) {
+  const item = mesh(geo, mat)
+  item.position.set(pos[0], pos[1], pos[2])
+  if (scale) item.scale.set(scale[0], scale[1], scale[2])
+  if (rot) item.rotation.set(rot[0], rot[1], rot[2])
+  parent.add(item)
+  return item
+}
+
+function foxPortrait(spec) {
+  const group = new THREE.Group()
+  const fur = coat(spec.body, 'portrait', 'streak')
+  const belly = coat(spec.belly, 'portrait-belly', 'streak')
+  const earMat = coat(spec.ear, 'portrait-ear')
+  const dark = coat(spec.dark, 'portrait-dark')
+  const ball = cachedGeo('portrait:ball', () => new THREE.SphereGeometry(1, 16, 12))
+  const earGeo = cachedGeo('portrait:ear', () => new THREE.ConeGeometry(0.07, 0.28, 8))
+  const tuftGeo = cachedGeo('portrait:tuft', () => new THREE.ConeGeometry(0.035, 0.14, 6))
+  const legGeo = cachedGeo('portrait:leg', () => new THREE.CylinderGeometry(0.045, 0.085, 0.46, 8))
+  const pawGeo = cachedGeo('portrait:paw', () => {
+    const geo = new THREE.SphereGeometry(0.07, 8, 6)
+    geo.scale(1.15, 0.42, 1.4)
+    return geo
+  })
+  placed(group, ball, fur, [0, 0.72, 0.05], [0.4, 0.34, 0.7])
+  placed(group, ball, belly, [0, 0.58, 0.12], [0.3, 0.2, 0.48])
+  placed(group, ball, fur, [0, 0.78, -0.42], [0.34, 0.3, 0.32])
+  placed(group, ball, fur, [0, 0.96, 0.42], [0.2, 0.24, 0.22])
+  const head = new THREE.Group()
+  head.position.set(0, 1.08, 0.62)
+  group.add(head)
+  placed(head, ball, fur, [0, 0, 0], [0.24, 0.22, 0.26])
+  placed(head, ball, belly, [0, -0.08, 0.22], [0.15, 0.1, 0.2])
+  placed(head, ball, dark, [0, -0.04, 0.38], [0.055, 0.04, 0.05])
+  ;[-1, 1].forEach((side) => {
+    const lean = side * -0.18
+    placed(head, earGeo, fur, [side * spec.earSpread, 0.2, -0.02], [1, spec.earScale, 1], [ -0.12, 0, lean])
+    placed(head, earGeo, earMat, [side * spec.earSpread, 0.18, 0.03], [0.55, spec.earScale * 0.72, 0.7], [-0.12, 0, lean])
+    placed(head, ball, dark, [side * 0.1, 0.02, 0.18], [0.055, 0.05, 0.04])
+    placed(head, ball, eyeMaterial(), [side * 0.11, 0.02, 0.21], [0.032, 0.036, 0.026])
+    placed(head, ball, highlightMaterial(), [side * 0.12, 0.034, 0.23], [0.012, 0.012, 0.008])
+    for (let i = 0; i < 3; i += 1) {
+      placed(
+        head,
+        tuftGeo,
+        belly,
+        [side * (0.12 + i * 0.03), -0.02 - i * 0.02, 0.16],
+        [1, 1, 1],
+        [0.4, 0, side * (0.8 + i * 0.15)]
+      )
+    }
+  })
+  const legs = [-1, 1].flatMap((side) => [-0.34, 0.42].map((z) => {
+    const pivot = new THREE.Group()
+    pivot.position.set(side * 0.18, 0.58, z)
+    const leg = mesh(legGeo, fur)
+    leg.position.y = -0.2
+    const paw = mesh(pawGeo, dark)
+    paw.position.set(0, -0.44, 0.03)
+    pivot.add(leg, paw)
+    group.add(pivot)
+    return pivot
+  }))
+  const tail = new THREE.Group()
+  ;[
+    [0, 0.7, -0.72, 0.22, 0.2, 0.28, -0.3],
+    [0, 0.62, -0.98, 0.24, 0.2, 0.26, -0.45],
+    [0, 0.56, -1.2, 0.18, 0.16, 0.22, -0.6]
+  ].forEach(([x, y, z, sx, sy, sz, rx]) => {
+    const part = placed(tail, ball, fur, [x, y, z], [sx, sy, sz])
+    part.rotation.x = rx
+  })
+  const tip = placed(tail, ball, belly, [0, 0.5, -1.38], [0.14, 0.13, 0.16])
+  tip.rotation.x = -0.7
+  group.add(tail)
+  group.userData.animate = (t, seed = 0) => {
+    legs.forEach((leg, index) => {
+      leg.rotation.x = Math.sin(t * 3.2 + seed + (index % 2) * Math.PI) * 0.28
+    })
+    head.rotation.y = Math.sin(t * 0.8 + seed) * 0.1
+    tail.rotation.y = Math.sin(t * 1.6 + seed) * 0.18
+    tail.rotation.x = Math.sin(t * 1.3 + seed) * 0.06
+  }
+  return group
+}
+
+export function portraitAnimal(animal) {
+  const spec = FOX_PORTRAIT[animal.id]
+  const model = spec ? foxPortrait(spec) : critter(animal.shape, animal.color, animal.id)
+  if (spec) {
+    model.scale.setScalar(1.15)
+    model.rotation.y = 0.4
+  } else model.rotation.y = -0.65
+  return model
+}
+
 const builders = { turtle, whale: (color) => cetacean(color, 'whale'), dolphin: (color) => cetacean(color, 'dolphin'), shark, bird, snake, round }
 
 export function critter(shape, color, id = '') {
@@ -689,6 +831,8 @@ export function clearCreatureCaches() {
   materials.clear()
   eyeMat?.dispose()
   eyeMat = null
+  highlightMat?.dispose()
+  highlightMat = null
   for (const tex of furTexCache.values()) tex.dispose()
   furTexCache.clear()
   for (const geo of geoCache.values()) geo.dispose()

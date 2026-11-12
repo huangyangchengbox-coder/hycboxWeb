@@ -255,12 +255,14 @@
           <dt>来源</dt><dd>{{ panel.source }}。{{ panel.fact }}</dd>
           <dt>图片</dt><dd>{{ panel.credit }}</dd>
         </dl>
-        <button type="button" class="solid" @click="focusCurrent">聚焦</button>
+        <p class="warn">台上这一只是单品示意，不是照片。栖息地里仍是轻量模型。</p>
+        <button type="button" class="solid" @click="backToHabitat">回到栖息地</button>
       </template>
       <template v-else>
         <div class="en">{{ panel.en }}</div>
         <h2>{{ panel.name }}</h2>
         <p>{{ panel.summary || panel.text }}</p>
+        <p v-if="panel.type === 'habitat'">天上绕飞的一小群是示意，用来表示天空里有鸟，不是某一种鸟，也不是照片。</p>
         <div v-if="panel.subs" class="chips">
           <span v-for="sub in panel.subs" :key="sub">{{ sub }}</span>
         </div>
@@ -627,8 +629,9 @@ function stepLab() {
   else labNote.value = `草 ${grass.value}，鹿 ${deer.value}，狼 ${wolves.value}。`
 }
 
-function focusCurrent() {
-  if (panel.value?.type === 'animal') scene?.focusAnimal(panel.value.id)
+function backToHabitat() {
+  const id = panel.value?.habitatId
+  if (id) openHabitat(id)
 }
 
 function toggleMotion() {
