@@ -127,6 +127,7 @@
         <button type="button" class="space-btn" @click="enterSpace">进入太空</button>
         <router-link class="space-btn" to="/cosmos">COSMOS v2</router-link>
         <router-link class="space-btn" to="/micro">微观奇境</router-link>
+        <router-link class="space-btn" to="/saltline">盐线港口</router-link>
       </template>
       <template v-else-if="inSpace && !insideTarget">
         <div class="btn-row">

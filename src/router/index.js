@@ -32,6 +32,12 @@ const routes = [
         meta: { public: true, immersive: true }
       },
       {
+        path: 'saltline',
+        name: 'saltline',
+        component: () => import('../views/SaltlineView.vue'),
+        meta: { public: true, immersive: true }
+      },
+      {
         path: 'home',
         name: 'home',
         component: () => import('../views/HomeGlobeView.vue'),
