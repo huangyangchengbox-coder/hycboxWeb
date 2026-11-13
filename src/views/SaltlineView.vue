@@ -1,9 +1,7 @@
 <template>
   <div class="salt">
     <iframe class="frame" :src="src" title="盐线港口" allow="fullscreen" />
-    <WorldMenu>
-      <router-link class="wm-link" to="/home">经典地球</router-link>
-    </WorldMenu>
+    <WorldMenu />
   </div>
 </template>
 

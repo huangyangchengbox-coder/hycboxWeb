@@ -1,10 +1,7 @@
 <template>
   <div class="cosmos" ref="rootRef">
     <canvas ref="canvasRef" class="cosmos-canvas"></canvas>
-    <WorldMenu>
-      <router-link class="wm-link" to="/home">经典地球</router-link>
-    </WorldMenu>
-
+    <WorldMenu />
     <header class="cosmos-top">
       <div>
         <div class="cosmos-kicker">hycBox · v2</div>

@@ -1,8 +1,6 @@
 <template>
   <div class="exhibit">
-    <WorldMenu flow>
-      <router-link class="wm-link" to="/home">经典地球</router-link>
-    </WorldMenu>
+    <WorldMenu flow />
     <iframe class="frame" :src="src" :title="title" />
   </div>
 </template>

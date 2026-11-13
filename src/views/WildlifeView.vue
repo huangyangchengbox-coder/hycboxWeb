@@ -5,7 +5,6 @@
       <button type="button" class="wm-link ghost" @click="openSection('world')">返回地球</button>
       <button type="button" class="wm-link ghost" @click="toggleRoam">{{ freeRoam ? '退出漫游' : '自由漫游' }}</button>
       <button type="button" class="wm-link ghost" @click="toggleMotion">{{ reduced ? '恢复动效' : '减少动效' }}</button>
-      <router-link class="wm-link ghost" to="/home">经典地球</router-link>
     </WorldMenu>
 
     <header class="wild-top">

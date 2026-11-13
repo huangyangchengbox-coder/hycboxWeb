@@ -126,8 +126,10 @@
       <template v-if="!inSpace && !onMoon">
         <div class="btn-row">
           <button type="button" class="space-btn" @click="enterSpace">进入太空</button>
+          <router-link class="space-btn" to="/games">游戏厅</router-link>
           <router-link class="space-btn" to="/cosmos">COSMOS v2</router-link>
           <router-link class="space-btn" to="/micro">微观奇境</router-link>
+          <router-link class="space-btn" to="/tennis">网球世界</router-link>
           <router-link class="space-btn" to="/saltline">盐线港口</router-link>
           <router-link class="space-btn" to="/terrain">地形岛</router-link>
           <router-link class="space-btn" to="/spectra">光谱</router-link>

@@ -4,10 +4,11 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "build:trial": "vite build --mode trial",
-    "build:v2": "vite build --mode v2",
+    "dev": "npm run build:games && vite",
+    "build": "npm run build:games && vite build",
+    "build:games": "node games/build-games.mjs",
+    "build:trial": "npm run build:games && vite build --mode trial",
+    "build:v2": "npm run build:games && vite build --mode v2",
     "preview": "vite preview",
     "deploy": "node deploy/deploy-web.cjs",
     "deploy:trial": "node deploy/deploy-web.cjs --trial",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
+    "esbuild": "^0.25.0",
     "ssh2": "^1.16.0",
     "vite": "^6.0.7"
   }

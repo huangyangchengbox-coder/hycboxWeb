@@ -1,9 +1,7 @@
 <template>
   <div class="micro" ref="rootRef">
     <canvas ref="canvasRef" class="micro-canvas"></canvas>
-    <WorldMenu>
-      <router-link class="wm-link" to="/home">经典地球</router-link>
-    </WorldMenu>
+    <WorldMenu />
 
     <header class="micro-top">
       <div>
