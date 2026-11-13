@@ -636,6 +636,14 @@ export class TennisScene {
     this.playing = true
   }
 
+  reportNetInfo() {
+    this.onNetChange?.({
+      hit: Boolean(this.netHit),
+      clear: this.netPass ? this.netPass.y - COURT.netCenterHeight : null,
+      netY: this.netPass ? this.netPass.y : null
+    })
+  }
+
   setPlaying(value) {
     this.playing = value
   }

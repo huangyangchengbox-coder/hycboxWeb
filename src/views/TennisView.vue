@@ -123,6 +123,7 @@ onMounted(() => {
     else if (clear !== null && clear !== undefined) netText.value = `过网高度约 ${(0.91 + clear).toFixed(2)} 米，高于网带`
     else netText.value = ''
   }
+  scene.reportNetInfo()
   scene.onFrame = ({ progress: value, playing: isPlaying, phase }) => {
     if (!scrubbing.value) progress.value = value
     playing.value = isPlaying
