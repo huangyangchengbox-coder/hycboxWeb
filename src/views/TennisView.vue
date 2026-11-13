@@ -28,6 +28,7 @@
       </ol>
       <p class="warn">{{ current.error }}</p>
       <p class="note">一种常见做法，不是唯一打法。球的飞行按重力示意，球本身放大了，方便看清。</p>
+      <p class="net" :class="{ hit: netHit }">{{ netText }}</p>
     </aside>
 
     <footer class="dock">
@@ -46,6 +47,7 @@
       <span class="time">{{ phaseName }}</span>
       <button type="button" :class="{ on: speed === 0.5 }" @click="setSpeed(0.5)">0.5×</button>
       <button type="button" :class="{ on: speed === 1 }" @click="setSpeed(1)">1×</button>
+      <button type="button" @click="scene?.setCamera('arena')">全场</button>
       <button type="button" @click="scene?.setCamera('side')">侧视</button>
       <button type="button" @click="scene?.setCamera('behind')">后视</button>
       <button type="button" @click="scene?.setCamera('top')">俯视</button>
@@ -68,6 +70,8 @@ const playing = ref(true)
 const speed = ref(1)
 const scrubbing = ref(false)
 const phaseName = ref('准备引拍')
+const netHit = ref(false)
+const netText = ref('')
 let scene = null
 
 const current = computed(() => shots.find((item) => item.id === shotId.value) || shots[0])
@@ -113,6 +117,12 @@ function onKey(event) {
 onMounted(() => {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   scene = new TennisScene(canvasRef.value)
+  scene.onNetChange = ({ hit, clear }) => {
+    netHit.value = hit
+    if (hit) netText.value = '过网高度不够，球会触网弹回'
+    else if (clear !== null && clear !== undefined) netText.value = `过网高度约 ${(0.91 + clear).toFixed(2)} 米，高于网带`
+    else netText.value = ''
+  }
   scene.onFrame = ({ progress: value, playing: isPlaying, phase }) => {
     if (!scrubbing.value) progress.value = value
     playing.value = isPlaying
@@ -243,6 +253,20 @@ button:hover {
 
 .warn {
   color: #ffb4a8;
+}
+
+.net {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.18);
+  color: #b8f5c8;
+  font-size: 12px;
+}
+
+.net.hit {
+  background: rgba(245, 158, 11, 0.2);
+  color: #ffd79a;
 }
 
 ol {
