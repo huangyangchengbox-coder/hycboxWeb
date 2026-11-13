@@ -1,4 +1,4 @@
-/** 网页里「游戏」模块的清单。新增小游戏只要在这里加一条。 */
+/** 网页里「游戏厅」的清单。新增小游戏或互动世界只要在这里加一条。 */
 export const WORLDS = [
   { id: 'cosmos', route: '/cosmos', name: '宇宙探索', en: 'COSMOS', icon: '🪐', desc: '程序化天体、轨道运动、镜头飞行' },
   { id: 'wildlife', route: '/wildlife', name: '动物世界', en: 'WILDLIFE', icon: '🦌', desc: '参数化生物几何、行为循环、生态标签' },
@@ -14,7 +14,7 @@ export const WORLDS = [
 export const GAMES = [
   {
     id: 'pelican-bike',
-    file: 'games/pelican-bike/index.html',
+    file: 'minigames/pelican-bike/index.html',
     name: '鹈鹕骑自行车',
     en: 'PELICAN BIKE',
     icon: '🚲',
@@ -26,7 +26,7 @@ export const GAMES = [
   },
   {
     id: 'cf-transport-ship',
-    file: 'games/cf-transport-ship/index.html',
+    file: 'minigames/cf-transport-ship/index.html',
     name: '穿越火线 · 运输船',
     en: 'CROSSFIRE · TRANSPORT',
     icon: '🔫',
@@ -38,7 +38,7 @@ export const GAMES = [
   },
   {
     id: 'qq-speed',
-    file: 'games/qq-speed/index.html',
+    file: 'minigames/qq-speed/index.html',
     name: 'QQ 飞车',
     en: 'QQ SPEED',
     icon: '🏎️',

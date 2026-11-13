@@ -1,7 +1,7 @@
 node_modules
 dist
 # 三个小游戏由 games/build-games.mjs 从 games/*/src 生成，不入库
-public/games
+public/minigames
 .DS_Store
 *.local
 .env.local

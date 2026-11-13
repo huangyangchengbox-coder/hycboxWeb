@@ -1,9 +1,12 @@
 /**
  * 把 games/ 下的三个单文件游戏用 esbuild 打成一个内联 HTML，
- * 输出到 public/games/<id>/index.html，随 Vite 一起发布。
+ * 输出到 public/minigames/<id>/index.html，随 Vite 一起发布。
+ *
+ * 注意：输出目录不能叫 public/games，否则和前端路由 /games 撞车，
+ * nginx 会把 /web/games 当成真实目录返回 403。
  *
  * 用法：node games/build-games.mjs
- * npm run dev / npm run build 会自动先跑这一步（见 package.json 的 predev / prebuild）。
+ * npm run dev / npm run build 会自动先跑这一步（见 package.json 的 dev / build）。
  */
 import * as esbuild from 'esbuild'
 import fs from 'node:fs'
@@ -12,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '..')
-const outRoot = path.join(root, 'public', 'games')
+const outRoot = path.join(root, 'public', 'minigames')
 
 const GAMES = [
   {
