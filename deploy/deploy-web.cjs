@@ -1,27 +1,19 @@
 /**
  * 构建并上传 hycBoxWeb 静态资源
- * 正式：/opt/hycbox-web/ → https://hychyr.top/web/
- * 体验：/opt/hycbox-web-trial/ → https://hychyr.top/web-trial/
- * v2：/opt/hycbox-web-v2/ → https://hychyr.top/web-v2/
+ * 正式站只有一份：/opt/hycbox-web/ → https://hychyr.top/web/
+ * --v2、--trial 也发布到同一目录，避免再拆出第二套页面。
  *
  * 用法：
  *   npm run build && set HYC_SSH_PASSWORD=xxx && npm run deploy
- *   npm run build:trial && set HYC_SSH_PASSWORD=xxx && npm run deploy:trial
  */
 const { Client } = require('ssh2')
 const fs = require('fs')
 const path = require('path')
 const { HOST, PORT, USER, PASSWORD, PUBLIC_HOST } = require('./ssh-env.cjs')
 
-const isTrial = process.argv.includes('--trial')
-const isV2 = process.argv.includes('--v2')
 const LOCAL_DIST = path.join(__dirname, '..', 'dist')
-const REMOTE_DIR = isV2 ? '/opt/hycbox-web-v2' : isTrial ? '/opt/hycbox-web-trial' : '/opt/hycbox-web'
-const PUBLIC_URL = isV2
-  ? `https://${PUBLIC_HOST}/web-v2/`
-  : isTrial
-    ? 'https://hychyr.top/web-trial/'
-    : `https://${PUBLIC_HOST}/web/`
+const REMOTE_DIR = '/opt/hycbox-web'
+const PUBLIC_URL = `https://${PUBLIC_HOST}/web/`
 const NGINX_CONF_LOCAL = path.join(__dirname, '..', '..', 'hycBoxServer', 'deploy', 'nginx-hychyr.top.conf')
 
 function exec(conn, cmd) {
@@ -93,33 +85,9 @@ async function syncNginx(conn) {
   await exec(conn, 'nginx -t && systemctl reload nginx')
 }
 
-/** 体验实例：对外域名与小程序码 env 对齐 trial 子域 */
-async function patchTrialServerEnv(conn) {
-  if (!isTrial) return
-  const envPath = '/opt/hycbox-trial/server.env'
-  await exec(conn, `
-if [ -f ${envPath} ]; then
-  grep -q '^HYCBOX_PUBLIC_BASE_URL=' ${envPath} \\
-    && sed -i 's|^HYCBOX_PUBLIC_BASE_URL=.*|HYCBOX_PUBLIC_BASE_URL=https://hychyr.top/api-trial|' ${envPath} \\
-    || echo 'HYCBOX_PUBLIC_BASE_URL=https://hychyr.top/api-trial' >> ${envPath}
-  grep -q '^HYCBOX_UPLOAD_PUBLIC_URL=' ${envPath} \\
-    && sed -i 's|^HYCBOX_UPLOAD_PUBLIC_URL=.*|HYCBOX_UPLOAD_PUBLIC_URL=https://hychyr.top/uploads-trial|' ${envPath} \\
-    || echo 'HYCBOX_UPLOAD_PUBLIC_URL=https://hychyr.top/uploads-trial' >> ${envPath}
-  grep -q '^HYCBOX_WX_MP_ENV_VERSION=' ${envPath} \\
-    && sed -i 's|^HYCBOX_WX_MP_ENV_VERSION=.*|HYCBOX_WX_MP_ENV_VERSION=trial|' ${envPath} \\
-    || echo 'HYCBOX_WX_MP_ENV_VERSION=trial' >> ${envPath}
-  systemctl restart hycbox-trial || true
-  systemctl is-active hycbox-trial || true
-  echo "trial server.env patched"
-else
-  echo "skip: ${envPath} missing"
-fi
-`.trim())
-}
-
 async function main() {
   if (!fs.existsSync(LOCAL_DIST)) {
-    throw new Error(`找不到 ${LOCAL_DIST}，请先 npm run ${isTrial ? 'build:trial' : 'build'}`)
+    throw new Error(`找不到 ${LOCAL_DIST}，请先 npm run build`)
   }
 
   const conn = new Client()
@@ -129,7 +97,7 @@ async function main() {
     conn.connect({ host: HOST, port: PORT, username: USER, password: PASSWORD, tryKeyboard: true, readyTimeout: 30000 })
   })
 
-  console.log(`SSH 连接成功（${isV2 ? 'v2' : isTrial ? '体验' : '正式'}）\n`)
+  console.log('SSH 连接成功（正式）\n')
   await exec(conn, `rm -rf ${REMOTE_DIR} && mkdir -p ${REMOTE_DIR}`)
 
   await new Promise((resolve, reject) => {
@@ -146,19 +114,13 @@ async function main() {
   })
 
   await syncNginx(conn)
-  await patchTrialServerEnv(conn)
 
   const hostHeader = PUBLIC_HOST
-  const webPath = isV2 ? '/web-v2/' : isTrial ? '/web-trial/' : '/web/'
-  await exec(conn, `curl -s -o /dev/null -w "web:%{http_code}\\n" -H "Host: ${hostHeader}" http://127.0.0.1${webPath} || true`)
-  await exec(conn, `curl -s -o /dev/null -w "api:%{http_code}\\n" -H "Host: ${hostHeader}" http://127.0.0.1${isTrial ? '/api-trial/health' : '/api/health'} || true`)
+  await exec(conn, `curl -s -o /dev/null -w "web:%{http_code}\\n" -H "Host: ${hostHeader}" http://127.0.0.1/web/ || true`)
+  await exec(conn, `curl -s -o /dev/null -w "api:%{http_code}\\n" -H "Host: ${hostHeader}" http://127.0.0.1/api/health || true`)
 
   conn.end()
   console.log(`\n部署完成: ${PUBLIC_URL}`)
-  if (isTrial) {
-    console.log('提示：请用 https://hychyr.top/web-trial/ （证书覆盖主域名）')
-    console.log('trial.hychyr.top 会跳转到上述地址；子域证书办好后再改回独立站')
-  }
 }
 
 main().catch((e) => {
