@@ -26,7 +26,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
+import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import { buildCampusLayout, PHASE2_PLAN_OVERLAY } from '../data/hengdaMingduLayout'
 import {
   BUILDING_TONE_COLOR,
@@ -59,7 +59,7 @@ const overrides = ref({})
 const hintText = computed(() =>
   props.calibrate
     ? '校准：左键拖楼栋 · 右键/中键转视角 · 黄待派送/绿已配送/灰无单'
-    : '拖拽旋转 · 滚轮缩放 · 点击楼栋下钻 · 黄=待派送 / 绿=已配送 / 灰=无单'
+    : '拖拽旋转 · 滚轮缩放 · 点击楼栋下钻 · 楼号和①②写在楼体上'
 )
 
 let renderer = null
@@ -112,11 +112,36 @@ function clearBuildings() {
   meshByKey.clear()
 }
 
-function labelText(item, stat) {
-  if (!stat || (stat.pending === 0 && stat.completed === 0)) {
-    return item.name
-  }
-  return `${item.name} 待${stat.pending}/已${stat.completed}`
+const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩']
+
+function circledUnit(index) {
+  return CIRCLED[index - 1] || String(index)
+}
+
+/** 楼号、单元号贴在楼体正面，不飘在楼顶 */
+function markPlane(text, width, height, fontPx) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 128
+  const ctx = canvas.getContext('2d')
+  ctx.clearRect(0, 0, 256, 128)
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.38)'
+  ctx.fillRect(28, 16, 200, 96)
+  ctx.fillStyle = '#ffffff'
+  ctx.font = `700 ${fontPx}px sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, 128, 66)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  const mat = new THREE.MeshBasicMaterial({
+    map: tex,
+    transparent: true,
+    depthWrite: false
+  })
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), mat)
+  mesh.userData.mark = true
+  return mesh
 }
 
 function currentItems() {
@@ -169,26 +194,16 @@ function rebuild(fit = true) {
       )
       mesh.add(edge)
 
-      // 多单元时在体块上标单元号
-      if (units > 1) {
-        const uEl = document.createElement('div')
-        uEl.className = 'campus-unit-label'
-        uEl.textContent = `${u + 1}单元`
-        const uLabel = new CSS2DObject(uEl)
-        uLabel.position.set(0, 0.2, item.depth / 2 + 0.3)
-        mesh.add(uLabel)
-      }
+      const unitMark = markPlane(circledUnit(u + 1), Math.min(unitW * 0.72, 6), 2.6, 78)
+      unitMark.position.set(0, 0, item.depth / 2 + 0.08)
+      mesh.add(unitMark)
 
       root.add(mesh)
     }
 
-    const labelEl = document.createElement('div')
-    labelEl.className = 'campus-label'
-    labelEl.textContent = labelText(item, stat)
-    const label = new CSS2DObject(labelEl)
-    label.position.set(0, item.height + 2, 0)
-    root.userData.labelEl = labelEl
-    root.add(label)
+    const buildingNo = markPlane(String(item.buildingId), Math.min(item.width * 0.5, 7), 3.4, 88)
+    buildingNo.position.set(0, item.height * 0.78, item.depth / 2 + 0.15)
+    root.add(buildingNo)
 
     buildingGroup.add(root)
     meshByKey.set(item.key, root)
@@ -208,15 +223,13 @@ function applyAppearance() {
     const emissive = selected ? 0x7c2d12 : 0x000000
     const emissiveIntensity = selected ? 0.25 : 0
     root.traverse((child) => {
-      if (child.isMesh && child.material && child.material.color) {
+      if (!child.isMesh || child.userData?.mark) return
+      if (child.material && child.material.color && child.material.emissive) {
         child.material.color.setHex(color)
         child.material.emissive.setHex(emissive)
         child.material.emissiveIntensity = emissiveIntensity
       }
     })
-    if (root.userData.labelEl) {
-      root.userData.labelEl.textContent = labelText({ name: root.userData.name }, stat)
-    }
   })
 }
 

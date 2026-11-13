@@ -6,7 +6,10 @@
         <button class="btn btn-secondary btn-sm" :disabled="loadingPubs" @click="loadPubs">刷新</button>
       </div>
       <p v-if="loadingPubs" class="muted">加载中…</p>
-      <p v-else-if="!communityPubs.length" class="muted">暂无小区闪送发布</p>
+      <div v-else-if="!communityPubs.length" class="empty-pubs">
+        <p class="muted">暂无小区闪送发布</p>
+        <button type="button" class="btn btn-secondary btn-sm" @click="openPreview">看楼栋示意</button>
+      </div>
       <ul v-else class="pub-list">
         <li
           v-for="pub in communityPubs"
@@ -32,8 +35,10 @@
           <div class="map-title">
             <strong>{{ selectedPub?.title }}</strong>
             <span class="muted">
-              待派送 {{ deliveryMap?.pendingCount ?? 0 }} · 已配送 {{ deliveryMap?.completedCount ?? 0 }}
+              {{ usingDemo ? '示意' : '登记' }}
+              待派送 {{ summary.pending }} 户 · 已配送 {{ summary.completed }} 户
             </span>
+            <span v-if="!selectedBuilding" class="muted">点一栋楼，在三维楼体里看每一户</span>
           </div>
           <div class="toolbar-right">
             <div class="legend">
@@ -45,6 +50,7 @@
               刷新状态
             </button>
             <button
+              v-if="!selectedBuilding"
               type="button"
               :class="['btn', 'btn-sm', calibrateMode ? 'cal-on' : 'btn-secondary']"
               @click="calibrateMode = !calibrateMode"
@@ -54,9 +60,22 @@
           </div>
         </div>
 
+        <p v-if="usingDemo" class="demo-note">
+          当前发布还没有登记到具体门牌。黄、绿是按楼栋骨架生成的示意房间。
+        </p>
         <p v-if="error" class="error-msg">{{ error }}</p>
 
+        <BuildingRooms3D
+          v-if="selectedBuilding"
+          :building="selectedBuilding"
+          :rooms="selectedBuildingRooms"
+          :community-id="campusCommunityId"
+          :unit-label="selectedPub?.unit || '份'"
+          :simulated="usingDemo"
+          @back="clearBuilding"
+        />
         <CommunityCampus3D
+          v-else
           :phases="campusPhases"
           :selected-key="selectedBuildingKey"
           :building-stats="buildingStats"
@@ -72,8 +91,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { getDeliveryMap, getPhases, listPublications } from '../api/cockpit'
+import BuildingRooms3D from '../components/BuildingRooms3D.vue'
 import CommunityCampus3D from '../components/CommunityCampus3D.vue'
 import { aggregateBuildingOrderStats } from '../utils/campusOrderStats'
+import { buildDemoRooms, roomsOfBuilding } from '../utils/campusFloorGrid'
 
 const loadingPubs = ref(false)
 const loadingMap = ref(false)
@@ -87,6 +108,7 @@ const campusPhases = ref([])
 const phaseId = ref('')
 const buildingId = ref('')
 const calibrateMode = ref(false)
+const previewMode = ref(false)
 
 const communityPubs = computed(() =>
   (pubs.value || []).filter((p) => !p.scope || p.scope === 'community')
@@ -100,10 +122,50 @@ const selectedBuildingKey = computed(() =>
   phaseId.value && buildingId.value ? `${phaseId.value}_${buildingId.value}` : ''
 )
 
-/** 3D 楼栋着色：按 phaseId_buildingId 聚合待派送/已配送房间数 */
-const buildingStats = computed(() =>
-  aggregateBuildingOrderStats(deliveryMap.value?.rooms || [])
+const realRooms = computed(() => deliveryMap.value?.rooms || [])
+const usingDemo = computed(() => {
+  if (previewMode.value) return true
+  if (!selectedId.value || loadingMap.value) return false
+  return realRooms.value.length === 0
+})
+const displayRooms = computed(() => {
+  if (!usingDemo.value) return realRooms.value
+  return buildDemoRooms(campusPhases.value, campusCommunityId.value, selectedId.value || 'preview')
+})
+const summary = computed(() => {
+  let pending = 0
+  let completed = 0
+  for (const room of displayRooms.value) {
+    if (room.status === 'pending') pending += 1
+    else if (room.status === 'completed') completed += 1
+  }
+  return { pending, completed }
+})
+
+const selectedBuilding = computed(() => {
+  if (!phaseId.value || !buildingId.value) return null
+  for (const phase of campusPhases.value || []) {
+    if (phase.id !== phaseId.value) continue
+    const building = (phase.buildings || []).find((item) => String(item.id) === String(buildingId.value))
+    if (!building) return null
+    return {
+      ...building,
+      phaseId: phase.id,
+      phaseName: phase.name || phase.id,
+      buildingId: String(building.id),
+      name: building.name || `${building.id}号楼`,
+      floors: building.maxFloor
+    }
+  }
+  return null
+})
+
+const selectedBuildingRooms = computed(() =>
+  roomsOfBuilding(displayRooms.value, phaseId.value, buildingId.value)
 )
+
+/** 3D 楼栋着色：按 phaseId_buildingId 聚合待派送/已配送房间数 */
+const buildingStats = computed(() => aggregateBuildingOrderStats(displayRooms.value))
 
 async function loadPubs() {
   loadingPubs.value = true
@@ -119,6 +181,7 @@ async function loadPubs() {
 }
 
 async function selectPub(pub) {
+  previewMode.value = false
   selectedId.value = pub.id
   selectedPub.value = pub
   deliveryMap.value = null
@@ -126,6 +189,34 @@ async function selectPub(pub) {
   buildingId.value = ''
   calibrateMode.value = false
   await Promise.all([reloadMap(), loadPhaseSkeleton(pub)])
+}
+
+async function openPreview() {
+  previewMode.value = true
+  selectedId.value = 'preview'
+  selectedPub.value = {
+    id: 'preview',
+    title: '恒大名都 · 示意',
+    communityId: 'hengda_mingdu',
+    communityName: '宜昌·恒大名都',
+    status: 'active',
+    unit: '份'
+  }
+  deliveryMap.value = { rooms: [], pendingCount: 0, completedCount: 0 }
+  phaseId.value = ''
+  buildingId.value = ''
+  calibrateMode.value = false
+  error.value = ''
+  try {
+    campusPhases.value = (await getPhases('hengda_mingdu')) || []
+  } catch (e) {
+    error.value = e.message || '加载楼栋失败'
+  }
+}
+
+function clearBuilding() {
+  phaseId.value = ''
+  buildingId.value = ''
 }
 
 /** 点击 3D 楼栋：高亮选中（校准模式不触发） */
@@ -137,7 +228,7 @@ function onCampusSelect({ phaseId: pid, buildingId: bid }) {
 }
 
 async function reloadMap() {
-  if (!selectedId.value) return
+  if (!selectedId.value || previewMode.value) return
   loadingMap.value = true
   error.value = ''
   try {
@@ -214,6 +305,22 @@ onMounted(loadPubs)
 .pub-item.active {
   background: #ecfdf5;
   border-color: #a7f3d0;
+}
+
+.empty-pubs {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.demo-note {
+  margin: 0 0 0.75rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.8125rem;
 }
 
 .pub-title {
