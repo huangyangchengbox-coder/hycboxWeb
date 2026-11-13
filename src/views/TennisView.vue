@@ -352,6 +352,7 @@ function chooseMode(id) {
   scene = next
   wire(next)
   stage.load(next)
+  if (next instanceof LabMode) next.reportNetInfo()
   syncPlaying()
 }
 
@@ -575,6 +576,7 @@ onMounted(() => {
   scene = first
   wire(first)
   stage.load(first)
+  first.reportNetInfo()
   if (reduced) {
     playing.value = false
     first.setPlaying(false)
