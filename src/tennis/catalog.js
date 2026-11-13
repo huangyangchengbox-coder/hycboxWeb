@@ -1,4 +1,13 @@
 /** ITF 球场尺寸，单位米。标注和白线都从这里取。 */
+export const MODES = [
+  { id: 'lab', en: 'TECHNIQUE LAB', name: '技巧实验室', hint: '正手 / 反手 / 发球 / 截击 · 拖动绕看，空格慢放' },
+  { id: 'spin', en: 'SPIN SCIENCE', name: '旋转的科学', hint: '上旋 / 平击 / 下旋 · 三条轨迹并排对比' },
+  { id: 'court', en: 'COURT & RULES', name: '球场与规则', hint: '尺寸标注 · 四种场地 · 计分演示' },
+  { id: 'history', en: 'HISTORY', name: '历史长廊', hint: '1873 → 今天 · 球拍与球的进化' },
+  { id: 'gear', en: 'GEAR LAB', name: '装备解剖', hint: '球拍参数实时改几何' },
+  { id: 'train', en: 'TRAINING', name: '训练挑战', hint: '判断题 · 记没记住' }
+]
+
 export const COURT = {
   length: 23.77,
   singlesWidth: 8.23,
@@ -44,6 +53,7 @@ function shot(data) {
     contactAt: 0.52,
     bounce: 0.62,
     flex: 1,
+    spin: 0,
     approach: { x: 0, y: 1.7, z: 6 },
     ...data,
     keys
@@ -64,7 +74,8 @@ export const SHOTS = [
     error: '只用手臂甩拍时，球缺少旋转，也更容易伤到肘和肩。',
     place: { x: 0.35, z: -10.7 },
     contact: { x: 0.9, y: 1.05, z: -9.55 },
-    velocity: { x: 1.21, y: 3.5, z: 15.82 },
+    velocity: { x: 1.2, y: 4.2, z: 15.4 },
+    spin: 1800,
     keys: [
       { t: 0, pose: pose({ bodyX: -0.05, torsoY: -0.08, legR: 0.08 }) },
       { t: 0.36, pose: pose({ bodyX: -0.12, torsoY: -0.68, shX: -0.22, shY: -1.18, shZ: -0.55, leftY: -0.95, leftZ: -0.1, legR: 0.2 }) },
@@ -86,7 +97,8 @@ export const SHOTS = [
     error: '只动手腕、肩不转时，拍面容易打开，球出浅。',
     place: { x: -0.35, z: -10.7 },
     contact: { x: -0.75, y: 1.02, z: -9.5 },
-    velocity: { x: 0.34, y: 4.43, z: 16.76 },
+    velocity: { x: 0.3, y: 5.2, z: 16 },
+    spin: 1400,
     flex: 0.85,
     keys: [
       { t: 0, pose: pose({ bodyX: 0.06, torsoY: 0.2, shY: 0.4, leftY: -0.2, leftZ: 0.55 }) },
@@ -110,7 +122,8 @@ export const SHOTS = [
     place: { x: 0.7, z: -12.15 },
     contact: { x: 0.35, y: 2.45, z: -11.35 },
     approach: { x: 0.35, y: 0.4, z: -12.15 },
-    velocity: { x: 1.37, y: 0.23, z: 23.49 },
+    velocity: { x: 1.2, y: 1.8, z: 22.8 },
+    spin: 900,
     bounce: 0.7,
     flex: 1.15,
     keys: [
@@ -136,6 +149,7 @@ export const SHOTS = [
     contact: { x: 0.55, y: 1.25, z: -1.7 },
     approach: { x: 0.2, y: 1.15, z: 5 },
     velocity: { x: 2.16, y: 3.12, z: 9.43 },
+    spin: 500,
     bounce: 0.55,
     duration: 1.6,
     flex: 0.35,
@@ -161,6 +175,7 @@ export const SHOTS = [
     contact: { x: 0.15, y: 2.35, z: -6.5 },
     approach: { x: 0.1, y: 3.4, z: -2 },
     velocity: { x: 1.19, y: 1.57, z: 15.82 },
+    spin: 700,
     bounce: 0.58,
     flex: 1.2,
     keys: [
@@ -185,7 +200,7 @@ export const SHOTS = [
     place: { x: 0.3, z: -10.6 },
     contact: { x: 0.7, y: 1.15, z: -9.6 },
     velocity: { x: 1.37, y: 4.16, z: 15.26 },
-    bounce: 0.42,
+    spin: -1700,    bounce: 0.42,
     flex: 0.7,
     keys: [
       { t: 0, pose: pose({ torsoY: -0.12, shX: -0.15, shZ: 0.05 }) },
@@ -208,7 +223,8 @@ export const SHOTS = [
     error: '只往上捞、没有向前送拍，球会停在网上。',
     place: { x: 0.35, z: -10.7 },
     contact: { x: 0.85, y: 0.95, z: -9.5 },
-    velocity: { x: 0.87, y: 4.01, z: 15.19 },
+    velocity: { x: 0.9, y: 5.6, z: 14.2 },
+    spin: 3200,
     bounce: 0.74,
     flex: 1.25,
     keys: [
@@ -234,6 +250,7 @@ export const SHOTS = [
     contact: { x: 0.4, y: 1.05, z: -8.3 },
     approach: { x: 0.1, y: 1.4, z: 4 },
     velocity: { x: 1.44, y: 4.2, z: 10.4 },
+    spin: -900,
     bounce: 0.35,
     flex: 0.45,
     keys: [
