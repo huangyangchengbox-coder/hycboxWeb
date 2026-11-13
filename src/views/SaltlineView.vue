@@ -8,7 +8,7 @@
 <script setup>
 import WorldMenu from '../components/WorldMenu.vue'
 
-const src = `${import.meta.env.BASE_URL}saltline/index.html`
+const src = `${import.meta.env.BASE_URL}exhibits/saltline/index.html`
 </script>
 
 <style scoped>

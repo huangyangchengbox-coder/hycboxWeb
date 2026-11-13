@@ -65,28 +65,28 @@ const routes = [
         path: 'terrain',
         name: 'terrain',
         component: () => import('../views/ExhibitView.vue'),
-        props: { file: 'terrain/index.html', title: '地形岛' },
+        props: { file: 'exhibits/terrain/index.html', title: '地形岛' },
         meta: { public: true, immersive: true }
       },
       {
         path: 'spectra',
         name: 'spectra',
         component: () => import('../views/ExhibitView.vue'),
-        props: { file: 'spectra/index.html', title: '光谱' },
+        props: { file: 'exhibits/spectra/index.html', title: '光谱' },
         meta: { public: true, immersive: true }
       },
       {
         path: 'formula',
         name: 'formula',
         component: () => import('../views/ExhibitView.vue'),
-        props: { file: 'formula/index.html?lang=zh', title: '公式像素' },
+        props: { file: 'exhibits/formula/index.html?lang=zh', title: '公式像素' },
         meta: { public: true, immersive: true }
       },
       {
         path: 'kerr',
         name: 'kerr',
         component: () => import('../views/ExhibitView.vue'),
-        props: { file: 'kerr/index.html', title: '旋转黑洞' },
+        props: { file: 'exhibits/kerr/index.html', title: '旋转黑洞' },
         meta: { public: true, immersive: true }
       },
       {
