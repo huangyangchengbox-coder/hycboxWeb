@@ -54,6 +54,7 @@
           </div>
 
           <router-link to="/hub-entries" class="nav-link" active-class="active">首页入口</router-link>
+          <router-link to="/publish" class="nav-link" active-class="active">发布管理</router-link>
         </template>
         <router-link v-else to="/login" class="nav-link nav-login">登录</router-link>
       </nav>

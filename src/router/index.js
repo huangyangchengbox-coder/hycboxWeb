@@ -105,6 +105,11 @@ const routes = [
         path: 'hub-entries',
         name: 'hub-entries',
         component: () => import('../views/HubEntriesView.vue')
+      },
+      {
+        path: 'publish',
+        name: 'publish',
+        component: () => import('../views/PublishView.vue')
       }
     ]
   }
