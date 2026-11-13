@@ -12,7 +12,19 @@ const routes = [
     path: '/',
     component: () => import('../layouts/AdminLayout.vue'),
     children: [
-      { path: '', redirect: '/games' },
+      { path: '', redirect: '/home' },
+      {
+        path: 'life',
+        name: 'life',
+        component: () => import('../views/LifeView.vue'),
+        meta: { public: true, immersive: true }
+      },
+      {
+        path: 'sports',
+        name: 'sports',
+        component: () => import('../views/SportsView.vue'),
+        meta: { public: true, immersive: true }
+      },
       {
         path: 'games',
         name: 'games',

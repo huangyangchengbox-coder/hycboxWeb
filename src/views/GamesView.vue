@@ -16,31 +16,43 @@
         <header class="shelf-head">
           <div class="kicker">GAMES</div>
           <h1>游戏厅</h1>
-          <p class="sub">三个程序化生成的 3D 网页游戏，加上站内的 9 个互动世界，都从这里进。</p>
+          <p class="sub">{{ games.length }} 个程序化生成的 3D 小游戏，以及站内 {{ worlds.length }} 个知识展馆。</p>
           <div class="tabs">
             <button type="button" :class="{ on: tab === 'games' }" @click="tab = 'games'">小游戏 · {{ games.length }}</button>
-            <button type="button" :class="{ on: tab === 'worlds' }" @click="tab = 'worlds'">互动世界 · {{ worlds.length }}</button>
+            <button type="button" :class="{ on: tab === 'worlds' }" @click="tab = 'worlds'">知识展馆 · {{ worlds.length }}</button>
           </div>
         </header>
 
-        <ul v-if="tab === 'games'" class="cards">
-          <li v-for="item in games" :key="item.id" class="card">
-            <span class="icon">{{ item.icon }}</span>
-            <div class="card-body">
-              <div class="card-top">
-                <h2>{{ item.name }}</h2>
-                <span class="tag">{{ item.tag }}</span>
+        <template v-if="tab === 'games'">
+          <div class="filters">
+            <button
+              v-for="item in categories"
+              :key="item.id"
+              type="button"
+              class="chip"
+              :class="{ on: cat === item.id }"
+              @click="cat = item.id"
+            >{{ item.name }} · {{ countOf(item.id) }}</button>
+          </div>
+
+          <ul class="cards">
+            <li v-for="item in visibleGames" :key="item.id" class="card">
+              <span class="icon">{{ item.icon }}</span>
+              <div class="card-body">
+                <div class="card-top">
+                  <h2>{{ item.name }}</h2>
+                </div>
+                <div class="en">{{ item.en }}</div>
+                <p>{{ item.desc }}</p>
+                <p class="keys">{{ item.keys.join(' · ') }}</p>
               </div>
-              <div class="en">{{ item.en }}</div>
-              <p>{{ item.desc }}</p>
-              <ul class="points">
-                <li v-for="point in item.points" :key="point">{{ point }}</li>
-              </ul>
-              <p class="from">{{ item.source }}</p>
-            </div>
-            <button type="button" class="play" @click="open(item.id)">开始游戏</button>
-          </li>
-        </ul>
+              <div class="card-foot">
+                <span class="tag">{{ item.tag }}</span>
+                <button type="button" class="play" @click="open(item.id)">开始</button>
+              </div>
+            </li>
+          </ul>
+        </template>
 
         <ul v-else class="cards world-cards">
           <li v-for="item in worlds" :key="item.id" class="card world">
@@ -67,7 +79,7 @@
     </footer>
 
     <p v-if="mode === 'shelf'" class="disclaimer">
-      小游戏源码来自 claude-opus-5-5-demo，每个游戏由一句提示词单会话生成。此处仅作集成展示，与《穿越火线》《QQ 飞车》原厂无关。
+      小游戏源码分别来自 claude-opus-5-5-demo、fable52 系列与本地实验目录，此处仅作集成展示。《穿越火线》《QQ 飞车》为同人致敬作品，与原厂无关。
     </p>
   </div>
 </template>
@@ -76,21 +88,28 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import WorldMenu from '../components/WorldMenu.vue'
-import { GAMES, WORLDS, gameById } from '../games/catalog.js'
+import { CATEGORIES, GAMES, WORLDS, gameById } from '../games/catalog.js'
 
 const route = useRoute()
 const router = useRouter()
 
 const games = GAMES
 const worlds = WORLDS
+const categories = CATEGORIES
 const tab = ref('games')
+const cat = ref('all')
 const mode = ref('shelf')
 const current = ref(GAMES[0])
 const nonce = ref(0)
 
 const base = import.meta.env.BASE_URL
 
+const visibleGames = computed(() => (cat.value === 'all' ? games : games.filter((item) => item.cat === cat.value)))
 const frameSrc = computed(() => `${base}${current.value.file}${nonce.value ? `?r=${nonce.value}` : ''}`)
+
+function countOf(id) {
+  return id === 'all' ? games.length : games.filter((item) => item.cat === id).length
+}
 
 function open(id) {
   current.value = gameById(id)
@@ -172,8 +191,8 @@ onUnmounted(() => {
 }
 
 .shelf-head {
-  max-width: 1040px;
-  margin: 0 auto 18px;
+  max-width: 1180px;
+  margin: 0 auto 12px;
 }
 
 .kicker {
@@ -218,32 +237,62 @@ onUnmounted(() => {
   font-weight: 600;
 }
 
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 1180px;
+  margin: 0 auto 14px;
+}
+
+.chip {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cfe4da;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.chip.on {
+  border-color: #d8f34a;
+  background: rgba(216, 243, 74, 0.18);
+  color: #d8f34a;
+}
+
 .cards {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 14px;
-  max-width: 1040px;
+  grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+  gap: 12px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 0;
 }
 
 .world-cards {
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
 }
 
 .card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
+  gap: 8px;
+  padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 16px;
+  border-radius: 14px;
   background: rgba(10, 30, 27, 0.9);
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.card:hover {
+  border-color: rgba(216, 243, 74, 0.45);
+  transform: translateY(-1px);
 }
 
 .icon {
-  font-size: 26px;
+  font-size: 22px;
   line-height: 1;
 }
 
@@ -256,64 +305,65 @@ onUnmounted(() => {
 
 .card h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 15px;
+  line-height: 1.35;
 }
 
 .tag {
   flex-shrink: 0;
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 10.5px;
   background: rgba(216, 243, 74, 0.16);
   color: #d8f34a;
 }
 
 .en {
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  color: rgba(169, 196, 182, 0.8);
+  font-size: 9.5px;
+  letter-spacing: 0.13em;
+  color: rgba(169, 196, 182, 0.75);
 }
 
 .card p {
   margin: 0;
-  font-size: 12.5px;
-  line-height: 1.7;
+  font-size: 12px;
+  line-height: 1.65;
   color: #cfe4da;
 }
 
-.points {
-  margin: 0;
-  padding-left: 1.1rem;
+.keys {
+  font-size: 11px !important;
+  color: rgba(169, 196, 182, 0.85) !important;
 }
 
-.points li {
-  font-size: 12px;
-  line-height: 1.65;
-  color: #a9c4b6;
-}
-
-.from {
-  font-size: 11px;
-  color: rgba(169, 196, 182, 0.65);
+.card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
 }
 
 .play {
-  margin-top: auto;
   display: block;
   text-align: center;
   text-decoration: none;
   border: 1px solid #d8f34a;
   background: #d8f34a;
   color: #10241b;
-  border-radius: 10px;
-  padding: 9px 12px;
-  font-size: 13px;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .play:hover {
   background: #e8ff6a;
+}
+
+.card.world .play {
+  margin-top: auto;
 }
 
 .dock {
@@ -373,7 +423,7 @@ onUnmounted(() => {
     padding: 18px 14px 80px;
   }
 
-  .keys {
+  .dock .keys {
     display: none;
   }
 }
