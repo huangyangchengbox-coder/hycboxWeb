@@ -4,6 +4,7 @@
     <router-link to="/cosmos" class="wm-link" active-class="active">宇宙探索</router-link>
     <router-link to="/wildlife" class="wm-link" active-class="active">动物世界</router-link>
     <router-link to="/micro" class="wm-link" active-class="active">微观奇境</router-link>
+    <router-link to="/tennis" class="wm-link" active-class="active">网球世界</router-link>
     <router-link to="/saltline" class="wm-link" active-class="active">盐线港口</router-link>
     <router-link to="/terrain" class="wm-link" active-class="active">地形岛</router-link>
     <router-link to="/spectra" class="wm-link" active-class="active">光谱</router-link>
