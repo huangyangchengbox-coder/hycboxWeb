@@ -133,10 +133,9 @@ let autoplayTimer = 0
 
 function setView(next) {
   view.value = next
-  if (route.query.view !== next && next !== 'timeline') {
-    router.replace({ path: '/life', query: { view: next } })
-  } else if (next === 'timeline' && route.query.view) {
-    router.replace({ path: '/life' })
+  const target = next === 'timeline' ? { path: '/life' } : { path: '/life', query: { view: next } }
+  if (route.query.view !== (next === 'timeline' ? undefined : next)) {
+    router.replace(target)
   }
 }
 
@@ -159,7 +158,17 @@ watch(autoplay, (on) => {
 
 onMounted(() => {
   const initialView = typeof route.query.view === 'string' ? route.query.view : 'timeline'
-  if (['timeline', 'mechanism', 'extinction'].includes(initialView)) view.value = initialView
+  const valid = ['timeline', 'mechanism', 'extinction']
+  if (valid.includes(initialView)) view.value = initialView
+
+  // 同一个页面内切换 ?view= 时要跟着换页签，否则从菜单点过来不会变
+  watch(
+    () => route.query.view,
+    (next) => {
+      const target = typeof next === 'string' && valid.includes(next) ? next : 'timeline'
+      if (target !== view.value) view.value = target
+    }
+  )
 
   scene = new LifeScene(canvasRef.value, milestones)
   scene.onSelect = ({ index, item, total }) => {

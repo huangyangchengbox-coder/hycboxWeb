@@ -1,5 +1,6 @@
 <template>
   <div class="home-globe" :class="{ 'in-space': inSpace }">
+    <WorldMenu />
     <canvas ref="canvasRef" class="earth-canvas" :class="{ hidden: inSpace }"></canvas>
     <div ref="hudRef" class="hud-container" :class="{ hidden: inSpace }"></div>
 
@@ -126,15 +127,6 @@
       <template v-if="!inSpace && !onMoon">
         <div class="btn-row">
           <button type="button" class="space-btn" @click="enterSpace">进入太空</button>
-          <router-link class="space-btn" to="/games">游戏厅</router-link>
-          <router-link class="space-btn" to="/cosmos">COSMOS v2</router-link>
-          <router-link class="space-btn" to="/micro">微观奇境</router-link>
-          <router-link class="space-btn" to="/tennis">网球世界</router-link>
-          <router-link class="space-btn" to="/saltline">盐线港口</router-link>
-          <router-link class="space-btn" to="/terrain">地形岛</router-link>
-          <router-link class="space-btn" to="/spectra">光谱</router-link>
-          <router-link class="space-btn" to="/formula">公式像素</router-link>
-          <router-link class="space-btn" to="/kerr">旋转黑洞</router-link>
         </div>
       </template>
       <template v-else-if="inSpace && !insideTarget">
@@ -171,6 +163,7 @@
 
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+import WorldMenu from '../components/WorldMenu.vue'
 import { getToken } from '../api/auth'
 import { mountGlobeApp } from '../globe/bootstrap.js'
 import { SpaceScene } from '../globe/SpaceScene.js'
@@ -338,6 +331,7 @@ onUnmounted(() => {
 
 <style scoped>
 .home-globe {
+  --wm-h: 62px;
   position: relative;
   width: 100%;
   height: 100%;
@@ -497,12 +491,13 @@ onUnmounted(() => {
   z-index: 30;
   left: 0;
   right: 0;
-  top: 0;
+  /* 顶部导航条比 48px 高（会换行），这里按实际高度让开，避免遮住品牌区 */
+  top: var(--wm-h);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1.25rem 1.5rem;
+  padding: 1rem 1.5rem;
   pointer-events: none;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 85%);
 }

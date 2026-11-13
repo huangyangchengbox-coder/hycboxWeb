@@ -11,11 +11,8 @@ export const SITE_MODULES = [
     icon: '🌍',
     route: '/home',
     hint: '经典地球',
-    children: [
-      { name: '经典地球', route: '/home', desc: '可拖拽的地球首页，点月球进入太空' },
-      { name: '地形岛', route: '/terrain', desc: '程序化地形与岛屿生成' },
-      { name: '盐线港口', route: '/saltline', desc: '港口场景与动态水面' }
-    ]
+    // 主页就是经典地球本身，不再挂二级菜单；地形岛、盐线港口在「游戏大厅 · 站内展馆」里
+    children: []
   },
   {
     id: 'cosmos',
@@ -36,13 +33,13 @@ export const SITE_MODULES = [
     name: '生命演化',
     en: 'LIFE',
     icon: '🧬',
-    route: '/life',
-    hint: '38 亿年 · 从分子到人类',
+    route: '/micro',
+    hint: '微观世界 · 38 亿年演化',
     children: [
-      { name: '演化长河', route: '/life', desc: '38 亿年关键节点，3D 时间轴' },
-      { name: '演化机制', route: '/life?view=mechanism', desc: '自然选择、内共生、同源器官' },
-      { name: '大灭绝', route: '/life?view=extinction', desc: '五次大灭绝与复苏' },
-      { name: '微观奇境', route: '/micro', desc: '原子、分子、DNA、细胞' }
+      { name: '微观奇境', route: '/micro', desc: '原子、分子、DNA、细胞、病毒' },
+      { name: '演化长河', route: '/life', desc: '38 亿年 12 个关键节点，3D 时间轴' },
+      { name: '演化机制', route: '/life?view=mechanism', desc: '自然选择、遗传漂变、内共生、同源与趋同' },
+      { name: '大灭绝', route: '/life?view=extinction', desc: '五次大灭绝与复苏，含常见误区' }
     ]
   },
   {
@@ -61,11 +58,11 @@ export const SITE_MODULES = [
     name: '运动',
     en: 'SPORTS',
     icon: '🎾',
-    route: '/sports',
-    hint: '场地 · 规则 · 技术 · 物理',
+    route: '/tennis',
+    hint: '网球 · 七大项目对比',
     children: [
-      { name: '运动科学', route: '/sports', desc: '七种运动的场地尺寸、规则与技术要点' },
-      { name: '网球世界', route: '/tennis', desc: '挥拍骨架、旋转对比、球场规则、装备参数' }
+      { name: '网球世界', route: '/tennis', desc: '挥拍骨架、旋转对比、球场规则、装备参数' },
+      { name: '运动科学', route: '/sports', desc: '网球、篮球、足球、羽毛球、乒乓球、游泳、田径的场地与物理' }
     ]
   },
   {
@@ -74,24 +71,16 @@ export const SITE_MODULES = [
     en: 'GAMES',
     icon: '🕹️',
     route: '/games',
-    hint: '24 个 3D 小游戏',
+    hint: '站内 3D 场景 + 小游戏',
     children: []
   }
 ]
 
-/** 展馆类页面（原「互动世界」），游戏厅里用作交叉入口。 */
-export const SITE_WORLDS = [
-  { id: 'cosmos', route: '/cosmos', name: '宇宙探索', en: 'COSMOS', icon: '🪐', desc: '程序化天体、轨道运动、镜头飞行' },
-  { id: 'life', route: '/life', name: '生命演化', en: 'LIFE', icon: '🧬', desc: '38 亿年时间轴与演化机制' },
-  { id: 'micro', route: '/micro', name: '微观奇境', en: 'MICRO', icon: '🔬', desc: '分子球棍、DNA 双螺旋、细胞剖面' },
-  { id: 'wildlife', route: '/wildlife', name: '动物世界', en: 'WILDLIFE', icon: '🦌', desc: '参数化生物几何、行为循环、生态标签' },
-  { id: 'sports', route: '/sports', name: '运动科学', en: 'SPORTS', icon: '🎾', desc: '七种运动的场地、规则与物理' },
-  { id: 'saltline', route: '/saltline', name: '盐线港口', en: 'SALTLINE', icon: '⚓', desc: '港口场景与动态水面' },
-  { id: 'terrain', route: '/terrain', name: '地形岛', en: 'TERRAIN', icon: '🏝️', desc: '程序化地形与岛屿生成' },
-  { id: 'spectra', route: '/spectra', name: '光谱', en: 'SPECTRA', icon: '🌈', desc: '光的分解与色彩实验' },
-  { id: 'formula', route: '/formula', name: '公式像素', en: 'FORMULA', icon: '🧮', desc: '从公式到像素的四个数值实验' },
-  { id: 'kerr', route: '/kerr', name: '旋转黑洞', en: 'KERR', icon: '🕳️', desc: '克尔度规下的黑洞吸积与光线弯曲' }
-]
+/**
+ * 游戏大厅里收录的站内可玩页面。
+ * 这些路由不在任何一级模块的 children 里，但访问时导航应高亮「游戏大厅」。
+ */
+const LOBBY_PAGES = ['/terrain', '/saltline', '/spectra', '/formula', '/kerr']
 
 /** 判断某个路由属于哪个一级模块，用于导航高亮。 */
 export function moduleOfPath(path) {
@@ -99,5 +88,8 @@ export function moduleOfPath(path) {
     if (mod.route === path) return mod.id
     if (mod.children.some((child) => child.route.split('?')[0] === path)) return mod.id
   }
+  // 光谱、公式像素归在「宇宙」下，所以先走上面的 children 判断；
+  // 地形岛、盐线港口只在游戏大厅出现，这里兜底
+  if (LOBBY_PAGES.includes(path)) return 'games'
   return ''
 }

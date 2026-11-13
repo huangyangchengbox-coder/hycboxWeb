@@ -15,47 +15,23 @@
       <div v-else class="shelf">
         <header class="shelf-head">
           <div class="kicker">GAMES</div>
-          <h1>游戏厅</h1>
-          <p class="sub">{{ games.length }} 个程序化生成的 3D 小游戏，以及站内 {{ worlds.length }} 个知识展馆。</p>
-          <div class="tabs">
-            <button type="button" :class="{ on: tab === 'games' }" @click="tab = 'games'">小游戏 · {{ games.length }}</button>
-            <button type="button" :class="{ on: tab === 'worlds' }" @click="tab = 'worlds'">知识展馆 · {{ worlds.length }}</button>
-          </div>
+          <h1>游戏大厅</h1>
+          <p class="sub">{{ games.length }} 个可玩内容：站内 3D 场景与独立小游戏，点开即玩。</p>
         </header>
 
-        <template v-if="tab === 'games'">
-          <div class="filters">
-            <button
-              v-for="item in categories"
-              :key="item.id"
-              type="button"
-              class="chip"
-              :class="{ on: cat === item.id }"
-              @click="cat = item.id"
-            >{{ item.name }} · {{ countOf(item.id) }}</button>
-          </div>
+        <div class="filters">
+          <button
+            v-for="item in categories"
+            :key="item.id"
+            type="button"
+            class="chip"
+            :class="{ on: cat === item.id }"
+            @click="cat = item.id"
+          >{{ item.name }} · {{ countOf(item.id) }}</button>
+        </div>
 
-          <ul class="cards">
-            <li v-for="item in visibleGames" :key="item.id" class="card">
-              <span class="icon">{{ item.icon }}</span>
-              <div class="card-body">
-                <div class="card-top">
-                  <h2>{{ item.name }}</h2>
-                </div>
-                <div class="en">{{ item.en }}</div>
-                <p>{{ item.desc }}</p>
-                <p class="keys">{{ item.keys.join(' · ') }}</p>
-              </div>
-              <div class="card-foot">
-                <span class="tag">{{ item.tag }}</span>
-                <button type="button" class="play" @click="open(item.id)">开始</button>
-              </div>
-            </li>
-          </ul>
-        </template>
-
-        <ul v-else class="cards world-cards">
-          <li v-for="item in worlds" :key="item.id" class="card world">
+        <ul class="cards">
+          <li v-for="item in visibleGames" :key="item.id" class="card">
             <span class="icon">{{ item.icon }}</span>
             <div class="card-body">
               <div class="card-top">
@@ -63,15 +39,23 @@
               </div>
               <div class="en">{{ item.en }}</div>
               <p>{{ item.desc }}</p>
+              <ul class="points">
+                <li v-for="point in item.points" :key="point">{{ point }}</li>
+              </ul>
+              <p class="keys">{{ item.keys.join(' · ') }}</p>
             </div>
-            <router-link class="play" :to="item.route">进入</router-link>
+            <div class="card-foot">
+              <span class="tag">{{ item.tag }}</span>
+              <router-link v-if="item.type === 'page'" class="play" :to="item.route">进入</router-link>
+              <button v-else type="button" class="play" @click="open(item.id)">开始</button>
+            </div>
           </li>
         </ul>
       </div>
     </div>
 
     <footer v-if="mode === 'play'" class="dock">
-      <button type="button" @click="back">← 返回游戏厅</button>
+      <button type="button" @click="back">← 返回游戏大厅</button>
       <span class="now">{{ current.icon }} {{ current.name }}</span>
       <span class="keys">{{ current.keys.join(' · ') }}</span>
       <button type="button" @click="reload">重新加载</button>
@@ -79,7 +63,7 @@
     </footer>
 
     <p v-if="mode === 'shelf'" class="disclaimer">
-      小游戏源码分别来自 claude-opus-5-5-demo、fable52 系列与本地实验目录，此处仅作集成展示。《穿越火线》《QQ 飞车》为同人致敬作品，与原厂无关。
+      小游戏为同人致敬与技术演示作品：《穿越火线》《QQ 飞车》与原厂无关。
     </p>
   </div>
 </template>
@@ -88,15 +72,13 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import WorldMenu from '../components/WorldMenu.vue'
-import { CATEGORIES, GAMES, WORLDS, gameById } from '../games/catalog.js'
+import { CATEGORIES, GAMES, gameById } from '../games/catalog.js'
 
 const route = useRoute()
 const router = useRouter()
 
 const games = GAMES
-const worlds = WORLDS
 const categories = CATEGORIES
-const tab = ref('games')
 const cat = ref('all')
 const mode = ref('shelf')
 const current = ref(GAMES[0])
@@ -112,7 +94,13 @@ function countOf(id) {
 }
 
 function open(id) {
-  current.value = gameById(id)
+  const target = gameById(id)
+  // type: 'page' 的条目走 router，这里只处理 iframe 小游戏
+  if (target.type !== 'iframe') {
+    router.push(target.route)
+    return
+  }
+  current.value = target
   mode.value = 'play'
   nonce.value += 1
   if (route.query.play !== id) {
@@ -143,8 +131,9 @@ function onKey(event) {
 
 onMounted(() => {
   const id = typeof route.query.play === 'string' ? route.query.play : ''
-  if (id && GAMES.some((item) => item.id === id)) {
-    current.value = gameById(id)
+  const target = id ? GAMES.find((item) => item.id === id) : null
+  if (target && target.type === 'iframe') {
+    current.value = target
     mode.value = 'play'
   }
   window.addEventListener('keydown', onKey)
@@ -214,35 +203,12 @@ onUnmounted(() => {
   color: #a9c4b6;
 }
 
-.tabs {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.tabs button {
-  border: 1px solid #46685a;
-  background: #18352d;
-  color: #fff;
-  border-radius: 999px;
-  padding: 7px 14px;
-  font-size: 12.5px;
-  cursor: pointer;
-}
-
-.tabs button.on {
-  background: #d8f34a;
-  border-color: #d8f34a;
-  color: #10241b;
-  font-weight: 600;
-}
-
 .filters {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   max-width: 1180px;
-  margin: 0 auto 14px;
+  margin: 14px auto;
 }
 
 .chip {
@@ -264,15 +230,11 @@ onUnmounted(() => {
 .cards {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 12px;
   max-width: 1180px;
   margin: 0 auto;
   padding: 0;
-}
-
-.world-cards {
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
 }
 
 .card {
@@ -331,9 +293,20 @@ onUnmounted(() => {
   color: #cfe4da;
 }
 
-.keys {
-  font-size: 11px !important;
-  color: rgba(169, 196, 182, 0.85) !important;
+.points {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.points li {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #a9c4b6;
+}
+
+.card p.keys {
+  font-size: 11px;
+  color: rgba(169, 196, 182, 0.85);
 }
 
 .card-foot {
@@ -360,10 +333,6 @@ onUnmounted(() => {
 
 .play:hover {
   background: #e8ff6a;
-}
-
-.card.world .play {
-  margin-top: auto;
 }
 
 .dock {
@@ -405,7 +374,7 @@ onUnmounted(() => {
   color: #d8f34a;
 }
 
-.keys {
+.dock .keys {
   font-size: 11px;
   color: #a9c4b6;
 }
