@@ -66,6 +66,15 @@ export const SITE_MODULES = [
     ]
   },
   {
+    id: 'city',
+    name: '城市',
+    en: 'CITY',
+    icon: '🏙️',
+    route: '/city',
+    hint: '六张网 · 3D 数字孪生',
+    children: []
+  },
+  {
     id: 'games',
     name: '游戏大厅',
     en: 'GAMES',

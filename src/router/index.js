@@ -50,6 +50,12 @@ const routes = [
         meta: { public: true, immersive: true }
       },
       {
+        path: 'city',
+        name: 'city',
+        component: () => import('../views/CityView.vue'),
+        meta: { public: true, immersive: true }
+      },
+      {
         path: 'tennis',
         name: 'tennis',
         component: () => import('../views/TennisView.vue'),
