@@ -179,6 +179,80 @@
       <p class="note">左侧是完整的生物力学与弹道画布，参数在画布下方调节；切到「几何对比矩阵」可看三种击球的全维度对照。</p>
     </aside>
 
+    <!-- 网球解剖 -->
+    <aside v-else-if="modeId === 'balllab'" class="info-panel ball-panel">
+      <div class="kicker">BALL LAB</div>
+      <h2>{{ ballData.typeName }}</h2>
+      <p class="note">{{ ballData.brandName }} · {{ ballData.tag }}</p>
+
+      <div class="ball-types">
+        <button
+          v-for="item in ballTypes"
+          :key="item.id"
+          type="button"
+          :class="{ on: ballData.typeId === item.id }"
+          :style="ballData.typeId === item.id ? { borderColor: item.hex, background: 'rgba(255,255,255,0.06)' } : {}"
+          @click="setBallType(item.id)"
+        >
+          <i :style="{ background: item.hex }"></i>
+          <span>{{ item.name }}</span>
+          <em>{{ item.en }}</em>
+        </button>
+      </div>
+
+      <p>{{ ballData.desc }}</p>
+
+      <table class="data">
+        <tbody>
+          <tr><td>标签</td><td>{{ ballData.tag }}</td></tr>
+          <tr><td>气压</td><td>{{ ballData.pressure }}</td></tr>
+          <tr><td>回弹高度</td><td>{{ ballData.rebound }} cm</td></tr>
+          <tr><td>使用寿命</td><td>{{ ballData.life }}</td></tr>
+          <tr><td>直径</td><td>{{ ITF_SPEC.diameter[0] }}–{{ ITF_SPEC.diameter[1] }} cm</td></tr>
+          <tr><td>质量</td><td>{{ ITF_SPEC.mass[0] }}–{{ ITF_SPEC.mass[1] }} g</td></tr>
+        </tbody>
+      </table>
+
+      <BallBounceChart :items="bounceItems" />
+
+      <div class="ball-pros">
+        <div><b>优势</b><span>{{ ballData.pros }}</span></div>
+        <div class="cons"><b>局限</b><span>{{ ballData.cons }}</span></div>
+      </div>
+
+      <h3>品牌 / 赛事用球</h3>
+      <div class="brand-grid">
+        <button
+          v-for="item in ballBrands"
+          :key="item.id"
+          type="button"
+          :class="{ on: ballData.brandId === item.id }"
+          @click="setBallBrand(item.id)"
+        >
+          <i :style="{ background: item.hex }"></i>
+          <span>{{ item.name }}</span>
+          <em>{{ item.model }}</em>
+        </button>
+      </div>
+      <p class="note">{{ brandNote }}</p>
+
+      <div class="chips">
+        <button type="button" class="chip" :class="{ on: ballData.cutaway }" @click="toggleCutaway">剖面</button>
+        <button type="button" class="chip" :class="{ on: ballData.spin }" @click="toggleBallSpin">旋转</button>
+      </div>
+
+      <h3>结构分层</h3>
+      <ul class="layers">
+        <li v-for="layer in ballLayers" :key="layer.id">
+          <i :style="{ background: layer.color }"></i>
+          <div>
+            <b>{{ layer.name }} · {{ layer.en }}</b>
+            <span>{{ layer.note }}</span>
+          </div>
+        </li>
+      </ul>
+    </aside>
+
     <!-- 发球计算 -->
     <aside v-else-if="modeId === 'serve'" class="info-panel">
       <div class="kicker">{{ serveData.en }}</div>
@@ -447,6 +521,15 @@
       <button type="button" @click="scene?.setCamera('racket')">拍面特写</button>
     </footer>
 
+    <footer v-else-if="modeId === 'balllab'" class="dock dock-thin">
+      <button type="button" @click="toggleBallSpin">{{ ballData.spin ? '停止旋转' : '旋转' }}</button>
+      <button type="button" @click="toggleCutaway">{{ ballData.cutaway ? '合并' : '剖面' }}</button>
+      <button type="button" @click="scene?.setCamera('hero')">全景</button>
+      <button type="button" @click="scene?.setCamera('close')">特写</button>
+      <button type="button" @click="scene?.setCamera('top')">顶部</button>
+      <button type="button" @click="scene?.setCamera('side')">侧视</button>
+    </footer>
+
     <footer v-else-if="modeId === 'forehand' || modeId === 'backhand'" class="dock dock-thin">
       <button type="button" @click="toggleStroke">{{ strokePlaying ? '暂停' : '播放' }}</button>
       <button type="button" @click="toggleStrokeSlow">{{ strokeSlow ? '1.0×' : '0.25× 慢放' }}</button>
@@ -541,6 +624,7 @@ import ServeMathPanel from '../components/ServeMathPanel.vue'
 import FootworkDemo from '../components/FootworkDemo.vue'
 import StanceMap from '../components/StanceMap.vue'
 import StrokeLab from '../components/StrokeLab.vue'
+import BallBounceChart from '../components/BallBounceChart.vue'
 import { MODES, SHOTS, shotById } from '../tennis/catalog.js'
 import { SURFACES } from '../tennis/court.js'
 import { TIMELINE, CHINA } from '../tennis/history.js'
@@ -551,6 +635,8 @@ import { LabMode } from '../tennis/modes/LabMode.js'
 import { FootworkMode } from '../tennis/modes/FootworkMode.js'
 import { StanceMode } from '../tennis/modes/StanceMode.js'
 import { StrokeBackdropMode } from '../tennis/modes/StrokeBackdropMode.js'
+import { BallLabMode } from '../tennis/modes/BallLabMode.js'
+import { BALL_TYPES, BRANDS, ITF_SPEC, STRUCTURE_LAYERS, ballTypeById, brandById } from '../tennis/ballspec.js'
 import { STANCES, STANCE_TIPS } from '../tennis/stance.js'
 import { CYCLE_PHASES, SCENARIOS, ZONES, footprintsUpTo, scenarioById, travelOf } from '../tennis/footwork.js'
 import { ServeMode } from '../tennis/modes/ServeMode.js'
@@ -591,6 +677,32 @@ const strokeSlow = ref(false)
 const strokeLabRef = ref(null)
 const strokeFh = reactive({ speed: 135, rpm: 3450, netClear: 1.18, bounceAngle: 41.5 })
 const strokeBh = reactive({ radius: 1.42, launch: 11.5, courtDist: 24.8, flightTime: 0.64 })
+const ballTypes = BALL_TYPES
+const ballBrands = BRANDS
+const ballLayers = STRUCTURE_LAYERS
+const ballData = reactive({
+  typeId: 'pressurized',
+  brandId: 'wilson',
+  cutaway: false,
+  spin: true,
+  typeName: '有压球',
+  brandName: 'Wilson',
+  tag: '罐装 · 比赛用',
+  desc: '',
+  pros: '',
+  cons: '',
+  pressure: '',
+  life: '',
+  rebound: 145
+})
+const bounceItems = computed(() => BALL_TYPES.map((t) => ({
+  id: t.id,
+  short: t.name,
+  note: t.pressure,
+  hex: t.hex,
+  rebound: t.rebound
+})))
+const brandNote = computed(() => brandById(ballData.brandId).note)
 const stanceData = reactive({
   id: 'open',
   name: '开放式站位',
@@ -718,6 +830,7 @@ function createMode(id) {
   if (id === 'stance') return new StanceMode(stage)
   if (id === 'forehand') return new StrokeBackdropMode(stage, 'forehand')
   if (id === 'backhand') return new StrokeBackdropMode(stage, 'backhand')
+  if (id === 'balllab') return new BallLabMode(stage)
   if (id === 'spin') return new SpinMode(stage)
   if (id === 'court') return new CourtMode(stage)
   if (id === 'history') return new HistoryMode(stage)
@@ -745,6 +858,24 @@ function wire(node) {
       } else {
         labNet.text = ''
       }
+    }
+  }
+  if (node instanceof BallLabMode) {
+    node.onData = (data) => {
+      const type = ballTypeById(data.typeId)
+      ballData.typeId = type.id
+      ballData.typeName = type.name
+      ballData.tag = type.tag
+      ballData.desc = type.desc
+      ballData.pros = type.pros
+      ballData.cons = type.cons
+      ballData.pressure = type.pressure
+      ballData.life = type.life
+      ballData.rebound = type.rebound
+      ballData.brandId = data.brandId
+      ballData.brandName = brandById(data.brandId).name
+      ballData.cutaway = data.cutaway
+      ballData.spin = node.spin
     }
   }
   if (node instanceof StanceMode) {
@@ -890,6 +1021,25 @@ function toggleModel() {
 function replayModel() {
   modelPlaying.value = true
   if (scene instanceof ServeModelMode) scene.replay()
+}
+
+function setBallType(id) {
+  if (scene instanceof BallLabMode) scene.setType(id)
+}
+
+function setBallBrand(id) {
+  if (scene instanceof BallLabMode) scene.setBrand(id)
+}
+
+function toggleCutaway() {
+  if (scene instanceof BallLabMode) scene.setCutaway(!ballData.cutaway)
+}
+
+function toggleBallSpin() {
+  if (scene instanceof BallLabMode) {
+    scene.setSpin(!ballData.spin)
+    ballData.spin = !ballData.spin
+  }
 }
 
 function onStrokeStats({ fh, bh }) {
@@ -1785,6 +1935,180 @@ table.data th {
   font-size: 9.5px;
   line-height: 1.55;
   color: #a9c4b6;
+}
+
+.ball-types {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin: 8px 0;
+}
+
+.ball-types button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding: 5px 7px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #a9c4b6;
+  cursor: pointer;
+  position: relative;
+  padding-left: 16px;
+}
+
+.ball-types button i {
+  position: absolute;
+  left: 6px;
+  top: 9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.ball-types button span {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #e6f4ec;
+}
+
+.ball-types button em {
+  font-style: normal;
+  font-size: 8.5px;
+  color: #7f9a91;
+}
+
+.ball-types button.on {
+  color: #eaff8a;
+}
+
+.ball-types button.on span {
+  color: #eaff8a;
+}
+
+.ball-pros {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 7px 0;
+}
+
+.ball-pros div {
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: rgba(52, 211, 153, 0.07);
+  border: 1px solid rgba(52, 211, 153, 0.22);
+}
+
+.ball-pros div.cons {
+  background: rgba(255, 107, 90, 0.07);
+  border-color: rgba(255, 107, 90, 0.22);
+}
+
+.ball-pros b {
+  display: block;
+  font-size: 9.5px;
+  color: #6ee7b7;
+  margin-bottom: 2px;
+}
+
+.ball-pros div.cons b {
+  color: #ff9f92;
+}
+
+.ball-pros span {
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: #8fa9a0;
+}
+
+.brand-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 5px 0;
+}
+
+.brand-grid button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 4px 6px 4px 16px;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #a9c4b6;
+  cursor: pointer;
+  position: relative;
+}
+
+.brand-grid button i {
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.brand-grid button span {
+  font-size: 10px;
+  font-weight: 600;
+  color: #e6f4ec;
+}
+
+.brand-grid button em {
+  font-style: normal;
+  font-size: 8px;
+  color: #7f9a91;
+}
+
+.brand-grid button.on {
+  border-color: rgba(216, 243, 74, 0.55);
+  background: rgba(216, 243, 74, 0.1);
+}
+
+.brand-grid button.on span {
+  color: #eaff8a;
+}
+
+.layers {
+  margin: 5px 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.layers li {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.layers li i {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 4px;
+}
+
+.layers li b {
+  display: block;
+  font-size: 10px;
+  color: #e6f4ec;
+}
+
+.layers li span {
+  display: block;
+  font-size: 9px;
+  line-height: 1.45;
+  color: #8fa9a0;
+  margin-top: 1px;
 }
 
 @media (max-width: 1320px) {

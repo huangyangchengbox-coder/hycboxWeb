@@ -24,6 +24,8 @@ export class TennisStage {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    // 网球解剖的剖面靠裁剪平面实现，必须开这个开关
+    this.renderer.localClippingEnabled = true
 
     this.buildLights()
 
