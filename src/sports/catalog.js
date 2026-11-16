@@ -46,6 +46,26 @@ export const SPORTS = [
     color: '#22d3ee'
   },
   {
+    id: 'sportmath',
+    name: '运动数学',
+    en: 'SPORTS MATH',
+    icon: '📐',
+    route: '/sportmath',
+    tag: '横切 · 公式',
+    venue: { length: 0, width: 0, unit: 'm' },
+    venueText: '不属于单一项目：投篮抛体、任意球弧线、百米分段、心率区间，四个运动现场各有一套数学',
+    ball: null,
+    rules: [
+      '抛体：x = v₀cosθ·t，y = h₀ + v₀sinθ·t − ½gt²',
+      '弧线：F = S(ω×v)，侧偏 ≈ ½a侧t²',
+      '心率：THR = HRR×强度% + RHR（Karvonen）'
+    ],
+    physics: '把运动里的"感觉"翻译成公式：出手多 0.1 m/s 差多少、转速差 1 转弯多少、配速差 1 秒意味着什么——3D 模拟和 2D 平面图同屏对照。',
+    skills: ['先看变量，再看公式，最后回 3D 场景验证', '拖滑块找"命中窗口"，理解容差比背数字重要', '用平均速度粗算，用分段速度修正'],
+    jumpText: '进入运动数学实验室（公式 + 3D + 平面图） →',
+    color: '#f2e14a'
+  },
+  {
     id: 'basketball',
     name: '篮球',
     en: 'BASKETBALL',

@@ -63,6 +63,7 @@ export const SITE_MODULES = [
     children: [
       { name: '网球世界', route: '/tennis', desc: '发球角度计算、挥拍骨架、旋转对比、球场规则' },
       { name: '滑板世界', route: '/skateboard', desc: '拖重心看受力矢量、Ollie 四阶段、四板型对比、轮咬警示' },
+      { name: '运动数学', route: '/sportmath', desc: '投篮抛体、任意球弧线、百米分段、心率区间：公式 + 3D + 平面图' },
       { name: '运动科学', route: '/sports', desc: '网球、篮球、足球、羽毛球、乒乓球、游泳、田径的场地与物理' }
     ]
   },
