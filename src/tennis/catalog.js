@@ -5,6 +5,8 @@ export const MODES = [
   { id: 'model', en: 'TRAJECTORY MATH', name: '发球数学模型', hint: '抛物线方程 · 身高可调 · 贴网落点与最远落点' },
   { id: 'footwork', en: 'FOOTWORK', name: '脚步与移动', hint: '五种实战场景 · 足印 · 五步周期 · 三大区域' },
   { id: 'stance', en: 'STANCE LAB', name: '站位解剖', hint: '开放 / 半开放 / 中立 / 关闭 · 脚部几何与体重转移' },
+  { id: 'forehand', en: 'LETHAL FOREHAND', name: '致命正手', hint: '双摆鞭打 · X-Factor · 马格努斯急坠与雨刷轨迹' },
+  { id: 'backhand', en: 'BALLISTIC BACKHAND', name: '弹道反手', hint: '单反大半径离心 / 双反闭合三角 · 低平穿透弹道' },
   { id: 'spin', en: 'SPIN SCIENCE', name: '旋转的科学', hint: '上旋 / 平击 / 下旋 · 三条轨迹并排对比' },
   { id: 'court', en: 'COURT & RULES', name: '球场与规则', hint: '尺寸标注 · 四种场地 · 计分演示' },
   { id: 'history', en: 'HISTORY', name: '历史长廊', hint: '1873 → 今天 · 球拍与球的进化' },

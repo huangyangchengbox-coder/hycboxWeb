@@ -149,6 +149,36 @@
       <p class="note">2D 俯视图里两只脚交替落下，玫红为左脚、天蓝为右脚，黄色圆圈是分腿垫步。</p>
     </aside>
 
+    <!-- 致命正手 / 弹道反手：纯 2D 几何实验室 -->
+    <aside v-else-if="modeId === 'forehand' || modeId === 'backhand'" class="info-panel stroke-panel">
+      <div class="kicker">{{ modeId === 'forehand' ? 'LETHAL FOREHAND' : 'BALLISTIC BACKHAND' }}</div>
+      <h2>{{ modeId === 'forehand' ? '致命正手' : '弹道反手' }}</h2>
+      <p v-if="modeId === 'forehand'" class="note">
+        现代正手是「双摆鞭打」：髋先转、肩后转形成 X-Factor；拍头下坠后内旋前臂，
+        走出陡峭的雨刷螺旋。强上旋带来的马格努斯下压让球在过网后急坠，落在底线内。
+      </p>
+      <p v-else class="note">
+        反手分两种构型：单反以肩为单支点、大半径离心摆动，击球点最靠前；
+        双反用双肩与握把构成闭合三角形，抗扭刚度高、更容易打直线。
+        两者都走低平弹道压缩对手反应时间。
+      </p>
+      <table class="data">
+        <tbody v-if="modeId === 'forehand'">
+          <tr><td>拍头线速度</td><td>{{ strokeFh.speed }} km/h</td></tr>
+          <tr><td>上旋转速</td><td>{{ strokeFh.rpm }} rpm</td></tr>
+          <tr><td>过网余量</td><td>+{{ strokeFh.netClear.toFixed(2) }} m</td></tr>
+          <tr><td>二跳弹射角</td><td>{{ strokeFh.bounceAngle }}°</td></tr>
+        </tbody>
+        <tbody v-else>
+          <tr><td>有效力臂</td><td>{{ strokeBh.radius.toFixed(2) }} m</td></tr>
+          <tr><td>出射仰角</td><td>{{ strokeBh.launch.toFixed(1) }}°</td></tr>
+          <tr><td>球场射界</td><td>{{ strokeBh.courtDist.toFixed(2) }} m</td></tr>
+          <tr><td>飞行时间</td><td>{{ strokeBh.flightTime.toFixed(2) }} s</td></tr>
+        </tbody>
+      </table>
+      <p class="note">左侧是完整的生物力学与弹道画布，参数在画布下方调节；切到「几何对比矩阵」可看三种击球的全维度对照。</p>
+    </aside>
+
     <!-- 发球计算 -->
     <aside v-else-if="modeId === 'serve'" class="info-panel">
       <div class="kicker">{{ serveData.en }}</div>
@@ -417,6 +447,12 @@
       <button type="button" @click="scene?.setCamera('racket')">拍面特写</button>
     </footer>
 
+    <footer v-else-if="modeId === 'forehand' || modeId === 'backhand'" class="dock dock-thin">
+      <button type="button" @click="toggleStroke">{{ strokePlaying ? '暂停' : '播放' }}</button>
+      <button type="button" @click="toggleStrokeSlow">{{ strokeSlow ? '1.0×' : '0.25× 慢放' }}</button>
+      <span class="hint-text">参数在画布下方滑块调节</span>
+    </footer>
+
     <footer v-else-if="modeId === 'stance'" class="dock dock-thin">
       <button type="button" @click="toggleStance">{{ stancePlaying ? '暂停' : '播放' }}</button>
       <span class="hint-text">脚部几何随站位实时更新</span>
@@ -474,6 +510,12 @@
       <span class="hint-text">拖动旋转 · 滚轮缩放</span>
     </footer>
 
+    <StrokeLab
+      v-if="modeId === 'forehand' || modeId === 'backhand'"
+      ref="strokeLabRef"
+      @stats="onStrokeStats"
+    />
+
     <FootworkDemo
       v-if="modeId === 'footwork' && footView === '2d'"
       class="foot-demo-dock"
@@ -498,6 +540,7 @@ import WorldMenu from '../components/WorldMenu.vue'
 import ServeMathPanel from '../components/ServeMathPanel.vue'
 import FootworkDemo from '../components/FootworkDemo.vue'
 import StanceMap from '../components/StanceMap.vue'
+import StrokeLab from '../components/StrokeLab.vue'
 import { MODES, SHOTS, shotById } from '../tennis/catalog.js'
 import { SURFACES } from '../tennis/court.js'
 import { TIMELINE, CHINA } from '../tennis/history.js'
@@ -507,6 +550,7 @@ import { TennisStage } from '../tennis/stage.js'
 import { LabMode } from '../tennis/modes/LabMode.js'
 import { FootworkMode } from '../tennis/modes/FootworkMode.js'
 import { StanceMode } from '../tennis/modes/StanceMode.js'
+import { StrokeBackdropMode } from '../tennis/modes/StrokeBackdropMode.js'
 import { STANCES, STANCE_TIPS } from '../tennis/stance.js'
 import { CYCLE_PHASES, SCENARIOS, ZONES, footprintsUpTo, scenarioById, travelOf } from '../tennis/footwork.js'
 import { ServeMode } from '../tennis/modes/ServeMode.js'
@@ -542,6 +586,11 @@ const footScenarios = SCENARIOS
 const stanceList = STANCES
 const stanceTips = STANCE_TIPS
 const stancePlaying = ref(true)
+const strokePlaying = ref(true)
+const strokeSlow = ref(false)
+const strokeLabRef = ref(null)
+const strokeFh = reactive({ speed: 135, rpm: 3450, netClear: 1.18, bounceAngle: 41.5 })
+const strokeBh = reactive({ radius: 1.42, launch: 11.5, courtDist: 24.8, flightTime: 0.64 })
 const stanceData = reactive({
   id: 'open',
   name: '开放式站位',
@@ -667,6 +716,8 @@ function createMode(id) {
   if (id === 'model') return new ServeModelMode(stage)
   if (id === 'footwork') return new FootworkMode(stage)
   if (id === 'stance') return new StanceMode(stage)
+  if (id === 'forehand') return new StrokeBackdropMode(stage, 'forehand')
+  if (id === 'backhand') return new StrokeBackdropMode(stage, 'backhand')
   if (id === 'spin') return new SpinMode(stage)
   if (id === 'court') return new CourtMode(stage)
   if (id === 'history') return new HistoryMode(stage)
@@ -841,8 +892,32 @@ function replayModel() {
   if (scene instanceof ServeModelMode) scene.replay()
 }
 
-/** 把站位数据同步到面板（脚部几何给 StanceMap 用）。 */
-function applyStanceData(id) {
+function onStrokeStats({ fh, bh }) {
+  if (fh) {
+    strokeFh.speed = fh.speed
+    strokeFh.rpm = fh.rpm
+    strokeFh.netClear = fh.netClear
+    strokeFh.bounceAngle = fh.bounceAngle
+  }
+  if (bh) {
+    strokeBh.radius = bh.radius
+    strokeBh.launch = bh.launch
+    strokeBh.courtDist = bh.courtDist
+    strokeBh.flightTime = bh.flightTime
+  }
+}
+
+function toggleStroke() {
+  strokePlaying.value = !strokePlaying.value
+  strokeLabRef.value?.setPlaying(strokePlaying.value)
+}
+
+function toggleStrokeSlow() {
+  strokeSlow.value = !strokeSlow.value
+  strokeLabRef.value?.setSlow(strokeSlow.value)
+}
+
+/** 把站位数据同步到面板（脚部几何给 StanceMap 用）。 */function applyStanceData(id) {
   const item = STANCES.find((s) => s.id === id) || STANCES[0]
   Object.assign(stanceData, item)
   stanceData.id = item.id
