@@ -57,11 +57,12 @@ export const SITE_MODULES = [
     id: 'sport',
     name: '运动',
     en: 'SPORTS',
-    icon: '🎾',
+    icon: '🛹',
     route: '/tennis',
-    hint: '网球 · 七大项目对比',
+    hint: '网球 · 滑板 · 七大项目对比',
     children: [
       { name: '网球世界', route: '/tennis', desc: '发球角度计算、挥拍骨架、旋转对比、球场规则' },
+      { name: '滑板世界', route: '/skateboard', desc: '拖重心看受力矢量、Ollie 四阶段、四板型对比、轮咬警示' },
       { name: '运动科学', route: '/sports', desc: '网球、篮球、足球、羽毛球、乒乓球、游泳、田径的场地与物理' }
     ]
   },

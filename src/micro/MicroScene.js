@@ -5,6 +5,9 @@ import { MOLECULES, createMoleculeKit } from './molecules.js'
 import { createDnaRig } from './dna.js'
 import { createCellRig } from './cellModel.js'
 import { createVirusRig } from './virusModel.js'
+import { createDivisionRig } from './divisionRig.js'
+import { createAgingRig } from './agingRig.js'
+import { createHumanCellRig } from './humanCells.js'
 import { trapWeight } from './scaleJourney.js'
 import { disposeSoftTexture, getSoftTexture } from './textures.js'
 
@@ -13,6 +16,9 @@ const CAMERAS = {
   molecule: { pos: [0, 1.3, 5.6], target: [0, 0, 0] },
   dna: { pos: [1.6, 2.2, 8.4], target: [0, 0, 0] },
   cell: { pos: [0.4, 1.4, 8.6], target: [0, 0.2, 0] },
+  divide: { pos: [0.6, 1.2, 9.4], target: [0.4, 0.2, 0] },
+  aging: { pos: [0, 1.6, 10.5], target: [0, 0, 0] },
+  body: { pos: [0, 0.5, 7.6], target: [0, 0, 0] },
   virus: { pos: [0.2, 0.8, 4.6], target: [0, 0, 0] },
   scale: { pos: [2.2, 2.4, 14], target: [0, 0, 0] },
   quiz: { pos: [0.4, 1.4, 8.6], target: [0, 0.2, 0] }
@@ -93,6 +99,9 @@ export class MicroScene {
     this.dna = createDnaRig()
     this.cell = createCellRig()
     this.virus = createVirusRig()
+    this.divide = createDivisionRig({ onState: hooks.onDivision })
+    this.aging = createAgingRig({ onState: hooks.onAging })
+    this.bodyCells = createHumanCellRig()
     this.scaleGroup = this.#buildScale()
     this.scene.add(
       this.atom.group,
@@ -100,6 +109,9 @@ export class MicroScene {
       this.dna.group,
       this.cell.group,
       this.virus.group,
+      this.divide.group,
+      this.aging.group,
+      this.bodyCells.group,
       this.scaleGroup
     )
     this.groups = {
@@ -108,6 +120,9 @@ export class MicroScene {
       dna: this.dna.group,
       cell: this.cell.group,
       virus: this.virus.group,
+      divide: this.divide.group,
+      aging: this.aging.group,
+      body: this.bodyCells.group,
       scale: this.scaleGroup
     }
     this.scene.traverse((obj) => {
@@ -169,6 +184,41 @@ export class MicroScene {
 
   setPlant(on) {
     this.cell.setPlant(on)
+  }
+
+  // ---- 细胞分裂极限 ----
+  setDivisionPlaying(on) {
+    this.divide.setPlaying(on)
+  }
+
+  setDivisionSpeed(v) {
+    this.divide.setSpeed(v)
+  }
+
+  setTelomerase(on) {
+    this.divide.setTelomerase(on)
+  }
+
+  divisionScrub(t) {
+    this.divide.scrubTo(t)
+  }
+
+  divisionReset() {
+    this.divide.reset()
+  }
+
+  // ---- 衰老时钟 ----
+  setAgingAge(norm) {
+    this.aging.setAge(norm)
+  }
+
+  setAgingHallmark(id) {
+    this.aging.setHallmark(id)
+  }
+
+  // ---- 人体细胞图鉴 ----
+  showBodyCell(id) {
+    this.bodyCells.show(id)
   }
 
   setVirusView(id) {
@@ -441,6 +491,9 @@ export class MicroScene {
     if (this.mode === 'dna') this.dna.tick(dt, this.reduced)
     if (this.mode === 'cell' || this.mode === 'quiz') this.cell.tick(dt, this.reduced)
     if (this.mode === 'virus') this.virus.tick(dt, this.reduced)
+    if (this.mode === 'divide' && !this.reduced) this.divide.tick(dt)
+    if (this.mode === 'aging' && !this.reduced) this.aging.tick(dt, time)
+    if (this.mode === 'body' && !this.reduced) this.bodyCells.tick(dt, time)
     if (this.mode === 'scale' && this.scalePlaying) {
       this.scaleP = Math.min(1, this.scaleP + (dt * this.scaleSpeed) / 28)
       this.#applyScale(this.scaleP)
@@ -484,6 +537,9 @@ export class MicroScene {
     this.dna.dispose()
     this.cell.dispose()
     this.virus.dispose()
+    this.divide.dispose()
+    this.aging.dispose()
+    this.bodyCells.dispose()
     this.scaleGroup.traverse((obj) => {
       if (obj.geometry && !obj.geometry.userData?.shared) obj.geometry.dispose?.()
       const mats = obj.material ? (Array.isArray(obj.material) ? obj.material : [obj.material]) : []

@@ -62,6 +62,12 @@ const routes = [
         meta: { public: true, immersive: true }
       },
       {
+        path: 'skateboard',
+        name: 'skateboard',
+        component: () => import('../views/SkateboardView.vue'),
+        meta: { public: true, immersive: true }
+      },
+      {
         path: 'saltline',
         name: 'saltline',
         component: () => import('../views/SaltlineView.vue'),

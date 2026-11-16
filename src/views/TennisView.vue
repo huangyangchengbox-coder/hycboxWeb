@@ -293,6 +293,62 @@
       <p class="note">平分区站在中线右侧，发向对角发球区。脚在底线后，击球点可以进入场内。速度和转速是教学模型里的示意值。</p>
     </aside>
 
+    <!-- 切削发球生物力学 -->
+    <aside v-else-if="modeId === 'sliceserve'" class="info-panel">
+      <template v-if="sliceData.info">
+        <div class="kicker">SLICE BIOMECH</div>
+        <h2>切削发球实验室</h2>
+        <div class="shot-grid">
+          <button type="button" :class="{ on: sliceData.mode === 'slice' }" @click="setSliceKind('slice')">⚡ 切削发球</button>
+          <button type="button" :class="{ on: sliceData.mode === 'flat' }" @click="setSliceKind('flat')">🚀 平击发球</button>
+          <button type="button" :class="{ on: sliceData.mode === 'compare' }" @click="setSliceKind('compare')">⚖️ 双轨对比</button>
+        </div>
+        <div class="chips">
+          <button type="button" class="chip" :class="{ on: !sliceData.left }" @click="setSliceHand(false)">右手持拍</button>
+          <button type="button" class="chip" :class="{ on: sliceData.left }" @click="setSliceHand(true)">左手持拍</button>
+          <button type="button" class="chip" :class="{ on: sliceData.deuce }" @click="setSliceSide(true)">一区</button>
+          <button type="button" class="chip" :class="{ on: !sliceData.deuce }" @click="setSliceSide(false)">二区</button>
+        </div>
+
+        <p class="note badge">{{ sliceData.info.badge }}</p>
+        <h3 class="stage-title">{{ sliceData.info.title }}</h3>
+        <p>{{ sliceData.info.desc }}</p>
+
+        <table class="data">
+          <tbody>
+            <tr><td>发力能量分配</td><td style="color:#bef264">{{ sliceData.info.force }}</td></tr>
+            <tr><td>时钟抛球方位</td><td style="color:#7dd3fc">{{ sliceData.info.toss }}</td></tr>
+            <tr><td>击球摩擦部位</td><td style="color:#fde047">{{ sliceData.info.contact }}</td></tr>
+          </tbody>
+        </table>
+
+        <div class="mistake">
+          <b>⚠️ 常见错误与纠正</b>
+          <p>{{ sliceData.info.mistake }}</p>
+        </div>
+
+        <div class="shot-grid two">
+          <button type="button" @click="sliceJumpKeyframe('trophy')">🎯 奖杯蓄力帧</button>
+          <button type="button" @click="sliceJumpKeyframe('contact')">⚡ 3点钟切击帧</button>
+        </div>
+
+        <div class="helpers">
+          <label><input type="checkbox" :checked="sliceHelpers.clock" @change="sliceToggleHelper('clock')" /> 🕒 3D时钟定位盘</label>
+          <label><input type="checkbox" :checked="sliceHelpers.ribbon" @change="sliceToggleHelper('ribbon')" /> 🎀 实时拍头轨迹拖尾</label>
+          <label><input type="checkbox" :checked="sliceHelpers.normal" @change="sliceToggleHelper('normal')" /> 📐 拍面法线方向箭头</label>
+          <label><input type="checkbox" :checked="sliceHelpers.vectors" @change="sliceToggleHelper('vectors')" /> 🧲 马格努斯力与旋转轴</label>
+          <label><input type="checkbox" :checked="sliceHelpers.trajectory" @change="sliceToggleHelper('trajectory')" /> 📈 飞行与弹跳预测线</label>
+        </div>
+
+        <p class="note">
+          切削抛球偏持拍侧（{{ sliceData.left ? '10点半' : '1点半' }}钟方向、入底线内约 40 cm），
+          用拍面刷切球体{{ sliceData.left ? '9' : '3' }}点钟边缘；70% 向前穿透 + 30% 侧面摩擦——"只切不打"会下网。
+          落地后侧旋触发马格努斯效应，球向外角低平外窜。双轨对比模式可同时看平击与切削的弧线与弹跳差异。
+        </p>
+        <p class="note">速度与转速为教学示意值；空格播放/暂停，左右方向键逐帧。</p>
+      </template>
+    </aside>
+
     <!-- 发球数学模型 -->
     <aside v-else-if="modeId === 'model'" class="info-panel model-panel">
       <div class="kicker">TRAJECTORY MATH</div>
@@ -586,6 +642,44 @@
       <button type="button" @click="scene?.setCamera('receive')">接发</button>
     </footer>
 
+    <footer v-else-if="modeId === 'sliceserve'" class="dock slice-dock">
+      <div class="slice-stages">
+        <button
+          v-for="(stage, index) in sliceStageNames"
+          :key="stage"
+          type="button"
+          :class="{ on: sliceData.stageIdx === index }"
+          @click="sliceJumpStage(index)"
+        >{{ index + 1 }}. {{ stage }}</button>
+      </div>
+      <div class="slice-controls">
+        <button type="button" @click="sliceStep(-1)">⏮</button>
+        <button type="button" class="play" @click="toggleSlice">{{ sliceData.playing ? '⏸' : '▶' }}</button>
+        <button type="button" @click="sliceStep(1)">⏭</button>
+        <input
+          class="slice-timeline"
+          type="range"
+          min="0"
+          max="1"
+          step="0.001"
+          :value="sliceData.progress"
+          @input="onSliceScrub"
+        />
+        <div class="slice-speed">
+          <button
+            v-for="s in [1, 0.5, 0.25, 0.1]"
+            :key="s"
+            type="button"
+            :class="{ on: sliceData.speed === s }"
+            @click="setSliceSpeed(s)"
+          >{{ s }}x</button>
+        </div>
+      </div>
+      <div class="slice-cams">
+        <button v-for="cam in sliceCams" :key="cam.id" type="button" @click="scene?.setCamera(cam.id)">{{ cam.name }}</button>
+      </div>
+    </footer>
+
     <footer v-else class="dock dock-thin">
       <button type="button" @click="scene?.setCamera('overview')">全景</button>
       <button type="button" @click="scene?.setCamera('side')">侧视</button>
@@ -641,6 +735,7 @@ import { STANCES, STANCE_TIPS } from '../tennis/stance.js'
 import { CYCLE_PHASES, SCENARIOS, ZONES, footprintsUpTo, scenarioById, travelOf } from '../tennis/footwork.js'
 import { ServeMode } from '../tennis/modes/ServeMode.js'
 import { ServeModelMode } from '../tennis/modes/ServeModelMode.js'
+import { SliceServeMode } from '../tennis/modes/SliceServeMode.js'
 import { SpinMode } from '../tennis/modes/SpinMode.js'
 import { CourtMode } from '../tennis/modes/CourtMode.js'
 import { HistoryMode } from '../tennis/modes/HistoryMode.js'
@@ -764,6 +859,27 @@ const serveData = reactive({
   rows: []
 })
 const courtData = reactive({ surfaceId: 'hard', singles: false })
+let sliceScrubbing = false
+const sliceStageNames = ['准备站位', '偏侧抛球', '奖杯搔背', '3点钟切击', '随挥外窜']
+const sliceCams = [
+  { id: 'free', name: '自由' },
+  { id: 'server', name: '发球者后方' },
+  { id: 'receiver', name: '接发' },
+  { id: 'contact', name: '击球特写' },
+  { id: 'side', name: '侧视' },
+  { id: 'top', name: '俯视' }
+]
+const sliceHelpers = reactive({ clock: true, ribbon: true, normal: true, vectors: true, trajectory: true })
+const sliceData = reactive({
+  stageIdx: 0,
+  progress: 0,
+  mode: 'slice',
+  left: false,
+  deuce: true,
+  playing: true,
+  speed: 0.5,
+  info: null
+})
 const historyData = reactive({ index: 6, item: TIMELINE[6], racketName: '木拍 · 1920s' })
 const gearData = reactive({
   gear: { headArea: 100, weight: 300, balance: 33, pattern: [16, 19], tension: 53 },
@@ -825,6 +941,7 @@ function chooseMode(id) {
 
 function createMode(id) {
   if (id === 'serve') return new ServeMode(stage)
+  if (id === 'sliceserve') return new SliceServeMode(stage)
   if (id === 'model') return new ServeModelMode(stage)
   if (id === 'footwork') return new FootworkMode(stage)
   if (id === 'stance') return new StanceMode(stage)
@@ -876,6 +993,18 @@ function wire(node) {
       ballData.brandName = brandById(data.brandId).name
       ballData.cutaway = data.cutaway
       ballData.spin = node.spin
+    }
+  }
+  if (node instanceof SliceServeMode) {
+    node.onData = (data) => {
+      sliceData.stageIdx = data.stageIdx
+      if (!sliceScrubbing) sliceData.progress = data.progress
+      if (data.mode !== undefined) sliceData.mode = data.mode
+      if (data.left !== undefined) sliceData.left = data.left
+      if (data.deuce !== undefined) sliceData.deuce = data.deuce
+      if (data.playing !== undefined) sliceData.playing = data.playing
+      if (data.speed !== undefined) sliceData.speed = data.speed
+      if (data.info) sliceData.info = data.info
     }
   }
   if (node instanceof StanceMode) {
@@ -1147,6 +1276,56 @@ function replayServe() {
   if (scene instanceof ServeMode) scene.replay()
 }
 
+// ---- 切削发球生物力学 ----
+function setSliceKind(kind) {
+  if (scene instanceof SliceServeMode) scene.setServeKind(kind)
+}
+
+function setSliceHand(left) {
+  if (scene instanceof SliceServeMode) scene.setHandedness(left)
+}
+
+function setSliceSide(deuce) {
+  if (scene instanceof SliceServeMode) scene.setCourtSide(deuce)
+}
+
+function sliceJumpStage(idx) {
+  if (scene instanceof SliceServeMode) scene.jumpStage(idx)
+}
+
+function sliceJumpKeyframe(key) {
+  if (scene instanceof SliceServeMode) scene.jumpKeyframe(key)
+}
+
+function toggleSlice() {
+  if (scene instanceof SliceServeMode) scene.setPlaying(!sliceData.playing)
+}
+
+function sliceStep(dir) {
+  if (scene instanceof SliceServeMode) scene.stepFrame(dir)
+}
+
+function onSliceScrub(event) {
+  sliceScrubbing = true
+  const value = Number(event.target.value)
+  sliceData.progress = value
+  if (scene instanceof SliceServeMode) {
+    scene.setProgress(value)
+    scene.setPlaying(false)
+  }
+  requestAnimationFrame(() => (sliceScrubbing = false))
+}
+
+function setSliceSpeed(speed) {
+  sliceData.speed = speed
+  if (scene instanceof SliceServeMode) scene.setSpeed(speed)
+}
+
+function sliceToggleHelper(type) {
+  sliceHelpers[type] = !sliceHelpers[type]
+  if (scene instanceof SliceServeMode) scene.toggleHelper(type)
+}
+
 function setSpinSurface(id) {
   if (scene instanceof SpinMode) scene.setSurface(id)
 }
@@ -1253,9 +1432,20 @@ function landText(z) {
 function onKey(event) {
   const tag = document.activeElement?.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA') return
-  if (event.key === ' ' && modeId.value === 'lab') {
+  if (event.key === ' ') {
+    if (modeId.value === 'lab') {
+      event.preventDefault()
+      toggle()
+    } else if (modeId.value === 'sliceserve') {
+      event.preventDefault()
+      toggleSlice()
+    }
+  } else if (modeId.value === 'sliceserve' && event.key === 'ArrowLeft') {
     event.preventDefault()
-    toggle()
+    sliceStep(-1)
+  } else if (modeId.value === 'sliceserve' && event.key === 'ArrowRight') {
+    event.preventDefault()
+    sliceStep(1)
   }
 }
 
@@ -2139,6 +2329,139 @@ table.data th {
 
   .mode-name {
     font-size: 12px;
+  }
+}
+
+/* ---- 切削发球生物力学 ---- */
+.note.badge {
+  display: inline-block;
+  background: rgba(204, 255, 0, 0.14);
+  color: #bef264;
+  border: 1px solid rgba(204, 255, 0, 0.3);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.stage-title {
+  margin: 8px 0 6px;
+  font-size: 15px;
+  color: #f8fafc;
+}
+.mistake {
+  background: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  border-radius: 10px;
+  padding: 9px 12px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+.mistake b {
+  color: #fda4af;
+  display: block;
+  margin-bottom: 4px;
+}
+.mistake p {
+  margin: 0;
+  color: rgba(254, 205, 211, 0.9);
+  line-height: 1.6;
+}
+.shot-grid.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.helpers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+  font-size: 12.5px;
+  color: rgba(203, 213, 225, 0.92);
+}
+.helpers label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.helpers input {
+  accent-color: #ccff00;
+}
+.slice-dock {
+  max-width: 960px;
+  left: 50%;
+  transform: translateX(-50%);
+  right: auto;
+  flex-direction: column;
+  gap: 8px;
+}
+.slice-stages,
+.slice-controls,
+.slice-cams {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.slice-stages button,
+.slice-cams button {
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: rgba(30, 41, 59, 0.85);
+  color: rgba(226, 232, 240, 0.85);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.slice-stages button.on {
+  background: rgba(204, 255, 0, 0.85);
+  color: #0f172a;
+  border-color: rgba(204, 255, 0, 0.8);
+  font-weight: 600;
+}
+.slice-controls button {
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: rgba(30, 41, 59, 0.85);
+  color: rgba(226, 232, 240, 0.85);
+  border-radius: 8px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.slice-controls .play {
+  background: rgba(56, 189, 248, 0.85);
+  color: #0f172a;
+  font-weight: 700;
+  min-width: 40px;
+}
+.slice-timeline {
+  flex: 1;
+  min-width: 180px;
+  accent-color: #ccff00;
+}
+.slice-speed {
+  display: flex;
+  gap: 4px;
+}
+.slice-speed button {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+.slice-speed button.on {
+  background: rgba(56, 189, 248, 0.3);
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.6);
+}
+.slice-cams button.on {
+  background: rgba(56, 189, 248, 0.25);
+  color: #7dd3fc;
+}
+@media (max-width: 760px) {
+  .slice-timeline {
+    min-width: 110px;
+  }
+  .slice-cams button {
+    padding: 4px 8px;
+    font-size: 11px;
   }
 }
 </style>

@@ -137,6 +137,104 @@
         <p class="note">细胞器的大小做过艺术化调整，不是显微测量。</p>
       </template>
 
+      <template v-else-if="modeId === 'divide'">
+        <div class="info-en">HAYFLICK LIMIT</div>
+        <h2>{{ divideData.senescent ? '细胞衰老 · 已到极限' : '细胞分裂极限' }}</h2>
+        <div class="div-counters">
+          <div class="div-num">
+            <b>{{ divideData.divisionCount }}</b>
+            <span>已分裂次数</span>
+          </div>
+          <div class="div-num">
+            <b :class="{ warn: divideData.telomerePct <= 30 }">{{ divideData.telomerePct }}%</b>
+            <span>端粒剩余</span>
+          </div>
+        </div>
+        <div class="phase-strip">
+          <button
+            v-for="(phase, index) in divisionPhases"
+            :key="phase.id"
+            type="button"
+            class="phase-dot"
+            :class="{ on: index === divideData.phaseIdx, done: index < divideData.phaseIdx }"
+            @click="jumpPhase(phase)"
+          >{{ phase.name }}</button>
+        </div>
+        <p>{{ currentPhase.text }}</p>
+        <p v-if="picked">{{ picked.summary }}</p>
+        <div class="info-actions">
+          <button type="button" class="solid" @click="toggleDivide">{{ divideData.senescent ? '已停止' : (divideData.playing ? '暂停' : '播放') }}</button>
+          <button type="button" class="ghost" @click="scene?.divisionReset()">重置</button>
+          <button type="button" class="ghost" :class="{ active: divideData.telomerase }" @click="toggleTelomerase">
+            端粒酶 {{ divideData.telomerase ? '开' : '关' }}
+          </button>
+        </div>
+        <div class="info-actions">
+          <button v-for="speed in [0.5, 1, 2]" :key="speed" type="button" class="chip" :class="{ on: divideSpeed === speed }" @click="divideSpeed = speed">{{ speed }}×</button>
+        </div>
+        <dl>
+          <dt>海弗里克极限</dt><dd>人类正常体细胞约 40–60 次分裂</dd>
+          <dt>端粒</dt><dd>染色体末端的保护帽，每分裂一次短一截</dd>
+          <dt>端粒酶</dt><dd>补长端粒的酶：干细胞开着，多数癌细胞强行重启它</dd>
+        </dl>
+        <p class="note">动画把 50 次分裂压缩演示。端粒耗尽后细胞停止分裂、变扁并分泌炎症因子（红点）——这就是“细胞衰老”。空格播放/暂停，方向键跳阶段。</p>
+      </template>
+
+      <template v-else-if="modeId === 'aging'">
+        <div class="info-en">AGING CLOCK</div>
+        <h2>衰老时钟 · {{ agingData.ageYears }} 岁</h2>
+        <input
+          class="scale-range"
+          type="range"
+          min="0"
+          max="100"
+          :value="Math.round(agingAge * 100)"
+          :aria-valuetext="agingData.ageYears + ' 岁'"
+          @input="onAgingInput"
+        />
+        <p>这团组织里：衰老细胞约 <b>{{ agingData.senescentPct }}%</b>。年龄越大，细胞越黄越扁、垃圾蛋白（黄点）与活性氧（橙点）越多、干细胞（亮点）越少。</p>
+        <div class="chips">
+          <button
+            v-for="hallmark in hallmarks"
+            :key="hallmark.id"
+            type="button"
+            class="chip"
+            :class="{ on: hallmark.id === agingHallmark }"
+            @click="pickHallmark(hallmark.id)"
+          >{{ hallmark.name }}</button>
+        </div>
+        <template v-if="currentHallmark">
+          <p><b>{{ currentHallmark.name }}</b><br /><span class="tier-tag">{{ agingData.hallmarkTier }}</span></p>
+          <p>{{ currentHallmark.text }}</p>
+        </template>
+        <p v-else>点一个标志，场景会强调对应的视觉效果。十二个标志分三层：主层级（根因）→ 拮抗层级（年轻时有益、老了有害）→ 整合层级（系统失协）。</p>
+        <p class="note">按 López-Otín 等 2023 年《Cell》综述的十二大衰老标志整理。这是科普示意，个体差异极大，不构成任何健康建议。</p>
+        <router-link class="text-link" to="/micro?mode=divide">端粒怎么变短的？去分裂极限</router-link>
+      </template>
+
+      <template v-else-if="modeId === 'body'">
+        <div class="info-en">{{ currentCellType.en }}</div>
+        <h2>{{ currentCellType.name }}</h2>
+        <p>{{ currentCellType.desc }}</p>
+        <div class="chips">
+          <button
+            v-for="type in cellTypes"
+            :key="type.id"
+            type="button"
+            class="chip"
+            :class="{ on: type.id === bodyCellId }"
+            @click="bodyCellId = type.id"
+          >{{ type.name }}</button>
+        </div>
+        <dl>
+          <template v-for="[key, value] in currentCellType.facts" :key="key">
+            <dt>{{ key }}</dt><dd>{{ value }}</dd>
+          </template>
+        </dl>
+        <p class="note">{{ currentCellType.note }}</p>
+        <p class="note">人体细胞总数约 37.2 万亿（Bianconi 等，2013）。模型为科普示意，不是显微结构。</p>
+      </template>
+
       <template v-else-if="modeId === 'virus'">
         <div class="info-en">STRUCTURE</div>
         <h2>病毒与蛋白质</h2>
@@ -182,12 +280,15 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import WorldMenu from '../components/WorldMenu.vue'
 import { MICRO_QUIZ, MODES } from '../micro/catalog.js'
 import { ATOMS, isotopeNote } from '../micro/atoms.js'
 import { MOLECULES } from '../micro/molecules.js'
+import { DIVISION_PHASES } from '../micro/divisionRig.js'
+import { AGING_HALLMARKS } from '../micro/agingRig.js'
+import { CELL_TYPES } from '../micro/humanCells.js'
 import { SCALE_MARKS, nearestScaleMark, scaleLabel } from '../micro/scaleJourney.js'
 import { MicroScene } from '../micro/MicroScene.js'
 
@@ -195,6 +296,9 @@ const modes = MODES
 const atoms = ATOMS
 const molecules = MOLECULES
 const quiz = MICRO_QUIZ
+const divisionPhases = DIVISION_PHASES
+const hallmarks = AGING_HALLMARKS
+const cellTypes = CELL_TYPES
 const canvasRef = ref(null)
 const rootRef = ref(null)
 const modeId = ref('atom')
@@ -215,6 +319,23 @@ const quizScore = ref(0)
 const quizDone = ref(false)
 const quizPick = ref(null)
 const reduced = ref(false)
+// ---- 细胞分裂极限 ----
+const divideData = reactive({
+  phaseIdx: 0,
+  progress: 0,
+  divisionCount: 0,
+  telomerePct: 100,
+  senescent: false,
+  telomerase: false,
+  playing: false
+})
+const divideSpeed = ref(1)
+// ---- 衰老时钟 ----
+const agingData = reactive({ ageYears: 29, senescentPct: 9, hallmarkTier: '' })
+const agingAge = ref(0.18)
+const agingHallmark = ref(null)
+// ---- 人体细胞图鉴 ----
+const bodyCellId = ref('rbc')
 const route = useRoute()
 const router = useRouter()
 let scene = null
@@ -229,6 +350,9 @@ const currentMolecule = computed(() => molecules.find((item) => item.id === mole
 const scaleMark = computed(() => nearestScaleMark(progress.value))
 const scaleText = computed(() => scaleLabel(progress.value))
 const currentQuiz = computed(() => quiz[quizIndex.value])
+const currentPhase = computed(() => divisionPhases[divideData.phaseIdx] || divisionPhases[0])
+const currentHallmark = computed(() => hallmarks.find((h) => h.id === agingHallmark.value))
+const currentCellType = computed(() => cellTypes.find((t) => t.id === bodyCellId.value) || cellTypes[0])
 
 function changeMode(id) {
   modeId.value = id
@@ -237,6 +361,12 @@ function changeMode(id) {
   scene?.setMode(id)
   if (id === 'atom') syncAtom()
   if (id === 'molecule') syncMolecule()
+  if (id === 'divide') scene?.setDivisionPlaying(true)
+  if (id === 'aging') {
+    scene?.setAgingAge(agingAge.value)
+    scene?.setAgingHallmark(agingHallmark.value)
+  }
+  if (id === 'body') scene?.showBodyCell(bodyCellId.value)
   if (id === 'scale') scene?.setScaleProgress(progress.value)
 }
 
@@ -273,6 +403,31 @@ function showVirus(id) {
   virusView.value = id
   scene?.setVirusView(id)
   scene?.setVirusPlaying(false)
+}
+
+// ---- 细胞分裂极限 ----
+function toggleDivide() {
+  if (divideData.senescent) return
+  scene?.setDivisionPlaying(!divideData.playing)
+}
+
+function toggleTelomerase() {
+  scene?.setTelomerase(!divideData.telomerase)
+}
+
+function jumpPhase(phase) {
+  scene?.divisionScrub(phase.span[0] + 0.02)
+}
+
+// ---- 衰老时钟 ----
+function onAgingInput(event) {
+  agingAge.value = Number(event.target.value) / 100
+  scene?.setAgingAge(agingAge.value)
+}
+
+function pickHallmark(id) {
+  agingHallmark.value = agingHallmark.value === id ? null : id
+  scene?.setAgingHallmark(agingHallmark.value)
 }
 
 function playVirus() {
@@ -321,10 +476,23 @@ function resetQuiz() {
 }
 
 function onKey(event) {
-  if (modeId.value !== 'scale') return
   const tag = document.activeElement?.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
   if (document.activeElement?.closest('button, a')) return
+  if (modeId.value === 'divide') {
+    if (event.key === ' ') {
+      event.preventDefault()
+      toggleDivide()
+    } else if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      jumpPhase(divisionPhases[Math.max(0, divideData.phaseIdx - 1)])
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault()
+      jumpPhase(divisionPhases[Math.min(divisionPhases.length - 1, divideData.phaseIdx + 1)])
+    }
+    return
+  }
+  if (modeId.value !== 'scale') return
   if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
     event.preventDefault()
     const step = event.key === 'ArrowLeft' ? -0.02 : 0.02
@@ -359,15 +527,21 @@ watch([moleculeId, hydrogen], () => {
 
 watch(plantCell, (value) => scene?.setPlant(value))
 watch(follow, (value) => scene?.setFollow(value))
+watch(divideSpeed, (value) => scene?.setDivisionSpeed(value))
+watch(bodyCellId, (value) => {
+  if (modeId.value === 'body') scene?.showBodyCell(value)
+})
 
-watch([modeId, elementId, moleculeId], () => {
+watch([modeId, elementId, moleculeId, bodyCellId], () => {
   if (!urlSync) return
   const query = { mode: modeId.value }
   if (modeId.value === 'atom') query.el = elementId.value
   if (modeId.value === 'molecule') query.mol = moleculeId.value
+  if (modeId.value === 'body') query.cell = bodyCellId.value
   const same = route.query.mode === query.mode
     && (route.query.el || '') === (query.el || '')
     && (route.query.mol || '') === (query.mol || '')
+    && (route.query.cell || '') === (query.cell || '')
   if (same) return
   router.replace({ query })
 })
@@ -382,6 +556,12 @@ onMounted(() => {
     onLabels: (list) => {
       labels.value = list
     },
+    onDivision: (data) => {
+      Object.assign(divideData, data)
+    },
+    onAging: (data) => {
+      Object.assign(agingData, data)
+    },
     onScaleProgress: (value) => {
       progress.value = value
     },
@@ -395,6 +575,8 @@ onMounted(() => {
   const queryMolecule = String(route.query.mol || '')
   if (atoms.some((item) => item.id === queryElement)) elementId.value = queryElement
   if (molecules.some((item) => item.id === queryMolecule)) moleculeId.value = queryMolecule
+  const queryCell = String(route.query.cell || '')
+  if (cellTypes.some((item) => item.id === queryCell)) bodyCellId.value = queryCell
   if (modes.some((item) => item.id === queryMode)) changeMode(queryMode)
   else syncAtom()
   urlSync = true
@@ -584,6 +766,70 @@ onUnmounted(() => {
 .solid {
   background: rgba(125, 255, 232, 0.16);
   border-color: rgba(125, 255, 232, 0.55);
+}
+
+.div-counters {
+  display: flex;
+  gap: 0.8rem;
+  margin: 0.5rem 0;
+}
+
+.div-num {
+  flex: 1;
+  padding: 0.45rem 0.6rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.div-num b {
+  display: block;
+  font-size: 22px;
+  color: #7dffe8;
+}
+
+.div-num b.warn {
+  color: #ff5d86;
+}
+
+.div-num span {
+  font-size: 11px;
+  color: rgba(244, 251, 255, 0.55);
+}
+
+.phase-strip {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0.4rem 0;
+}
+
+.phase-dot {
+  flex: 1;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  padding: 0.3rem 0.1rem;
+  font-size: 11px;
+  color: rgba(244, 251, 255, 0.65);
+  cursor: pointer;
+}
+
+.phase-dot.done {
+  color: #7dffe8;
+  border-color: rgba(125, 255, 232, 0.3);
+}
+
+.phase-dot.on {
+  color: #05020a;
+  background: #7dffe8;
+  border-color: #7dffe8;
+}
+
+.tier-tag {
+  display: inline-block;
+  margin-top: 0.15rem;
+  font-size: 11px;
+  color: #ffe08a;
 }
 
 .choice {

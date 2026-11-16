@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import { BOARDS } from '../skateboard/boards.js'
+import { buildBoard } from '../skateboard/boardModel.js'
 
 /**
  * 运动场地对比场景。
@@ -107,6 +109,29 @@ export class SportsScene {
 
     const v = sport.venue
     const color = new THREE.Color(sport.color)
+
+    // 滑板：板面太小（0.8m），在网格比例下不可见 —— 用最小可视平台 + 真实滑板模型示意
+    if (sport.id === 'skateboard') {
+      const pad = new THREE.Mesh(
+        new THREE.BoxGeometry(2.4, 0.08, 1.8),
+        new THREE.MeshStandardMaterial({ color: color.clone().multiplyScalar(0.35), roughness: 0.85 })
+      )
+      pad.position.y = 0.05
+      pad.receiveShadow = true
+      group.add(pad)
+      const deck = buildBoard(BOARDS[0])
+      deck.group.position.set(0, 0.1, 0)
+      deck.group.rotation.y = Math.PI / 6
+      group.add(deck.group)
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(1.6, 0.06, 8, 40),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.35 })
+      )
+      ring.rotation.x = -Math.PI / 2
+      ring.position.y = 0.03
+      group.add(ring)
+      return { sport, group, ring, cx, cz, index, scale: 1 }
+    }
 
     // 场地本体：按真实长宽，比例统一
     const length = v.length

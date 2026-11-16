@@ -63,8 +63,8 @@
         </ul>
       </div>
 
-      <router-link v-if="current.sport.route && current.sport.id === 'tennis'" class="jump" :to="current.sport.route">
-        进入网球世界（可交互挥拍） →
+      <router-link v-if="current.sport.route && current.sport.jumpText" class="jump" :to="current.sport.route">
+        {{ current.sport.jumpText }}
       </router-link>
       <p v-else class="jump-hint">该项目的 3D 场地已在上方等高亮显示，按同一比例与其他项目对比。</p>
     </aside>

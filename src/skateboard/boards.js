@@ -1,0 +1,112 @@
+/**
+ * 四板型参数库。
+ * 单位规范：板长 / 轴距 = cm，翘角 = 度，轮径 = mm，硬度 A 系。
+ * 参数承接自滑板受力仿真（code_artifact-滑板受力.html）的 BOARD_CONFIGS，
+ * 由比例换算为常见板型的真实规格中值；不同品牌存在差异，界面标注"教学示意"。
+ * turnGain：桥转向灵敏度系数（陆冲前桥远高于普通 TKP，这是"不蹬地也能加速"的几何来源）。
+ */
+
+export const BOARDS = [
+  {
+    id: 'street',
+    name: '双翘 Street',
+    en: 'STREET DECK',
+    icon: '🛹',
+    color: '#ff9f4a',
+    length: 80,
+    width: 20.3,
+    wheelbase: 35.5,
+    kickNose: 22,
+    kickTail: 22,
+    concave: 1.6,
+    truck: 'TKP（传统 kingpin，前后对称）',
+    frontTurnGain: 0.55,
+    rearTurnGain: 0.55,
+    truckRebound: 0.3,
+    wheelDia: 52,
+    wheelDurometer: 99,
+    friction: 0.72,
+    mass: 3.2,
+    maxDeg: 30,
+    pumpEfficiency: 0.15,
+    style: '支点杠杆灵敏，能翘能翻；硬轮易突破抓地，适合花式与街式。',
+    weakness: '轴距短、轮硬，容错低；泵速效率仅为陆冲的 15%。'
+  },
+  {
+    id: 'surfskate',
+    name: '陆冲 Surfskate',
+    en: 'SURFSKATE',
+    icon: '🌊',
+    color: '#22d3ee',
+    length: 83,
+    width: 24,
+    wheelbase: 43,
+    kickNose: 6,
+    kickTail: 18,
+    concave: 1.9,
+    truck: '前桥弹簧转向（松）+ 后桥 RKP（紧）',
+    frontTurnGain: 1.35,
+    rearTurnGain: 0.35,
+    truckRebound: 0.9,
+    wheelDia: 65,
+    wheelDurometer: 78,
+    friction: 1.08,
+    mass: 4.1,
+    maxDeg: 38,
+    pumpEfficiency: 1.0,
+    style: '前桥大转角 → 左右压板即可推进，不蹬地也能加速。',
+    weakness: '转弯半径小但车速上限低；前桥过松需要适应。'
+  },
+  {
+    id: 'longboard',
+    name: '长板 Longboard',
+    en: 'LONGBOARD',
+    icon: '🏄',
+    color: '#c084fc',
+    length: 110,
+    width: 24,
+    wheelbase: 76,
+    kickNose: 12,
+    kickTail: 12,
+    concave: 1.4,
+    truck: '50° RKP（反向 kingpin）',
+    frontTurnGain: 0.72,
+    rearTurnGain: 0.72,
+    truckRebound: 0.6,
+    wheelDia: 70,
+    wheelDurometer: 80,
+    friction: 0.95,
+    mass: 5.4,
+    maxDeg: 22,
+    pumpEfficiency: 0.42,
+    style: '轴距超长 → 支撑区宽 → 高速稳、重心容错大，压弯流畅。',
+    weakness: '支点杠杆距离远，翘板费力，不适合跳跃动作。'
+  },
+  {
+    id: 'cruiser',
+    name: '小鱼板 Cruiser',
+    en: 'CRUISER',
+    icon: '🐟',
+    color: '#facc15',
+    length: 56,
+    width: 15,
+    wheelbase: 28,
+    kickNose: 4,
+    kickTail: 20,
+    concave: 0.8,
+    truck: '窄 TKP',
+    frontTurnGain: 0.85,
+    rearTurnGain: 0.62,
+    truckRebound: 0.35,
+    wheelDia: 60,
+    wheelDurometer: 78,
+    friction: 1.02,
+    mass: 2.6,
+    maxDeg: 34,
+    pumpEfficiency: 0.38,
+    style: '支点近 → 重心稍偏即剧烈变化，转向灵活，通勤便携。',
+    weakness: '支撑区窄 + 大轮贴近板缘 → 轮咬风险四板中最高。'
+  }
+]
+
+export const boardById = (id) => BOARDS.find((b) => b.id === id) || BOARDS[0]

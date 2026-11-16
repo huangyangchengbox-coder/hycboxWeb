@@ -22,7 +22,28 @@ export const SPORTS = [
     ],
     physics: '上旋靠马格努斯力下压，弧线更高也能压住落点；落地后旋转抓住地面，球向前上方跳。',
     skills: ['转肩引拍，拍头留在手后面', '击球点在身体前侧 30–50 cm', '重心从后脚转到前脚'],
+    jumpText: '进入网球世界（可交互挥拍） →',
     color: '#d8f34a'
+  },
+  {
+    id: 'skateboard',
+    name: '滑板',
+    en: 'SKATEBOARD',
+    icon: '🛹',
+    route: '/skateboard',
+    tag: '板类 · 力学',
+    venue: { length: 0.8, width: 0.203, wheelbase: 0.355, unit: 'm' },
+    venueText: '板面 80 × 20.3 cm（双翘中值），轴距 35.5 cm；长板可达 110 cm',
+    ball: null,
+    rules: [
+      '公共道路滑行属危险行为，请选择专用场地',
+      '头盔是唯一不可替代的护具',
+      '轮咬（大倾角 + 前承重过大）是新手最常见的摔法'
+    ],
+    physics: '滑板几乎全部技术都由"重心在哪、力往哪压"决定：承重按杠杆分配（N₁=mg·d₂/L），越过后桥即翘尾力矩，压弯靠合力线落进支撑基面。',
+    skills: ['重心压低、垂线落在两轮之间', '压弯时身体向弯内倾，不是转板', '落地屈膝，用腿卸冲击'],
+    jumpText: '进入滑板世界（可拖重心看受力） →',
+    color: '#22d3ee'
   },
   {
     id: 'basketball',
