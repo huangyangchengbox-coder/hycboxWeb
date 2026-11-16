@@ -3,6 +3,7 @@ export const MODES = [
   { id: 'lab', en: 'TECHNIQUE LAB', name: '技巧实验室', hint: '正手 / 反手 / 发球 / 截击 · 拖动绕看，空格慢放' },
   { id: 'serve', en: 'SERVE LAB', name: '发球计算', hint: '平击 / 侧旋 / 上旋 · 击球高度、过网净空、落点与角度' },
   { id: 'model', en: 'TRAJECTORY MATH', name: '发球数学模型', hint: '抛物线方程 · 身高可调 · 贴网落点与最远落点' },
+  { id: 'footwork', en: 'FOOTWORK', name: '脚步与移动', hint: '五种实战场景 · 足印 · 五步周期 · 三大区域' },
   { id: 'spin', en: 'SPIN SCIENCE', name: '旋转的科学', hint: '上旋 / 平击 / 下旋 · 三条轨迹并排对比' },
   { id: 'court', en: 'COURT & RULES', name: '球场与规则', hint: '尺寸标注 · 四种场地 · 计分演示' },
   { id: 'history', en: 'HISTORY', name: '历史长廊', hint: '1873 → 今天 · 球拍与球的进化' },

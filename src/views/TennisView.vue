@@ -54,6 +54,55 @@
       <p class="note">一种常见做法，不是唯一打法。球的飞行按重力示意，球本身放大了，方便看清。</p>
     </aside>
 
+    <!-- 脚步与移动 -->
+    <aside v-else-if="modeId === 'footwork'" class="info-panel foot-panel">
+      <div class="kicker">FOOTWORK</div>
+      <h2>{{ footScenario.title }}</h2>
+      <p class="note">{{ footScenario.zone }} · {{ footScenario.tag }}</p>
+
+      <div class="shot-grid">
+        <button
+          v-for="item in footScenarios"
+          :key="item.id"
+          type="button"
+          :class="{ on: footData.id === item.id }"
+          @click="chooseFootwork(item.id)"
+        >{{ item.shortName }}</button>
+      </div>
+
+      <p class="phase">{{ footData.phase }}</p>
+      <p class="note">{{ footData.footCue }}</p>
+
+      <dl class="foot-stats">
+        <div><dt>周期</dt><dd>{{ footScenario.duration.toFixed(1) }} s</dd></div>
+        <div><dt>移动</dt><dd>{{ footTravel.toFixed(2) }} m</dd></div>
+        <div><dt>足印</dt><dd>{{ footMarks }}</dd></div>
+      </dl>
+
+      <h3>五步闭环周期</h3>
+      <ol class="cycle">
+        <li v-for="phase in footCycle" :key="phase.en">
+          <i :style="{ background: phase.color }">{{ phase.idx }}</i>
+          <div>
+            <b>{{ phase.name }} · {{ phase.en }}</b>
+            <span>{{ phase.text }}</span>
+          </div>
+        </li>
+      </ol>
+
+      <h3>全场三大区域</h3>
+      <div v-for="zone in footZones" :key="zone.id" class="zone-card" :style="{ borderLeftColor: zone.color }">
+        <b>{{ zone.name }}</b>
+        <span class="zone-range">{{ zone.range }}</span>
+        <span class="zone-desc">{{ zone.desc }}</span>
+        <ul>
+          <li v-for="point in zone.points" :key="point">{{ point }}</li>
+        </ul>
+        <span class="zone-foot">{{ zone.foot }} · {{ zone.rhythm }}</span>
+      </div>
+      <p class="note">2D 俯视图里两只脚交替落下，玫红为左脚、天蓝为右脚，黄色圆圈是分腿垫步。</p>
+    </aside>
+
     <!-- 发球计算 -->
     <aside v-else-if="modeId === 'serve'" class="info-panel">
       <div class="kicker">{{ serveData.en }}</div>
@@ -322,6 +371,25 @@
       <button type="button" @click="scene?.setCamera('racket')">拍面特写</button>
     </footer>
 
+    <footer v-else-if="modeId === 'footwork'" class="dock">
+      <button type="button" @click="toggleFoot">{{ footPlaying ? '暂停' : '播放' }}</button>
+      <button type="button" @click="replayFoot">重播</button>
+      <input
+        type="range"
+        min="0"
+        max="1000"
+        :value="Math.round(footProgress * 1000)"
+        aria-label="动作进度"
+        @input="onFootScrub"
+      />
+      <span class="time">{{ footData.phase }}</span>
+      <button type="button" :class="{ on: footSpeed === 0.4 }" @click="setFootSpeed(0.4)">0.4×</button>
+      <button type="button" :class="{ on: footSpeed === 1 }" @click="setFootSpeed(1)">1×</button>
+      <button type="button" :class="{ on: footView === '2d' }" @click="footView = '2d'">2D 俯视</button>
+      <button type="button" :class="{ on: footView === '3d' }" @click="footView = '3d'; scene?.setCamera('angle')">3D 场景</button>
+      <button type="button" :class="{ on: footMarksOn }" @click="toggleFootMarks">足印</button>
+    </footer>
+
     <footer v-else-if="modeId === 'model'" class="dock">
       <button type="button" @click="toggleModel">{{ modelPlaying ? '暂停' : '播放' }}</button>
       <button type="button" @click="replayModel">重播</button>
@@ -350,6 +418,15 @@
       <span class="hint-text">拖动旋转 · 滚轮缩放</span>
     </footer>
 
+    <FootworkDemo
+      v-if="modeId === 'footwork' && footView === '2d'"
+      class="foot-demo-dock"
+      :scenario-id="footData.id"
+      :progress="footProgress"
+      :show-footprints="footMarksOn"
+      @jump="onFootJump"
+    />
+
     <ServeMathPanel
       v-if="modeId === 'model'"
       @change="onModelChange"
@@ -363,6 +440,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import WorldMenu from '../components/WorldMenu.vue'
 import ServeMathPanel from '../components/ServeMathPanel.vue'
+import FootworkDemo from '../components/FootworkDemo.vue'
 import { MODES, SHOTS, shotById } from '../tennis/catalog.js'
 import { SURFACES } from '../tennis/court.js'
 import { TIMELINE, CHINA } from '../tennis/history.js'
@@ -370,6 +448,8 @@ import { QUIZ } from '../tennis/quiz.js'
 import { RULES, emptyScore, nextScore } from '../tennis/rules.js'
 import { TennisStage } from '../tennis/stage.js'
 import { LabMode } from '../tennis/modes/LabMode.js'
+import { FootworkMode } from '../tennis/modes/FootworkMode.js'
+import { CYCLE_PHASES, SCENARIOS, ZONES, footprintsUpTo, scenarioById, travelOf } from '../tennis/footwork.js'
 import { ServeMode } from '../tennis/modes/ServeMode.js'
 import { ServeModelMode } from '../tennis/modes/ServeModelMode.js'
 import { SpinMode } from '../tennis/modes/SpinMode.js'
@@ -399,6 +479,26 @@ const labNet = reactive({ hit: false, text: '' })
 const spinData = reactive({ rpm: 2500, surfaceId: 'hard', showForces: true, lanes: [], surf: SURFACES.hard })
 const servePlaying = ref(true)
 const modelPlaying = ref(true)
+const footScenarios = SCENARIOS
+const footCycle = CYCLE_PHASES
+const footZones = ZONES
+const footPlaying = ref(true)
+const footProgress = ref(0)
+const footSpeed = ref(1)
+const footMarksOn = ref(true)
+const footView = ref('2d')
+const footScenarioId = ref('baseline_rally')
+const footData = reactive({
+  id: 'baseline_rally',
+  title: '',
+  phase: '',
+  footCue: '',
+  stepType: 'ready'
+})
+
+const footScenario = computed(() => scenarioById(footScenarioId.value))
+const footTravel = computed(() => travelOf(footScenario.value))
+const footMarks = computed(() => footprintsUpTo(footScenario.value, footProgress.value).length)
 const modelData = reactive({
   heightCm: 168,
   speedKmh: 140,
@@ -485,6 +585,7 @@ function chooseMode(id) {
 function createMode(id) {
   if (id === 'serve') return new ServeMode(stage)
   if (id === 'model') return new ServeModelMode(stage)
+  if (id === 'footwork') return new FootworkMode(stage)
   if (id === 'spin') return new SpinMode(stage)
   if (id === 'court') return new CourtMode(stage)
   if (id === 'history') return new HistoryMode(stage)
@@ -512,6 +613,21 @@ function wire(node) {
       } else {
         labNet.text = ''
       }
+    }
+  }
+  if (node instanceof FootworkMode) {
+    node.onProgress = ({ progress: value, phase, footCue, stepType }) => {
+      footProgress.value = value
+      footData.phase = phase || ''
+      footData.footCue = footCue || ''
+      footData.stepType = stepType || 'ready'
+    }
+    node.onData = (data) => {
+      footData.id = data.id
+      footData.title = data.title
+      footScenarioId.value = data.id
+      footProgress.value = 0
+      footPlaying.value = true
     }
   }
   if (node instanceof ServeMode) {
@@ -637,6 +753,48 @@ function toggleModel() {
 function replayModel() {
   modelPlaying.value = true
   if (scene instanceof ServeModelMode) scene.replay()
+}
+
+function chooseFootwork(id) {
+  footScenarioId.value = id
+  if (scene instanceof FootworkMode) scene.setScenario(id)
+}
+
+function toggleFoot() {
+  footPlaying.value = !footPlaying.value
+  if (scene instanceof FootworkMode) scene.setPlaying(footPlaying.value)
+}
+
+function replayFoot() {
+  footPlaying.value = true
+  footProgress.value = 0
+  if (scene instanceof FootworkMode) {
+    scene.playing = true
+    scene.setProgress(0)
+    scene.playing = true
+  }
+}
+
+function onFootScrub(event) {
+  const value = Number(event.target.value) / 1000
+  footProgress.value = value
+  footPlaying.value = false
+  if (scene instanceof FootworkMode) scene.setProgress(value)
+}
+
+/** 2D 演示器点阶段或点画布跳转。 */
+function onFootJump(value) {
+  onFootScrub({ target: { value: String(Math.round(value * 1000)) } })
+}
+
+function toggleFootMarks() {
+  footMarksOn.value = !footMarksOn.value
+  if (scene instanceof FootworkMode) scene.setMarks(footMarksOn.value)
+}
+
+function setFootSpeed(value) {
+  footSpeed.value = value
+  if (scene instanceof FootworkMode) scene.setSpeed(value)
 }
 
 function setServe(id) {
@@ -1092,6 +1250,14 @@ table.data th {
   line-height: 1.65;
 }
 
+.rules li.hot {
+  color: #d8f34a;
+}
+
+.rules li.hot b {
+  color: #eaff8a;
+}
+
 .year {
   font-size: 28px;
   margin: 4px 0;
@@ -1206,10 +1372,141 @@ table.data th {
   color: rgba(169, 196, 182, 0.9);
 }
 
+.foot-demo-dock {
+  position: absolute;
+  left: 232px;
+  right: 322px;
+  top: 58px;
+  bottom: 92px;
+  z-index: 3;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(5, 22, 22, 0.94);
+  backdrop-filter: blur(8px);
+}
+
+.foot-stats {
+  display: flex;
+  gap: 12px;
+  margin: 8px 0;
+}
+
+.foot-stats div {
+  display: flex;
+  flex-direction: column;
+}
+
+.foot-stats dt {
+  font-size: 10px;
+  color: #8fa9a0;
+}
+
+.foot-stats dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #d8f34a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.cycle {
+  margin: 6px 0 10px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cycle li {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+}
+
+.cycle i {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  font-weight: 800;
+  font-style: normal;
+  color: #10241b;
+}
+
+.cycle b {
+  display: block;
+  font-size: 11px;
+  color: #e6f4ec;
+}
+
+.cycle span {
+  display: block;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #8fa9a0;
+  margin-top: 1px;
+}
+
+.zone-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left-width: 3px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.zone-card b {
+  font-size: 11px;
+  color: #f2fbf2;
+}
+
+.zone-range {
+  font-size: 9px;
+  color: #7f9a91;
+}
+
+.zone-desc {
+  font-size: 10px;
+  line-height: 1.5;
+  color: #a9c4b6;
+}
+
+.zone-card ul {
+  margin: 2px 0 0;
+  padding-left: 11px;
+  list-style: disc;
+}
+
+.zone-card li {
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: #8fa9a0;
+}
+
+.zone-foot {
+  font-size: 9px;
+  color: #6f8a81;
+  margin-top: 2px;
+}
+
 @media (max-width: 1320px) {
-  /* 数学模型模式：说明图本身已含全部读数，右侧面板只留大屏 */
-  .model-panel {
+  /* 数学模型 / 脚步演示：面板已含读数，右侧面板只留大屏 */
+  .model-panel,
+  .foot-panel {
     display: none;
+  }
+
+  .foot-demo-dock {
+    right: 14px;
   }
 }
 
