@@ -1,6 +1,14 @@
 import * as THREE from 'three'
 import { COURT } from './catalog.js'
 
+/** 网带高度。与 buildCourt 里的下垂公式一致：中央 0.914 m，网柱 1.07 m。 */
+export function netCordHeight(x) {
+  const postX = COURT.doublesWidth / 2 + COURT.postOutset
+  const nx = x / postX
+  const sag = (COURT.netPostHeight - COURT.netCenterHeight) * (1 - nx * nx)
+  return COURT.netPostHeight - sag
+}
+
 export const SURFACES = {
   hard: {
     id: 'hard',

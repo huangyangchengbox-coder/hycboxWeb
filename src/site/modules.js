@@ -61,7 +61,7 @@ export const SITE_MODULES = [
     route: '/tennis',
     hint: '网球 · 七大项目对比',
     children: [
-      { name: '网球世界', route: '/tennis', desc: '挥拍骨架、旋转对比、球场规则、装备参数' },
+      { name: '网球世界', route: '/tennis', desc: '发球角度计算、挥拍骨架、旋转对比、球场规则' },
       { name: '运动科学', route: '/sports', desc: '网球、篮球、足球、羽毛球、乒乓球、游泳、田径的场地与物理' }
     ]
   },

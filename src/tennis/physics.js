@@ -65,7 +65,7 @@ export function bounceBall(pos, vel, spin, surface) {
 
 /**
  * 采一条完整弹道：从击球点到两次落地。
- * 返回 { points: [{x,y,z,t}], bounces: [{x,z,t}], netY, netT }
+ * 返回 { points: [{x,y,z,t}], bounces: [{x,z,t,incoming}], netY, netT }
  */
 export function simulateTrajectory({
   from,
@@ -96,8 +96,9 @@ export function simulateTrajectory({
     }
 
     if (pos.y < BALL.visualRadius && vel.y < 0) {
+      const incoming = { x: vel.x, y: vel.y, z: vel.z }
       bounceBall(pos, vel, w, surface)
-      bounces.push({ x: pos.x, z: pos.z, t, speed: vel.length() })
+      bounces.push({ x: pos.x, z: pos.z, t, speed: vel.length(), incoming })
       if (bounces.length >= 2) {
         points.push({ x: pos.x, y: pos.y, z: pos.z, t })
         break

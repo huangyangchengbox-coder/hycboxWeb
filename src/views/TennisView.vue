@@ -54,6 +54,78 @@
       <p class="note">一种常见做法，不是唯一打法。球的飞行按重力示意，球本身放大了，方便看清。</p>
     </aside>
 
+    <!-- 发球计算 -->
+    <aside v-else-if="modeId === 'serve'" class="info-panel">
+      <div class="kicker">{{ serveData.en }}</div>
+      <h2>{{ serveData.name }}</h2>
+      <div class="shot-grid">
+        <button type="button" :class="{ on: serveData.id === 'flat' }" @click="setServe('flat')">平击发球</button>
+        <button type="button" :class="{ on: serveData.id === 'slice' }" @click="setServe('slice')">侧旋发球</button>
+        <button type="button" :class="{ on: serveData.id === 'kick' }" @click="setServe('kick')">上旋发球</button>
+      </div>
+      <div class="chips">
+        <button type="button" class="chip" :class="{ on: serveData.side === 'deuce' }" @click="setServeSide('deuce')">平分区</button>
+        <button type="button" class="chip" :class="{ on: serveData.side === 'ad' }" @click="setServeSide('ad')">占先区</button>
+      </div>
+      <p>{{ serveData.desc }}</p>
+      <p class="net" :class="{ hit: !serveData.inBox }">{{ serveData.summary }}</p>
+      <table class="data">
+        <tbody>
+          <tr v-for="row in serveData.rows" :key="row.k">
+            <td>{{ row.k }}</td>
+            <td>{{ row.v }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <ol>
+        <li v-for="point in serveData.points" :key="point">{{ point }}</li>
+      </ol>
+      <div class="chips">
+        <button
+          v-for="item in surfaceList"
+          :key="item"
+          type="button"
+          class="chip"
+          :class="{ on: serveData.surfaceId === item }"
+          @click="setServeSurface(item)"
+        >{{ surfaceName(item) }}</button>
+      </div>
+      <p class="note">侧视看击球高度、出射角和弦倾角；过网镜头看净空；俯视和落点镜头看进区距离。落点按球心，净空按球底到网带。</p>
+      <p class="note">平分区站在中线右侧，发向对角发球区。脚在底线后，击球点可以进入场内。速度和转速是教学模型里的示意值。</p>
+    </aside>
+
+    <!-- 发球数学模型 -->
+    <aside v-else-if="modeId === 'model'" class="info-panel model-panel">
+      <div class="kicker">TRAJECTORY MATH</div>
+      <h2>发球过网的抛物线</h2>
+      <p class="formula">y(x) = h₀ + x·tanθ − g x² / (2v² cos²θ)</p>
+      <p class="note">左侧是完整的数学模型图：侧视坐标、三条弹道、悬停探针与身高对照表。这里留 3D 场景的读数。</p>
+
+      <table class="data">
+        <tbody>
+          <tr><td>球员身高</td><td>{{ modelData.heightCm }} cm</td></tr>
+          <tr><td>击球点 h₀</td><td>{{ modelData.h0?.toFixed(2) }} m</td></tr>
+          <tr><td>发球初速度</td><td>{{ modelData.speedKmh }} km/h（{{ modelData.v?.toFixed(2) }} m/s）</td></tr>
+          <tr><td style="color:#fbbf58">贴网最近落点</td><td>{{ modelData.near ? modelData.near.distFromNet.toFixed(2) + ' m' : '—' }}</td></tr>
+          <tr><td style="color:#6ee7b7">最远落点过网</td><td>{{ modelData.far ? modelData.far.yAtNet.toFixed(2) + ' m' : '—' }}</td></tr>
+          <tr><td style="color:#6ee7b7">最远落点净空</td><td>{{ modelData.far ? (modelData.far.clearance * 100).toFixed(1) + ' cm' : '—' }}</td></tr>
+          <tr><td style="color:#7db6f5">自定义角</td><td>{{ modelData.custom?.thetaDeg?.toFixed(2) }}° · {{ modelData.custom?.status }}</td></tr>
+        </tbody>
+      </table>
+
+      <div class="chips">
+        <button
+          v-for="item in surfaceList"
+          :key="item"
+          type="button"
+          class="chip"
+          :class="{ on: modelData.surfaceId === item }"
+          @click="setModelSurface(item)"
+        >{{ surfaceName(item) }}</button>
+      </div>
+      <p class="note">这个模式用解析抛物线，不带旋转和空气阻力；带旋转的对比在「发球计算」里。</p>
+    </aside>
+
     <!-- B 旋转的科学 -->
     <aside v-else-if="modeId === 'spin'" class="info-panel">
       <div class="kicker">SPIN SCIENCE</div>
@@ -199,7 +271,7 @@
     </aside>
 
     <!-- F 训练挑战 -->
-    <aside v-else class="info-panel">
+    <aside v-else-if="modeId === 'train'" class="info-panel">
       <div class="kicker">TRAINING</div>
       <h2>训练挑战</h2>
       <template v-if="!finished">
@@ -250,12 +322,38 @@
       <button type="button" @click="scene?.setCamera('racket')">拍面特写</button>
     </footer>
 
+    <footer v-else-if="modeId === 'model'" class="dock">
+      <button type="button" @click="toggleModel">{{ modelPlaying ? '暂停' : '播放' }}</button>
+      <button type="button" @click="replayModel">重播</button>
+      <span class="hint-text">参数在左侧数学模型图里调</span>
+      <button type="button" @click="scene?.setCamera('elevation')">侧视</button>
+      <button type="button" @click="scene?.setCamera('net')">过网</button>
+      <button type="button" @click="scene?.setCamera('landing')">落点</button>
+      <button type="button" @click="scene?.setCamera('top')">俯视</button>
+    </footer>
+
+    <footer v-else-if="modeId === 'serve'" class="dock">
+      <button type="button" @click="toggleServe">{{ servePlaying ? '暂停' : '播放' }}</button>
+      <button type="button" @click="replayServe">重播</button>
+      <button type="button" @click="scene?.setCamera('side')">侧视</button>
+      <button type="button" @click="scene?.setCamera('behind')">后视</button>
+      <button type="button" @click="scene?.setCamera('top')">俯视</button>
+      <button type="button" @click="scene?.setCamera('net')">过网</button>
+      <button type="button" @click="scene?.setCamera('box')">落点</button>
+      <button type="button" @click="scene?.setCamera('receive')">接发</button>
+    </footer>
+
     <footer v-else class="dock dock-thin">
       <button type="button" @click="scene?.setCamera('overview')">全景</button>
       <button type="button" @click="scene?.setCamera('side')">侧视</button>
       <button type="button" @click="scene?.setCamera('top')">俯视</button>
       <span class="hint-text">拖动旋转 · 滚轮缩放</span>
     </footer>
+
+    <ServeMathPanel
+      v-if="modeId === 'model'"
+      @change="onModelChange"
+    />
 
     <p class="disclaimer">本模块为科普与教学示意，动作参数与场地弹跳经简化，不替代专业教练指导。场地线按 ITF 尺寸。</p>
   </div>
@@ -264,6 +362,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import WorldMenu from '../components/WorldMenu.vue'
+import ServeMathPanel from '../components/ServeMathPanel.vue'
 import { MODES, SHOTS, shotById } from '../tennis/catalog.js'
 import { SURFACES } from '../tennis/court.js'
 import { TIMELINE, CHINA } from '../tennis/history.js'
@@ -271,6 +370,8 @@ import { QUIZ } from '../tennis/quiz.js'
 import { RULES, emptyScore, nextScore } from '../tennis/rules.js'
 import { TennisStage } from '../tennis/stage.js'
 import { LabMode } from '../tennis/modes/LabMode.js'
+import { ServeMode } from '../tennis/modes/ServeMode.js'
+import { ServeModelMode } from '../tennis/modes/ServeModelMode.js'
 import { SpinMode } from '../tennis/modes/SpinMode.js'
 import { CourtMode } from '../tennis/modes/CourtMode.js'
 import { HistoryMode } from '../tennis/modes/HistoryMode.js'
@@ -296,6 +397,31 @@ const surfaceId = ref('hard')
 const scrubbing = ref(false)
 const labNet = reactive({ hit: false, text: '' })
 const spinData = reactive({ rpm: 2500, surfaceId: 'hard', showForces: true, lanes: [], surf: SURFACES.hard })
+const servePlaying = ref(true)
+const modelPlaying = ref(true)
+const modelData = reactive({
+  heightCm: 168,
+  speedKmh: 140,
+  v: 38.89,
+  h0: 2.48,
+  surfaceId: 'hard',
+  near: null,
+  far: null,
+  custom: null
+})
+
+const serveData = reactive({
+  id: 'flat',
+  side: 'deuce',
+  surfaceId: 'hard',
+  name: '平击发球',
+  en: 'FLAT',
+  desc: '',
+  points: [],
+  inBox: true,
+  summary: '',
+  rows: []
+})
 const courtData = reactive({ surfaceId: 'hard', singles: false })
 const historyData = reactive({ index: 6, item: TIMELINE[6], racketName: '木拍 · 1920s' })
 const gearData = reactive({
@@ -357,6 +483,8 @@ function chooseMode(id) {
 }
 
 function createMode(id) {
+  if (id === 'serve') return new ServeMode(stage)
+  if (id === 'model') return new ServeModelMode(stage)
   if (id === 'spin') return new SpinMode(stage)
   if (id === 'court') return new CourtMode(stage)
   if (id === 'history') return new HistoryMode(stage)
@@ -384,6 +512,32 @@ function wire(node) {
       } else {
         labNet.text = ''
       }
+    }
+  }
+  if (node instanceof ServeMode) {
+    node.onData = (data) => {
+      serveData.id = data.id
+      serveData.side = data.side
+      serveData.surfaceId = data.surfaceId
+      serveData.name = data.name
+      serveData.en = data.en
+      serveData.desc = data.desc
+      serveData.points = data.points
+      serveData.inBox = data.inBox
+      serveData.summary = data.summary
+      serveData.rows = data.rows
+    }
+  }
+  if (node instanceof ServeModelMode) {
+    node.onData = (data) => {
+      modelData.heightCm = data.heightCm
+      modelData.speedKmh = data.speedKmh
+      modelData.v = data.v
+      modelData.h0 = data.h0
+      modelData.surfaceId = data.surfaceId
+      modelData.near = data.near
+      modelData.far = data.far
+      modelData.custom = data.custom
     }
   }
   if (node instanceof SpinMode) {
@@ -455,6 +609,56 @@ function onScrub(event) {
 function setSurface(id) {
   surfaceId.value = id
   if (scene instanceof LabMode) scene.setSurface(id)
+}
+
+function onModelHeight(event) {
+  if (scene instanceof ServeModelMode) scene.setHeight(Number(event.target.value))
+}
+
+/** 文档面板改动参数时，把同一套状态推给 3D 场景。 */
+function onModelChange(state) {
+  if (scene instanceof ServeModelMode) scene.apply(state)
+}
+
+function onModelSpeed(event) {
+  if (scene instanceof ServeModelMode) scene.apply({ speedKmh: Number(event.target.value) })
+}
+
+function setModelSurface(id) {
+  if (scene instanceof ServeModelMode) scene.setSurface(id)
+  modelData.surfaceId = id
+}
+
+function toggleModel() {
+  modelPlaying.value = !modelPlaying.value
+  if (scene instanceof ServeModelMode) scene.setPlaying(modelPlaying.value)
+}
+
+function replayModel() {
+  modelPlaying.value = true
+  if (scene instanceof ServeModelMode) scene.replay()
+}
+
+function setServe(id) {
+  if (scene instanceof ServeMode) scene.setServe(id)
+}
+
+function setServeSide(side) {
+  if (scene instanceof ServeMode) scene.setSide(side)
+}
+
+function setServeSurface(id) {
+  if (scene instanceof ServeMode) scene.setSurface(id)
+}
+
+function toggleServe() {
+  servePlaying.value = !servePlaying.value
+  if (scene instanceof ServeMode) scene.setPlaying(servePlaying.value)
+}
+
+function replayServe() {
+  servePlaying.value = true
+  if (scene instanceof ServeMode) scene.replay()
 }
 
 function setSpinSurface(id) {
@@ -630,6 +834,8 @@ onUnmounted(() => {
   top: 58px;
   left: 14px;
   width: 208px;
+  max-height: calc(100% - 78px);
+  overflow: auto;
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 16px;
@@ -813,6 +1019,18 @@ table.data th {
   font-weight: 500;
 }
 
+.formula {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(216, 243, 74, 0.1);
+  color: #eaff8a;
+  font-family: "Cambria Math", "Times New Roman", serif;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+
 .serve {
   font-size: 12px;
   color: #d8f34a;
@@ -962,6 +1180,11 @@ table.data th {
   min-width: 110px;
 }
 
+.height-range {
+  flex: 0 1 150px;
+  accent-color: #d8f34a;
+}
+
 .time {
   color: #d8f34a;
   font-size: 12px;
@@ -981,6 +1204,13 @@ table.data th {
   text-align: center;
   font-size: 11px;
   color: rgba(169, 196, 182, 0.9);
+}
+
+@media (max-width: 1320px) {
+  /* 数学模型模式：说明图本身已含全部读数，右侧面板只留大屏 */
+  .model-panel {
+    display: none;
+  }
 }
 
 @media (max-width: 980px) {
