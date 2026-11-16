@@ -54,6 +54,52 @@
       <p class="note">一种常见做法，不是唯一打法。球的飞行按重力示意，球本身放大了，方便看清。</p>
     </aside>
 
+    <!-- 站位解剖 -->
+    <aside v-else-if="modeId === 'stance'" class="info-panel stance-panel">
+      <div class="kicker">STANCE LAB</div>
+      <h2>{{ stanceData.name }}</h2>
+      <p class="note">{{ stanceData.en }} · {{ stanceData.badge }}</p>
+
+      <div class="stance-tabs">
+        <button
+          v-for="item in stanceList"
+          :key="item.id"
+          type="button"
+          :class="{ on: stanceData.id === item.id }"
+          @click="chooseStance(item.id)"
+        >
+          <em>{{ item.index }}</em>
+          <span>{{ item.name }}</span>
+        </button>
+      </div>
+
+      <StanceMap :stance="stanceData" />
+
+      <div class="stance-row">
+        <b>适用场景</b>
+        <span>{{ stanceData.scene }}</span>
+      </div>
+      <div class="stance-row">
+        <b>发力与旋转</b>
+        <span>{{ stanceData.logic }}</span>
+      </div>
+      <div class="stance-pros">
+        <div>
+          <b>优势</b>
+          <span>{{ stanceData.pros }}</span>
+        </div>
+        <div class="cons">
+          <b>劣势</b>
+          <span>{{ stanceData.cons }}</span>
+        </div>
+      </div>
+
+      <div class="stance-tip">
+        <b>💡 选站位黄金法则</b>
+        <p>{{ stanceTips }}</p>
+      </div>
+    </aside>
+
     <!-- 脚步与移动 -->
     <aside v-else-if="modeId === 'footwork'" class="info-panel foot-panel">
       <div class="kicker">FOOTWORK</div>
@@ -371,6 +417,16 @@
       <button type="button" @click="scene?.setCamera('racket')">拍面特写</button>
     </footer>
 
+    <footer v-else-if="modeId === 'stance'" class="dock dock-thin">
+      <button type="button" @click="toggleStance">{{ stancePlaying ? '暂停' : '播放' }}</button>
+      <span class="hint-text">脚部几何随站位实时更新</span>
+      <button type="button" @click="scene?.setCamera('top')">俯视</button>
+      <button type="button" @click="scene?.setCamera('angle')">斜视</button>
+      <button type="button" @click="scene?.setCamera('behind')">后视</button>
+      <button type="button" @click="scene?.setCamera('front')">正面</button>
+      <button type="button" @click="scene?.setCamera('side')">侧视</button>
+    </footer>
+
     <footer v-else-if="modeId === 'footwork'" class="dock">
       <button type="button" @click="toggleFoot">{{ footPlaying ? '暂停' : '播放' }}</button>
       <button type="button" @click="replayFoot">重播</button>
@@ -441,6 +497,7 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import WorldMenu from '../components/WorldMenu.vue'
 import ServeMathPanel from '../components/ServeMathPanel.vue'
 import FootworkDemo from '../components/FootworkDemo.vue'
+import StanceMap from '../components/StanceMap.vue'
 import { MODES, SHOTS, shotById } from '../tennis/catalog.js'
 import { SURFACES } from '../tennis/court.js'
 import { TIMELINE, CHINA } from '../tennis/history.js'
@@ -449,6 +506,8 @@ import { RULES, emptyScore, nextScore } from '../tennis/rules.js'
 import { TennisStage } from '../tennis/stage.js'
 import { LabMode } from '../tennis/modes/LabMode.js'
 import { FootworkMode } from '../tennis/modes/FootworkMode.js'
+import { StanceMode } from '../tennis/modes/StanceMode.js'
+import { STANCES, STANCE_TIPS } from '../tennis/stance.js'
 import { CYCLE_PHASES, SCENARIOS, ZONES, footprintsUpTo, scenarioById, travelOf } from '../tennis/footwork.js'
 import { ServeMode } from '../tennis/modes/ServeMode.js'
 import { ServeModelMode } from '../tennis/modes/ServeModelMode.js'
@@ -480,6 +539,27 @@ const spinData = reactive({ rpm: 2500, surfaceId: 'hard', showForces: true, lane
 const servePlaying = ref(true)
 const modelPlaying = ref(true)
 const footScenarios = SCENARIOS
+const stanceList = STANCES
+const stanceTips = STANCE_TIPS
+const stancePlaying = ref(true)
+const stanceData = reactive({
+  id: 'open',
+  name: '开放式站位',
+  en: 'Open Stance',
+  badge: '',
+  scene: '',
+  logic: '',
+  pros: '',
+  cons: '',
+  axisLabel: '',
+  power: '',
+  feet: {
+    left: { x: -0.28, advance: 0.16, yaw: 10 },
+    right: { x: 0.28, advance: -0.12, yaw: -10 }
+  },
+  weightShift: 0.25,
+  hex: '#ccff00'
+})
 const footCycle = CYCLE_PHASES
 const footZones = ZONES
 const footPlaying = ref(true)
@@ -586,6 +666,7 @@ function createMode(id) {
   if (id === 'serve') return new ServeMode(stage)
   if (id === 'model') return new ServeModelMode(stage)
   if (id === 'footwork') return new FootworkMode(stage)
+  if (id === 'stance') return new StanceMode(stage)
   if (id === 'spin') return new SpinMode(stage)
   if (id === 'court') return new CourtMode(stage)
   if (id === 'history') return new HistoryMode(stage)
@@ -613,6 +694,11 @@ function wire(node) {
       } else {
         labNet.text = ''
       }
+    }
+  }
+  if (node instanceof StanceMode) {
+    node.onData = (data) => {
+      applyStanceData(data.id)
     }
   }
   if (node instanceof FootworkMode) {
@@ -753,6 +839,23 @@ function toggleModel() {
 function replayModel() {
   modelPlaying.value = true
   if (scene instanceof ServeModelMode) scene.replay()
+}
+
+/** 把站位数据同步到面板（脚部几何给 StanceMap 用）。 */
+function applyStanceData(id) {
+  const item = STANCES.find((s) => s.id === id) || STANCES[0]
+  Object.assign(stanceData, item)
+  stanceData.id = item.id
+}
+
+function chooseStance(id) {
+  applyStanceData(id)
+  if (scene instanceof StanceMode) scene.setStance(id)
+}
+
+function toggleStance() {
+  stancePlaying.value = !stancePlaying.value
+  if (scene instanceof StanceMode) scene.setPlaying(stancePlaying.value)
 }
 
 function chooseFootwork(id) {
@@ -1496,6 +1599,117 @@ table.data th {
   font-size: 9px;
   color: #6f8a81;
   margin-top: 2px;
+}
+
+.stance-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin: 8px 0;
+}
+
+.stance-tabs button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #a9c4b6;
+  cursor: pointer;
+}
+
+.stance-tabs button em {
+  font-style: normal;
+  font-size: 8.5px;
+  color: #7f9a91;
+  letter-spacing: 0.06em;
+}
+
+.stance-tabs button span {
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.stance-tabs button.on {
+  border-color: rgba(216, 243, 74, 0.6);
+  background: rgba(216, 243, 74, 0.12);
+  color: #eaff8a;
+}
+
+.stance-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 6px;
+}
+
+.stance-row b {
+  font-size: 10px;
+  color: #d8f34a;
+}
+
+.stance-row span {
+  font-size: 10px;
+  line-height: 1.55;
+  color: #a9c4b6;
+}
+
+.stance-pros {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.stance-pros div {
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: rgba(52, 211, 153, 0.07);
+  border: 1px solid rgba(52, 211, 153, 0.22);
+}
+
+.stance-pros div.cons {
+  background: rgba(255, 107, 90, 0.07);
+  border-color: rgba(255, 107, 90, 0.22);
+}
+
+.stance-pros b {
+  display: block;
+  font-size: 9.5px;
+  color: #6ee7b7;
+  margin-bottom: 2px;
+}
+
+.stance-pros div.cons b {
+  color: #ff9f92;
+}
+
+.stance-pros span {
+  font-size: 9.5px;
+  line-height: 1.5;
+  color: #8fa9a0;
+}
+
+.stance-tip {
+  padding: 6px 8px;
+  border-radius: 9px;
+  background: rgba(0, 240, 255, 0.07);
+  border-left: 3px solid #00f0ff;
+}
+
+.stance-tip b {
+  font-size: 9.5px;
+  color: #7dd3fc;
+}
+
+.stance-tip p {
+  margin: 2px 0 0;
+  font-size: 9.5px;
+  line-height: 1.55;
+  color: #a9c4b6;
 }
 
 @media (max-width: 1320px) {
