@@ -111,8 +111,66 @@
         <button type="button" class="solid" @click="playSprint">{{ sprintPlaying ? '重新发令' : '发令枪' }}</button>
       </template>
 
+      <!-- 力学详解 -->
+      <template v-else-if="themeId === 'theory'">
+        <div class="theory-tabs">
+          <button
+            v-for="th in theories"
+            :key="th.id"
+            type="button"
+            class="tchip"
+            :class="{ on: th.id === theoryId }"
+            :style="{ '--tc': th.color }"
+            @click="theoryId = th.id; theoryV = th.live.v; theoryRpm = th.live.rpm"
+          >{{ th.icon }} {{ th.name }}</button>
+        </div>
+        <p class="lead">{{ activeTheory.lead }}</p>
+
+        <label class="slider">
+          <span>球速 <b>{{ theoryV }}</b> m/s</span>
+          <input type="range" min="1" :max="theoryCfg.vMax" step="0.5" v-model.number="theoryV" />
+        </label>
+        <label v-if="theoryCfg.rpmMax > 0" class="slider">
+          <span>转速 <b>{{ theoryRpm }}</b> RPM（{{ (theoryRpm / 60).toFixed(1) }} 转/秒）</span>
+          <input type="range" min="0" :max="theoryCfg.rpmMax" step="10" v-model.number="theoryRpm" />
+        </label>
+
+        <!-- 实时受力读数 -->
+        <div class="force-read">
+          <div class="force-row"><i class="dot" style="background:#ff5d86"></i>重力 F<sub>g</sub> = mg<b>{{ theoryCalc.fg.toFixed(2) }} N</b></div>
+          <div class="force-row"><i class="dot" style="background:#5da8ff"></i>阻力 F<sub>D</sub> = ½ρC<sub>D</sub>Av²<b>{{ theoryCalc.fd.toFixed(2) }} N（{{ theoryCalc.fdX.toFixed(1) }}× 重力）</b></div>
+          <div class="force-row" v-if="theoryCfg.CLmax > 0"><i class="dot" style="background:#7cf2b0"></i>马格努斯 F<sub>M</sub> = ½ρAC<sub>L</sub>v²<b>{{ theoryCalc.fm.toFixed(2) }} N（{{ theoryCalc.fmX.toFixed(1) }}× 重力）</b></div>
+          <div class="force-row" v-if="theoryCfg.CLmax > 0"><i class="dot" style="background:#d8f34a"></i>升力系数 C<sub>L</sub>（转速参数 S={{ theoryCalc.S.toFixed(2) }}）<b>{{ theoryCalc.CL.toFixed(3) }}</b></div>
+        </div>
+        <div class="verdict" v-if="theoryCfg.CLmax > 0">
+          按 Δy = ½a<sub>y</sub>t² 估算，侧旋飞行 {{ theoryCfg.driftT }} s（该运动的典型飞行时间）的侧偏 ≈ <b>{{ theoryCalc.drift.toFixed(2) }} m</b>——飞行时间平方级的放大。
+        </div>
+
+        <!-- 分阶段推导 -->
+        <div class="stages">
+          <div class="stage" v-for="st in activeTheory.stages" :key="st.title">
+            <div class="stage-title">{{ st.title }}</div>
+            <div class="stage-formula" v-html="st.formula"></div>
+            <p class="stage-note">{{ st.caption }}</p>
+            <div class="stage-vars" v-if="st.vars.length">
+              <span v-for="[k, d] in st.vars" :key="k"><i>{{ k }}</i>{{ d }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 真实参数表 -->
+        <div class="param-table">
+          <div class="param-title">参数表</div>
+          <div class="param-row" v-for="[k, v] in activeTheory.params" :key="k">
+            <span>{{ k }}</span><b>{{ v }}</b>
+          </div>
+        </div>
+        <p class="note">{{ activeTheory.paramNote }}</p>
+        <div class="insight">{{ activeTheory.insight }}</div>
+      </template>
+
       <!-- 心率 -->
-      <template v-else>
+      <template v-else-if="themeId === 'heart'">
         <p class="lead">{{ activeTheme.text }}</p>
         <label class="slider">
           <span>年龄 <b>{{ heartAge }}</b> 岁 → HR<sub>max</sub> ≈ {{ hrMaxVal }}</span>
@@ -138,6 +196,7 @@
         <div class="chart-caption" v-if="themeId === 'shot'">同一速度下 30°–70° 的轨迹族；顶行绿点 = 当前速度能命中的角度</div>
         <div class="chart-caption" v-else-if="themeId === 'curve'">俯视图：不同转速的侧偏曲线，终点落在门框线内才算进球</div>
         <div class="chart-caption" v-else-if="themeId === 'sprint'">v–t 曲线：阶梯是分段平均速度；虚线是全程平均速度</div>
+        <div class="chart-caption" v-else-if="themeId === 'theory'">力-速度曲线：重力水平线、阻力 ∝v²、马格努斯随转速；黄虚线是当前球速</div>
         <div class="chart-caption" v-else>Karvonen 公式下五个区间的目标心率带（bpm）</div>
       </div>
 
@@ -169,12 +228,14 @@ import WorldMenu from '../components/WorldMenu.vue'
 import { HEART_ZONES, THEMES } from '../sportmath/formulas.js'
 import { curveTrajectory, judgeShot, minSpinForGoal, hrMax, shotWindow, targetHR } from '../sportmath/physics.js'
 import { sprintProfile } from '../sportmath/formulas.js'
+import { THEORIES, forceCalc } from '../sportmath/theory.js'
 import { MathScene } from '../sportmath/MathScene.js'
-import { drawCurveTop, drawHeartZones, drawShotFamily, drawSprintVT } from '../sportmath/charts.js'
+import { drawCurveTop, drawForceCurves, drawHeartZones, drawShotFamily, drawSprintVT } from '../sportmath/charts.js'
 
 const route = useRoute()
 const router = useRouter()
 const themes = THEMES
+const theories = THEORIES
 const zones = HEART_ZONES
 const canvasRef = ref(null)
 const chartRef = ref(null)
@@ -185,6 +246,9 @@ const shotResult = ref({ reachable: false })
 const curveResult = reactive({ cleared: false, wallHit: false, goal: false, endZ: 0 })
 const heartAge = ref(30)
 const rhr = ref(60)
+const theoryId = ref('tennis')
+const theoryV = ref(45)
+const theoryRpm = ref(2000)
 const sprintState = reactive({ t: 0, d: 0, v: 0 })
 const sprintDone = ref(false)
 const sprintPlaying = ref(false)
@@ -192,6 +256,9 @@ let scene = null
 let urlSync = false
 
 const activeTheme = computed(() => themes.find((t) => t.id === themeId.value) || themes[0])
+const activeTheory = computed(() => THEORIES.find((t) => t.id === theoryId.value) || THEORIES[0])
+const theoryCfg = computed(() => activeTheory.value.live)
+const theoryCalc = computed(() => forceCalc(theoryCfg.value, theoryV.value, theoryRpm.value))
 const profile = computed(() => sprintProfile())
 const hrMaxVal = computed(() => hrMax(heartAge.value))
 const zoneTargets = computed(() =>
@@ -216,6 +283,8 @@ function redrawChart() {
     drawCurveTop(canvas, family, 9.15, 25, 7.32)
   } else if (themeId.value === 'sprint') {
     drawSprintVT(canvas, profile.value, sprintState.t)
+  } else if (themeId.value === 'theory') {
+    drawForceCurves(canvas, { vNow: theoryV.value, cfg: theoryCfg.value })
   } else {
     drawHeartZones(canvas, hrMaxVal.value, rhr.value, zones, zoneTargets.value)
   }
@@ -293,6 +362,11 @@ watch(curveParams, () => {
 
 watch([heartAge, rhr], redrawChart)
 
+watch([theoryId, theoryV, theoryRpm], () => {
+  scene?.setTheory({ theoryId: theoryId.value, v: theoryV.value, rpm: theoryRpm.value })
+  redrawChart()
+})
+
 watch(sprintState, () => {
   if (themeId.value === 'sprint') redrawChart()
 })
@@ -326,6 +400,7 @@ onMounted(() => {
   // 首屏把 View 参数同步给 3D 场景（避免两侧数据源不一致）
   scene.setShot({ ...shotParams })
   scene.setCurveShot({ ...curveParams })
+  scene.setTheory({ theoryId: theoryId.value, v: theoryV.value, rpm: theoryRpm.value })
   const q = String(route.query.theme || '')
   if (themes.some((t) => t.id === q)) {
     themeId.value = q
@@ -659,6 +734,156 @@ dd {
   font-size: 11px;
   line-height: 1.55;
   margin: 0.4rem 0 0;
+}
+
+/* ---- 力学详解 ---- */
+.theory-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 0.45rem;
+}
+
+.tchip {
+  border: 1px solid #3d5f4e;
+  background: #14302a;
+  color: #cfe8df;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.tchip.on {
+  border-color: var(--tc, #d8f34a);
+  color: var(--tc, #d8f34a);
+  background: rgba(216, 243, 74, 0.08);
+}
+
+.force-read {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  background: rgba(4, 10, 8, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.force-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 11.5px;
+  line-height: 1.8;
+  color: #cde4d9;
+}
+
+.force-row b {
+  margin-left: auto;
+  color: #eaf6f2;
+  font-variant-numeric: tabular-nums;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  flex: none;
+}
+
+.stages {
+  margin: 0.55rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.stage {
+  padding: 0.5rem 0.65rem;
+  border-left: 2px solid #d8f34a;
+  background: rgba(216, 243, 74, 0.05);
+  border-radius: 0 8px 8px 0;
+}
+
+.stage-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #eaf6f2;
+}
+
+.stage-formula {
+  margin: 0.3rem 0 0.2rem;
+  font-family: "Cambria Math", "Times New Roman", serif;
+  font-size: 13.5px;
+  color: #eefad8;
+  line-height: 1.6;
+  overflow-x: auto;
+}
+
+.stage-note {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgba(205, 228, 217, 0.72);
+}
+
+.stage-vars {
+  margin-top: 0.3rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 10.5px;
+  color: rgba(205, 228, 217, 0.55);
+}
+
+.stage-vars i {
+  font-style: normal;
+  color: #d8f34a;
+  margin-right: 3px;
+}
+
+.param-table {
+  margin: 0.55rem 0 0.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.param-title {
+  font-size: 10.5px;
+  letter-spacing: 0.15em;
+  color: #9fb8ac;
+  padding: 0.35rem 0.6rem;
+  background: rgba(216, 243, 74, 0.07);
+}
+
+.param-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 11.5px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.param-row span {
+  color: rgba(234, 246, 242, 0.6);
+}
+
+.param-row b {
+  text-align: right;
+  color: #eaf6f2;
+  font-variant-numeric: tabular-nums;
+}
+
+.insight {
+  margin: 0.5rem 0 0.2rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  font-size: 11.5px;
+  line-height: 1.65;
+  background: rgba(125, 255, 232, 0.08);
+  border: 1px solid rgba(125, 255, 232, 0.28);
+  color: #b9f4e6;
 }
 
 .dock {

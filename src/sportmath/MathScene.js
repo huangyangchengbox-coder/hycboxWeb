@@ -2,12 +2,14 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CURVE_CONST, SHOT_CONST, SPRINT_SPLITS, sprintProfile } from './formulas.js'
 import { curveTrajectory, shotTrajectory } from './physics.js'
+import { THEORIES, forceCalc } from './theory.js'
 
 const CAMERAS = {
   shot: { pos: [6.2, 3.4, 9.5], target: [2.6, 1.8, 0] },
   curve: { pos: [-7, 5.2, 14], target: [12, 1.2, 0] },
   sprint: { pos: [-6, 5.5, 20], target: [30, 0.8, 0] },
-  heart: { pos: [0, 0.6, 4.6], target: [0, 0, 0] }
+  heart: { pos: [0, 0.6, 4.6], target: [0, 0, 0] },
+  theory: { pos: [3.2, 2.4, 5.2], target: [0, 1.1, 0] }
 }
 
 function mat(color, opts = {}) {
@@ -25,6 +27,33 @@ function mat(color, opts = {}) {
 
 function lineMat(color, opacity = 0.9) {
   return new THREE.LineBasicMaterial({ color, transparent: true, opacity })
+}
+
+/** 受力分解台的三力箭头（箭杆 + 锥形箭头），长度实时驱动。 */
+function makeForceArrow(color) {
+  const group = new THREE.Group()
+  const shaft = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.022, 1, 8),
+    mat(color, { glow: 0.85 })
+  )
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 10), mat(color, { glow: 0.9 }))
+  group.add(shaft, head)
+  group.userData = { shaft, head }
+  group.visible = false
+  return group
+}
+
+/** 把箭头摆到起点 origin、指向 dir、长度 len（内部箭杆已按 -len 对齐）。 */
+function aimArrow(group, origin, dir, len) {
+  const { shaft, head } = group.userData
+  const d = dir.clone().normalize()
+  const shaftLen = Math.max(0.001, len - 0.14)
+  shaft.scale.y = shaftLen
+  head.position.y = shaftLen / 2 + 0.07
+  group.position.copy(origin)
+  // 箭头默认朝 +y，转到 d 方向
+  group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d)
+  group.visible = len > 0.03
 }
 
 export class MathScene {
@@ -59,7 +88,7 @@ export class MathScene {
     rim2.position.set(-6, 4, 6)
     this.scene.add(rim2)
 
-    this.groups = { shot: this.#buildShot(), curve: this.#buildCurve(), sprint: this.#buildSprint(), heart: this.#buildHeart() }
+    this.groups = { shot: this.#buildShot(), curve: this.#buildCurve(), sprint: this.#buildSprint(), heart: this.#buildHeart(), theory: this.#buildTheory() }
     for (const g of Object.values(this.groups)) this.scene.add(g)
 
     this.#resize()
@@ -390,6 +419,133 @@ export class MathScene {
     this.ecgRing.scale.setScalar(1 + beat * 0.3)
   }
 
+  // ---------- 受力分解台（力学详解） ----------
+  #buildTheory() {
+    const g = new THREE.Group()
+    // 展台
+    const floor = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 3.4, 0.1, 48), mat('#142e26', { glow: 0.08, roughness: 0.95 }))
+    floor.position.y = -0.05
+    g.add(floor)
+    const grid = new THREE.PolarGridHelper(3.2, 12, 5, 48, 0x2c5a4a, 0x1d3f34)
+    grid.position.y = 0.012
+    g.add(grid)
+    // 球（半径随所选运动变化，最小可视 0.1）
+    this.theoryBall = new THREE.Mesh(new THREE.SphereGeometry(0.24, 24, 18), mat('#d8f34a', { glow: 0.35 }))
+    this.theoryBall.position.y = 1.1
+    g.add(this.theoryBall)
+    // 球面缝线（两条环，让自转可见）
+    this.theorySeam1 = new THREE.Mesh(new THREE.TorusGeometry(0.245, 0.008, 6, 40), mat('#10241b', { glow: 0.05 }))
+    this.theorySeam2 = new THREE.Mesh(new THREE.TorusGeometry(0.245, 0.008, 6, 40), mat('#10241b', { glow: 0.05 }))
+    this.theorySeam2.rotation.x = Math.PI / 2
+    const seams = new THREE.Group()
+    seams.add(this.theorySeam1, this.theorySeam2)
+    this.theoryBall.add(seams)
+    // 三力箭头：重力红 / 阻力蓝 / 马格努斯绿 + 速度白 + ω 轴黄
+    this.theoryArrows = {
+      fg: makeForceArrow('#ff5d86'),
+      fd: makeForceArrow('#5da8ff'),
+      fm: makeForceArrow('#7cf2b0'),
+      v: makeForceArrow('#e8fff2')
+    }
+    for (const a of Object.values(this.theoryArrows)) g.add(a)
+    this.omegaAxis = makeForceArrow('#d8f34a')
+    g.add(this.omegaAxis)
+    // 悬浮标签（Sprite 文本）
+    this.theoryLabels = {}
+    for (const [key, text, color] of [
+      ['fg', '重力 Fg', '#ff5d86'],
+      ['fd', '阻力 FD', '#5da8ff'],
+      ['fm', 'Magnus FM', '#7cf2b0'],
+      ['v', 'v', '#e8fff2']
+    ]) this.theoryLabels[key] = this.#makeLabel(text, color, g)
+    // 当前状态
+    this.theoryState = { theoryId: 'tennis', v: 45, rpm: 2000 }
+    this.theoryResult = null
+    return g
+  }
+
+  #makeLabel(text, color, parent) {
+    const canvas = document.createElement('canvas')
+    canvas.width = 192
+    canvas.height = 48
+    const ctx = canvas.getContext('2d')
+    ctx.font = '600 26px "Segoe UI", "Microsoft YaHei", sans-serif'
+    ctx.fillStyle = color
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, 96, 24)
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthWrite: false }))
+    sprite.scale.set(0.9, 0.225, 1)
+    parent.add(sprite)
+    return sprite
+  }
+
+  #updateTheory() {
+    const cfg = THEORIES.find((t) => t.id === this.theoryState.theoryId)?.live
+    if (!cfg) return
+    const r = forceCalc(cfg, this.theoryState.v, this.theoryState.rpm)
+    this.theoryResult = { ...r, cfg }
+    // 球体尺寸随真实半径（可视下限 0.1 m，放大倍数让羽毛球不至于看不见）
+    const visR = Math.max(0.14, Math.min(cfg.R * 2.2, 0.34))
+    this.theoryBall.scale.setScalar(visR / 0.24)
+    this.theoryBall.material.color.set(THEORIES.find((t) => t.id === this.theoryState.theoryId)?.color || '#d8f34a')
+    // 归一：最大力 → 1.7 单位
+    const maxF = Math.max(r.fg, r.fd, r.fm, 0.001)
+    const scale = (f) => (f / maxF) * 1.7
+    const origin = this.theoryBall.position
+    // 重力：向下
+    aimArrow(this.theoryArrows.fg, origin, new THREE.Vector3(0, -1, 0), scale(r.fg))
+    this.theoryLabels.fg.position.set(origin.x, origin.y - scale(r.fg) / 2 - 0.28, origin.z)
+    // 阻力：水平向后（−x）
+    aimArrow(this.theoryArrows.fd, origin, new THREE.Vector3(-1, 0, 0), scale(r.fd))
+    this.theoryLabels.fd.position.set(origin.x - scale(r.fd) / 2 - 0.2, origin.y + 0.3, origin.z)
+    // 马格努斯：侧旋（ω 竖直轴）→ 侧向 +z；后旋（ω 横轴）→ 升力 +y
+    const fmLen = scale(r.fm)
+    if (cfg.fmDir === 'up') {
+      aimArrow(this.theoryArrows.fm, origin, new THREE.Vector3(0, 1, 0), fmLen)
+      this.theoryLabels.fm.position.set(origin.x + 0.5, origin.y + fmLen / 2 + 0.18, origin.z)
+      this.omegaAxisDir = new THREE.Vector3(1, 0, 0.35)
+    } else {
+      aimArrow(this.theoryArrows.fm, origin, new THREE.Vector3(0, 0, 1), fmLen)
+      this.theoryLabels.fm.position.set(origin.x, origin.y + 0.28, origin.z + fmLen / 2 + 0.22)
+      this.omegaAxisDir = new THREE.Vector3(0.2, 1, 0)
+    }
+    // 速度箭头（固定 1.4，代表大小不与力同尺度）
+    aimArrow(this.theoryArrows.v, origin, new THREE.Vector3(1, 0.12, 0), 1.4)
+    this.theoryLabels.v.position.set(origin.x + 0.9, origin.y + 0.36, origin.z)
+    // ω 轴（转速为 0 时隐藏）
+    aimArrow(this.omegaAxis, origin, this.omegaAxisDir, Math.min(1.1, this.theoryState.rpm / cfg.rpmMax * 1.1 + 0.15))
+    this.theoryLabels.fm.visible = r.fm > maxF * 0.04
+    this.hooks.onTheory?.({ fg: r.fg, fd: r.fd, fm: r.fm, CL: r.CL, S: r.S, drift: r.drift, fdX: r.fdX, fmX: r.fmX })
+  }
+
+  #tickTheory(dt, time) {
+    // 球自转：侧旋绕竖直轴，后旋绕横轴
+    const w = (this.theoryState.rpm * 2 * Math.PI) / 60
+    const visSpin = Math.min(w / 40, 3.5) // 视觉降速
+    if (this.omegaAxisDir && this.omegaAxisDir.y > 0.5) {
+      this.theoryBall.rotateY(visSpin * dt)
+    } else if (this.omegaAxisDir) {
+      this.theoryBall.rotateZ(visSpin * dt)
+    }
+    // 电梯球分支：低转速时球轻微抖动（涡脱落示意）
+    const cfg = this.theoryResult?.cfg
+    if (cfg && this.theoryState.rpm < cfg.rpmMax * 0.15 && cfg.fmDir === 'side') {
+      this.theoryBall.position.x = Math.sin(time * 5.2) * 0.05
+      this.theoryBall.position.z = Math.sin(time * 3.7) * 0.05
+    } else {
+      this.theoryBall.position.x = 0
+      this.theoryBall.position.z = 0
+    }
+    // 标签跟随悬浮呼吸
+    this.theoryBall.position.y = 1.1 + Math.sin(time * 1.6) * 0.03
+  }
+
+  setTheory(params) {
+    Object.assign(this.theoryState, params)
+    if (this.mode === 'theory') this.#updateTheory()
+  }
+
   // ---------- 公共 ----------
   setTheme(id) {
     this.mode = id
@@ -401,6 +557,7 @@ export class MathScene {
     this.controls.target.set(...cam.target)
     if (id === 'shot') this.#updateShot()
     if (id === 'curve') this.#updateCurve()
+    if (id === 'theory') this.#updateTheory()
   }
 
   setShot(params) {
@@ -455,6 +612,7 @@ export class MathScene {
     }
     if (this.mode === 'sprint') this.#updateSprint(dt)
     if (this.mode === 'heart') this.#updateHeart(dt, time)
+    if (this.mode === 'theory') this.#tickTheory(dt, time)
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
     this.frame = requestAnimationFrame(() => this.#loop())

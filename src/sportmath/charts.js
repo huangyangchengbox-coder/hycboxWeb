@@ -237,3 +237,71 @@ export function clearChart(canvas) {
   const { ctx, w, h } = setup(canvas)
   ctx.clearRect(0, 0, w, h)
 }
+
+/**
+ * 力学详解：力-速度曲线。
+ * 重力（水平线）、阻力（v² 二次）、马格努斯（随 RPM 的 v²），
+ * 当前球速竖线 + 交点圆点。
+ */
+export function drawForceCurves(canvas, { vNow, cfg }) {
+  const { ctx, w, h } = setup(canvas)
+  const pad = 30
+  const vMaxPlot = cfg.vMax
+  const fMaxPlot = Math.max(
+    cfg.m * 9.81,
+    0.5 * 1.225 * cfg.CD * (cfg.areaOverride ?? Math.PI * cfg.R * cfg.R) * vMaxPlot * vMaxPlot
+  ) * 1.05
+  const X = (v) => pad + (v / vMaxPlot) * (w - pad - 10)
+  const Y = (f) => h - pad - (f / fMaxPlot) * (h - pad - 8)
+  axes(ctx, pad, h - pad, w - pad - 10, h - pad - 8, '球速 v (m/s)', '力 (N)')
+  const A = cfg.areaOverride ?? Math.PI * cfg.R * cfg.R
+  // 重力水平线
+  const fg = cfg.m * 9.81
+  ctx.strokeStyle = '#ff5d86'
+  ctx.lineWidth = 1.6
+  ctx.beginPath()
+  ctx.moveTo(pad, Y(fg))
+  ctx.lineTo(w - 10, Y(fg))
+  ctx.stroke()
+  ctx.fillStyle = '#ff5d86'
+  ctx.fillText('Fg 重力', w - 44, Y(fg) - 4)
+  // 阻力曲线（v²）
+  ctx.strokeStyle = '#5da8ff'
+  ctx.lineWidth = 1.8
+  ctx.beginPath()
+  for (let v = 0; v <= vMaxPlot; v += vMaxPlot / 60) {
+    const f = 0.5 * 1.225 * cfg.CD * A * v * v
+    if (v === 0) ctx.moveTo(X(v), Y(f))
+    else ctx.lineTo(X(v), Y(f))
+  }
+  ctx.stroke()
+  ctx.fillStyle = '#5da8ff'
+  ctx.fillText('FD 阻力 ∝v²', pad + 6, Y(0.5 * 1.225 * cfg.CD * A * 0.14 * vMaxPlot * vMaxPlot) - 4)
+  // 马格努斯曲线（v² × C_L(S(v,ω))）
+  if (cfg.CLmax > 0) {
+    const omega = (cfg.rpm * 2 * Math.PI) / 60
+    ctx.strokeStyle = '#7cf2b0'
+    ctx.lineWidth = 1.8
+    ctx.beginPath()
+    for (let v = 0.5; v <= vMaxPlot; v += vMaxPlot / 60) {
+      const S = omega * cfg.R / v
+      const CL = cfg.CLmax * (S / (S + 0.25))
+      const f = 0.5 * 1.225 * CL * A * v * v
+      if (v <= vMaxPlot / 60 + 0.01) ctx.moveTo(X(v), Y(f))
+      else ctx.lineTo(X(v), Y(f))
+    }
+    ctx.stroke()
+    ctx.fillStyle = '#7cf2b0'
+    ctx.fillText('FM 马格努斯', pad + 6, Y(0.5 * 1.225 * cfg.CLmax * 0.5 * A * 0.09 * vMaxPlot * vMaxPlot) + 10)
+  }
+  // 当前球速竖线
+  ctx.strokeStyle = ACCENT
+  ctx.setLineDash([3, 3])
+  ctx.beginPath()
+  ctx.moveTo(X(vNow), h - pad)
+  ctx.lineTo(X(vNow), h - pad - (h - pad - 8))
+  ctx.stroke()
+  ctx.setLineDash([])
+  ctx.fillStyle = ACCENT
+  ctx.fillText(`${vNow.toFixed(0)}`, X(vNow) - 8, h - pad + 11)
+}
