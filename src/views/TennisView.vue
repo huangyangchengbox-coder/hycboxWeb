@@ -349,6 +349,95 @@
       </template>
     </aside>
 
+    <!-- 上旋发球实验室 -->
+    <aside v-else-if="modeId === 'topspinserve'" class="info-panel">
+      <template v-if="topspinData.info">
+        <div class="kicker">TOPSPIN BIOMECH</div>
+        <h2>上旋发球实验室</h2>
+        <div class="shot-grid">
+          <button type="button" :class="{ on: topspinData.mode === 'topspin' }" @click="setTopspinKind('topspin')">🌀 上旋发球</button>
+          <button type="button" :class="{ on: topspinData.mode === 'flat' }" @click="setTopspinKind('flat')">🚀 平击发球</button>
+          <button type="button" :class="{ on: topspinData.mode === 'compare' }" @click="setTopspinKind('compare')">⚖️ 双轨对比</button>
+        </div>
+        <div class="chips">
+          <button type="button" class="chip" :class="{ on: !topspinData.left }" @click="setTopspinHand(false)">右手持拍</button>
+          <button type="button" class="chip" :class="{ on: topspinData.left }" @click="setTopspinHand(true)">左手持拍</button>
+          <button type="button" class="chip" :class="{ on: topspinData.deuce }" @click="setTopspinSide(true)">一区</button>
+          <button type="button" class="chip" :class="{ on: !topspinData.deuce }" @click="setTopspinSide(false)">二区</button>
+        </div>
+
+        <p class="note badge">{{ topspinData.info.badge }}</p>
+        <h3 class="stage-title">{{ topspinData.info.title }}</h3>
+        <p>{{ topspinData.info.desc }}</p>
+
+        <table class="data">
+          <tbody>
+            <tr><td>发力能量分配</td><td style="color:#bef264">{{ topspinData.info.force }}</td></tr>
+            <tr><td>时钟抛球方位</td><td style="color:#7dd3fc">{{ topspinData.info.toss }}</td></tr>
+            <tr><td>击球摩擦部位</td><td style="color:#fde047">{{ topspinData.info.contact }}</td></tr>
+          </tbody>
+        </table>
+
+        <!-- 受力点分析 -->
+        <div class="force-cards">
+          <div class="force-card" v-for="fp in forcePoints" :key="fp.id">
+            <b :style="{ color: fp.color }">{{ fp.name }}</b>
+            <p>{{ fp.desc }}</p>
+          </div>
+        </div>
+
+        <div class="mistake">
+          <b>⚠️ 常见错误与纠正</b>
+          <p>{{ topspinData.info.mistake }}</p>
+        </div>
+
+        <!-- 握拍 3D 特写 -->
+        <div class="grip-block">
+          <div class="shot-grid two">
+            <button
+              type="button"
+              :class="{ on: topspinData.grip === 'continental' }"
+              @click="setTopspinGrip('continental')"
+            >✅ 大陆式握拍</button>
+            <button
+              type="button"
+              :class="{ on: topspinData.grip === 'eastern' }"
+              @click="setTopspinGrip('eastern')"
+            >❌ 东方式对比</button>
+          </div>
+          <b class="grip-name">{{ gripInfo.grips[topspinData.grip].name }}</b>
+          <ul class="grip-points">
+            <li v-for="pt in gripInfo.grips[topspinData.grip].points" :key="pt">{{ pt }}</li>
+          </ul>
+          <p class="note">{{ gripInfo.grips[topspinData.grip].why }}</p>
+          <button type="button" class="chip" :class="{ on: topspinHelpers.grip }" @click="toggleTopspinGripView">
+            {{ topspinHelpers.grip ? '🎮 关闭握拍特写' : '🎮 打开握拍 3D 特写' }}
+          </button>
+        </div>
+
+        <div class="shot-grid two">
+          <button type="button" @click="topspinJumpKeyframe('trophy')">🎯 深蹲搔背帧</button>
+          <button type="button" @click="topspinJumpKeyframe('contact')">⚡ 7→12点刷球帧</button>
+        </div>
+
+        <div class="helpers">
+          <label><input type="checkbox" :checked="topspinHelpers.clock" @change="topspinToggleHelper('clock')" /> 🕒 3D时钟抛球盘</label>
+          <label><input type="checkbox" :checked="topspinHelpers.ribbon" @change="topspinToggleHelper('ribbon')" /> 🎀 实时拍头轨迹拖尾</label>
+          <label><input type="checkbox" :checked="topspinHelpers.normal" @change="topspinToggleHelper('normal')" /> 📐 拍面法线方向箭头</label>
+          <label><input type="checkbox" :checked="topspinHelpers.vectors" @change="topspinToggleHelper('vectors')" /> 🧲 受力点·摩擦·马格努斯矢量</label>
+          <label><input type="checkbox" :checked="topspinHelpers.brush" @change="topspinToggleHelper('brush')" /> ✍️ 7→12点钟刷球弧线</label>
+          <label><input type="checkbox" :checked="topspinHelpers.trajectory" @change="topspinToggleHelper('trajectory')" /> 📈 飞行与弹跳预测线</label>
+        </div>
+
+        <p class="note">
+          上旋抛球在头顶正上方略偏后（{{ topspinData.left ? '11:30-12:00' : '12:00-12:30' }}钟），
+          拍头从球的后下方 7 点钟向上刷到 12 点钟：60% 向前穿透 + 40% 向上摩擦。
+          马格努斯力向下压，所以可以打过网 1.5 m 的安全高度仍压进深区，落地后前冲高弹跳。
+        </p>
+        <p class="note">速度与转速为教学示意值；空格播放/暂停，左右方向键逐帧。</p>
+      </template>
+    </aside>
+
     <!-- 发球数学模型 -->
     <aside v-else-if="modeId === 'model'" class="info-panel model-panel">
       <div class="kicker">TRAJECTORY MATH</div>
@@ -680,6 +769,44 @@
       </div>
     </footer>
 
+    <footer v-else-if="modeId === 'topspinserve'" class="dock slice-dock">
+      <div class="slice-stages">
+        <button
+          v-for="(stage, index) in topspinStageNames"
+          :key="stage"
+          type="button"
+          :class="{ on: topspinData.stageIdx === index }"
+          @click="topspinJumpStage(index)"
+        >{{ index + 1 }}. {{ stage }}</button>
+      </div>
+      <div class="slice-controls">
+        <button type="button" @click="topspinStep(-1)">⏮</button>
+        <button type="button" class="play" @click="toggleTopspin">{{ topspinData.playing ? '⏸' : '▶' }}</button>
+        <button type="button" @click="topspinStep(1)">⏭</button>
+        <input
+          class="slice-timeline"
+          type="range"
+          min="0"
+          max="1"
+          step="0.001"
+          :value="topspinData.progress"
+          @input="onTopspinScrub"
+        />
+        <div class="slice-speed">
+          <button
+            v-for="s in [1, 0.5, 0.25, 0.1]"
+            :key="s"
+            type="button"
+            :class="{ on: topspinData.speed === s }"
+            @click="setTopspinSpeed(s)"
+          >{{ s }}x</button>
+        </div>
+      </div>
+      <div class="slice-cams">
+        <button v-for="cam in topspinCams" :key="cam.id" type="button" @click="scene?.setCamera(cam.id)">{{ cam.name }}</button>
+      </div>
+    </footer>
+
     <footer v-else class="dock dock-thin">
       <button type="button" @click="scene?.setCamera('overview')">全景</button>
       <button type="button" @click="scene?.setCamera('side')">侧视</button>
@@ -736,6 +863,8 @@ import { CYCLE_PHASES, SCENARIOS, ZONES, footprintsUpTo, scenarioById, travelOf 
 import { ServeMode } from '../tennis/modes/ServeMode.js'
 import { ServeModelMode } from '../tennis/modes/ServeModelMode.js'
 import { SliceServeMode } from '../tennis/modes/SliceServeMode.js'
+import { TopspinServeMode } from '../tennis/modes/TopspinServeMode.js'
+import { GRIP_INFO, FORCE_POINTS } from '../tennis/topspinguide.js'
 import { SpinMode } from '../tennis/modes/SpinMode.js'
 import { CourtMode } from '../tennis/modes/CourtMode.js'
 import { HistoryMode } from '../tennis/modes/HistoryMode.js'
@@ -880,6 +1009,31 @@ const sliceData = reactive({
   speed: 0.5,
   info: null
 })
+let topspinScrubbing = false
+const topspinStageNames = ['准备站位', '头顶抛球', '深蹲搔背', '7→12点刷球', '随挥急坠']
+const topspinCams = [
+  { id: 'free', name: '自由' },
+  { id: 'server', name: '发球者后方' },
+  { id: 'receiver', name: '接发' },
+  { id: 'contact', name: '击球特写' },
+  { id: 'side', name: '侧视' },
+  { id: 'top', name: '俯视' },
+  { id: 'grip', name: '握拍特写' }
+]
+const topspinHelpers = reactive({ clock: true, ribbon: true, normal: true, vectors: true, trajectory: true, brush: true, grip: false })
+const topspinData = reactive({
+  stageIdx: 0,
+  progress: 0,
+  mode: 'topspin',
+  left: false,
+  deuce: true,
+  playing: true,
+  speed: 0.5,
+  grip: 'continental',
+  info: null
+})
+const gripInfo = GRIP_INFO
+const forcePoints = FORCE_POINTS
 const historyData = reactive({ index: 6, item: TIMELINE[6], racketName: '木拍 · 1920s' })
 const gearData = reactive({
   gear: { headArea: 100, weight: 300, balance: 33, pattern: [16, 19], tension: 53 },
@@ -942,6 +1096,7 @@ function chooseMode(id) {
 function createMode(id) {
   if (id === 'serve') return new ServeMode(stage)
   if (id === 'sliceserve') return new SliceServeMode(stage)
+  if (id === 'topspinserve') return new TopspinServeMode(stage)
   if (id === 'model') return new ServeModelMode(stage)
   if (id === 'footwork') return new FootworkMode(stage)
   if (id === 'stance') return new StanceMode(stage)
@@ -1005,6 +1160,19 @@ function wire(node) {
       if (data.playing !== undefined) sliceData.playing = data.playing
       if (data.speed !== undefined) sliceData.speed = data.speed
       if (data.info) sliceData.info = data.info
+    }
+  }
+  if (node instanceof TopspinServeMode) {
+    node.onData = (data) => {
+      topspinData.stageIdx = data.stageIdx
+      if (!topspinScrubbing) topspinData.progress = data.progress
+      if (data.mode !== undefined) topspinData.mode = data.mode
+      if (data.left !== undefined) topspinData.left = data.left
+      if (data.deuce !== undefined) topspinData.deuce = data.deuce
+      if (data.playing !== undefined) topspinData.playing = data.playing
+      if (data.speed !== undefined) topspinData.speed = data.speed
+      if (data.grip !== undefined) topspinData.grip = data.grip
+      if (data.info) topspinData.info = data.info
     }
   }
   if (node instanceof StanceMode) {
@@ -1326,6 +1494,71 @@ function sliceToggleHelper(type) {
   if (scene instanceof SliceServeMode) scene.toggleHelper(type)
 }
 
+// ---- 上旋发球实验室 ----
+function setTopspinKind(kind) {
+  if (scene instanceof TopspinServeMode) scene.setServeKind(kind)
+}
+
+function setTopspinHand(left) {
+  if (scene instanceof TopspinServeMode) scene.setHandedness(left)
+}
+
+function setTopspinSide(deuce) {
+  if (scene instanceof TopspinServeMode) scene.setCourtSide(deuce)
+}
+
+function topspinJumpStage(idx) {
+  if (scene instanceof TopspinServeMode) scene.jumpStage(idx)
+}
+
+function topspinJumpKeyframe(key) {
+  if (scene instanceof TopspinServeMode) scene.jumpKeyframe(key)
+}
+
+function toggleTopspin() {
+  if (scene instanceof TopspinServeMode) scene.setPlaying(!topspinData.playing)
+}
+
+function topspinStep(dir) {
+  if (scene instanceof TopspinServeMode) scene.stepFrame(dir)
+}
+
+function onTopspinScrub(event) {
+  topspinScrubbing = true
+  const value = Number(event.target.value)
+  topspinData.progress = value
+  if (scene instanceof TopspinServeMode) {
+    scene.setProgress(value)
+    scene.setPlaying(false)
+  }
+  requestAnimationFrame(() => (topspinScrubbing = false))
+}
+
+function setTopspinSpeed(speed) {
+  topspinData.speed = speed
+  if (scene instanceof TopspinServeMode) scene.setSpeed(speed)
+}
+
+function topspinToggleHelper(type) {
+  topspinHelpers[type] = !topspinHelpers[type]
+  if (scene instanceof TopspinServeMode) scene.toggleHelper(type)
+}
+
+function setTopspinGrip(kind) {
+  if (scene instanceof TopspinServeMode) {
+    scene.setGripKind(kind)
+    if (kind && !topspinHelpers.grip) {
+      topspinHelpers.grip = true
+      scene.setGripVisible(true)
+    }
+  }
+}
+
+function toggleTopspinGripView() {
+  topspinHelpers.grip = !topspinHelpers.grip
+  if (scene instanceof TopspinServeMode) scene.setGripVisible(topspinHelpers.grip)
+}
+
 function setSpinSurface(id) {
   if (scene instanceof SpinMode) scene.setSurface(id)
 }
@@ -1439,6 +1672,9 @@ function onKey(event) {
     } else if (modeId.value === 'sliceserve') {
       event.preventDefault()
       toggleSlice()
+    } else if (modeId.value === 'topspinserve') {
+      event.preventDefault()
+      toggleTopspin()
     }
   } else if (modeId.value === 'sliceserve' && event.key === 'ArrowLeft') {
     event.preventDefault()
@@ -1446,6 +1682,12 @@ function onKey(event) {
   } else if (modeId.value === 'sliceserve' && event.key === 'ArrowRight') {
     event.preventDefault()
     sliceStep(1)
+  } else if (modeId.value === 'topspinserve' && event.key === 'ArrowLeft') {
+    event.preventDefault()
+    topspinStep(-1)
+  } else if (modeId.value === 'topspinserve' && event.key === 'ArrowRight') {
+    event.preventDefault()
+    topspinStep(1)
   }
 }
 
@@ -2377,6 +2619,59 @@ table.data th {
   margin: 10px 0;
   font-size: 12.5px;
   color: rgba(203, 213, 225, 0.92);
+}
+
+/* ---- 上旋发球：受力点与握拍 ---- */
+.force-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 10px 0;
+}
+
+.force-card {
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.force-card b {
+  font-size: 12px;
+}
+
+.force-card p {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: rgba(203, 213, 225, 0.82);
+}
+
+.grip-block {
+  margin: 10px 0;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.grip-name {
+  display: block;
+  margin: 8px 0 4px;
+  font-size: 12.5px;
+  color: #bef264;
+}
+
+.grip-points {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.grip-points li {
+  margin: 2px 0;
 }
 .helpers label {
   display: flex;
