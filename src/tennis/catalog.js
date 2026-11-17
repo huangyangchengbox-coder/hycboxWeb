@@ -4,6 +4,7 @@ export const MODES = [
   { id: 'serve', en: 'SERVE LAB', name: '发球计算', hint: '平击 / 侧旋 / 上旋 · 击球高度、过网净空、落点与角度' },
   { id: 'sliceserve', en: 'SLICE BIOMECH', name: '切削发球', hint: '五阶段动作分解 · 拍头拖尾 · 双轨对比 · 左右手与一区二区' },
   { id: 'topspinserve', en: 'TOPSPIN BIOMECH', name: '上旋发球', hint: '受力点与刷球弧线 · 拍面方向分析 · 握拍 3D 特写 · 马格努斯急坠' },
+  { id: 'grip', en: 'GRIP ATLAS', name: '握拍图鉴', hint: '六种握拍 3D 手模 · 八棱编号 · 掌心朝向 · 六握对比' },
   { id: 'model', en: 'TRAJECTORY MATH', name: '发球数学模型', hint: '抛物线方程 · 身高可调 · 贴网落点与最远落点' },
   { id: 'footwork', en: 'FOOTWORK', name: '脚步与移动', hint: '五种实战场景 · 足印 · 五步周期 · 三大区域' },
   { id: 'stance', en: 'STANCE LAB', name: '站位解剖', hint: '开放 / 半开放 / 中立 / 关闭 · 脚部几何与体重转移' },

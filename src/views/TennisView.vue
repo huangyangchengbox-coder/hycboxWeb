@@ -179,6 +179,63 @@
       <p class="note">左侧是完整的生物力学与弹道画布，参数在画布下方调节；切到「几何对比矩阵」可看三种击球的全维度对照。</p>
     </aside>
 
+    <!-- 握拍图鉴 -->
+    <aside v-else-if="modeId === 'grip'" class="info-panel grip-panel">
+      <div class="kicker">GRIP ATLAS</div>
+      <h2>{{ gripData.name }}</h2>
+      <p class="note">{{ gripData.en }} · V 字对 {{ gripData.bevel }} 号棱
+        <template v-if="!gripData.compare">· 手相对东方式转动 {{ gripData.handRot > 0 ? '+' : '' }}{{ gripData.handRot }}°</template>
+      </p>
+
+      <template v-if="!gripData.compare">
+        <h3 class="sec-title">适用技术</h3>
+        <p class="strokes">{{ gripData.strokes }}</p>
+
+        <h3 class="sec-title">握法要领</h3>
+        <ul class="points">
+          <li v-for="(p, i) in gripData.points" :key="i">{{ p }}</li>
+        </ul>
+
+        <h3 class="sec-title">掌心朝向</h3>
+        <p class="palm">{{ gripData.palmNote }}</p>
+
+        <div class="pc">
+          <div><b>优势</b><span>{{ gripData.pros }}</span></div>
+          <div class="cons"><b>局限</b><span>{{ gripData.cons }}</span></div>
+        </div>
+
+        <div class="tip">
+          <b>教学提示</b>
+          <span>{{ gripData.tip }}</span>
+        </div>
+        <p class="note">击球参考：{{ gripData.contact }}</p>
+      </template>
+
+      <template v-else>
+        <p class="note">{{ gripIntro.lead }}</p>
+        <h3 class="sec-title">怎么读对比陈列</h3>
+        <ul class="points">
+          <li>六只手握着同一支拍柄——颜色即当前选中的握法</li>
+          <li>高亮点标出各自 V 字（虎口）落点的棱位</li>
+          <li>从东方式到西方式，手掌沿柄下滑整整 90°</li>
+          <li>点上面的握拍按钮可回到单握详解特写</li>
+        </ul>
+      </template>
+
+      <div class="grip-list">
+        <button
+          v-for="item in gripList"
+          :key="item.id"
+          type="button"
+          class="chip"
+          :class="{ on: gripData.gripId === item.id }"
+          :style="gripData.gripId === item.id ? { borderColor: item.color, color: item.color } : {}"
+          @click="chooseGrip(item.id)"
+        >{{ item.name }}</button>
+      </div>
+      <p class="note">{{ gripIntro.note }}</p>
+    </aside>
+
     <!-- 网球解剖 -->
     <aside v-else-if="modeId === 'balllab'" class="info-panel ball-panel">
       <div class="kicker">BALL LAB</div>
@@ -675,6 +732,18 @@
       <button type="button" @click="scene?.setCamera('side')">侧视</button>
     </footer>
 
+    <footer v-else-if="modeId === 'grip'" class="dock dock-thin">
+      <button type="button" :class="{ on: gripData.spin }" @click="toggleGripSpin">{{ gripData.spin ? '停止旋转' : '旋转' }}</button>
+      <button type="button" :class="{ on: gripData.compare }" @click="toggleGripCompare">{{ gripData.compare ? '单握特写' : '六握对比' }}</button>
+      <template v-if="!gripData.compare">
+        <button type="button" @click="scene?.setCamera('hero')">特写</button>
+        <button type="button" @click="scene?.setCamera('butt')">柄端面</button>
+        <button type="button" @click="scene?.setCamera('side')">侧视</button>
+        <button type="button" @click="scene?.setCamera('top')">顶部</button>
+      </template>
+      <button v-else type="button" @click="scene?.setCamera('compare')">全景</button>
+    </footer>
+
     <footer v-else-if="modeId === 'forehand' || modeId === 'backhand'" class="dock dock-thin">
       <button type="button" @click="toggleStroke">{{ strokePlaying ? '暂停' : '播放' }}</button>
       <button type="button" @click="toggleStrokeSlow">{{ strokeSlow ? '1.0×' : '0.25× 慢放' }}</button>
@@ -857,7 +926,9 @@ import { FootworkMode } from '../tennis/modes/FootworkMode.js'
 import { StanceMode } from '../tennis/modes/StanceMode.js'
 import { StrokeBackdropMode } from '../tennis/modes/StrokeBackdropMode.js'
 import { BallLabMode } from '../tennis/modes/BallLabMode.js'
+import { GripMode } from '../tennis/modes/GripMode.js'
 import { BALL_TYPES, BRANDS, ITF_SPEC, STRUCTURE_LAYERS, ballTypeById, brandById } from '../tennis/ballspec.js'
+import { GRIP_LIST, GRIP_INTRO, gripById } from '../tennis/gripguide.js'
 import { STANCES, STANCE_TIPS } from '../tennis/stance.js'
 import { CYCLE_PHASES, SCENARIOS, ZONES, footprintsUpTo, scenarioById, travelOf } from '../tennis/footwork.js'
 import { ServeMode } from '../tennis/modes/ServeMode.js'
@@ -904,6 +975,26 @@ const strokeBh = reactive({ radius: 1.42, launch: 11.5, courtDist: 24.8, flightT
 const ballTypes = BALL_TYPES
 const ballBrands = BRANDS
 const ballLayers = STRUCTURE_LAYERS
+const gripList = GRIP_LIST
+const gripIntro = GRIP_INTRO
+const gripData = reactive({
+  gripId: 'continental',
+  name: '大陆式',
+  en: 'CONTINENTAL',
+  color: '#4ade80',
+  strokes: '',
+  points: [],
+  pros: '',
+  cons: '',
+  tip: '',
+  contact: '',
+  bevel: 2,
+  handRot: -45,
+  twoHanded: false,
+  palmNote: '',
+  compare: false,
+  spin: false
+})
 const ballData = reactive({
   typeId: 'pressurized',
   brandId: 'wilson',
@@ -1103,6 +1194,7 @@ function createMode(id) {
   if (id === 'forehand') return new StrokeBackdropMode(stage, 'forehand')
   if (id === 'backhand') return new StrokeBackdropMode(stage, 'backhand')
   if (id === 'balllab') return new BallLabMode(stage)
+  if (id === 'grip') return new GripMode(stage)
   if (id === 'spin') return new SpinMode(stage)
   if (id === 'court') return new CourtMode(stage)
   if (id === 'history') return new HistoryMode(stage)
@@ -1130,6 +1222,11 @@ function wire(node) {
       } else {
         labNet.text = ''
       }
+    }
+  }
+  if (node instanceof GripMode) {
+    node.onData = (data) => {
+      Object.assign(gripData, data)
     }
   }
   if (node instanceof BallLabMode) {
@@ -1336,6 +1433,23 @@ function toggleBallSpin() {
   if (scene instanceof BallLabMode) {
     scene.setSpin(!ballData.spin)
     ballData.spin = !ballData.spin
+  }
+}
+
+// ---- 握拍图鉴 ----
+
+function chooseGrip(id) {
+  if (scene instanceof GripMode) scene.setGrip(id)
+}
+
+function toggleGripCompare() {
+  if (scene instanceof GripMode) scene.setCompare(!gripData.compare)
+}
+
+function toggleGripSpin() {
+  if (scene instanceof GripMode) {
+    scene.setSpin(!gripData.spin)
+    gripData.spin = !gripData.spin
   }
 }
 
@@ -2758,5 +2872,77 @@ table.data th {
     padding: 4px 8px;
     font-size: 11px;
   }
+}
+
+/* ---- 握拍图鉴 ---- */
+.grip-panel .sec-title {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: rgba(216, 243, 74, 0.85);
+}
+.grip-panel .strokes {
+  margin: 0;
+  font-weight: 600;
+  color: #eaff8a;
+}
+.grip-panel .points {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.grip-panel .points li {
+  margin-bottom: 3px;
+}
+.grip-panel .palm {
+  margin: 0;
+  color: #fbbf77;
+}
+.grip-panel .pc {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+}
+.grip-panel .pc > div {
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(213, 235, 224, 0.92);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  padding: 7px 10px;
+}
+.grip-panel .pc > div b {
+  display: block;
+  margin-bottom: 2px;
+  color: #7cf2b0;
+  font-size: 11px;
+}
+.grip-panel .pc .cons b {
+  color: #fda4af;
+}
+.grip-panel .tip {
+  background: rgba(250, 204, 21, 0.08);
+  border: 1px solid rgba(250, 204, 21, 0.3);
+  border-radius: 10px;
+  padding: 8px 11px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: rgba(254, 240, 199, 0.94);
+  margin: 10px 0;
+}
+.grip-panel .tip b {
+  display: block;
+  margin-bottom: 3px;
+  color: #fde047;
+  font-size: 11px;
+}
+.grip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 12px 0 6px;
+}
+.grip-list .chip {
+  font-size: 11.5px;
 }
 </style>

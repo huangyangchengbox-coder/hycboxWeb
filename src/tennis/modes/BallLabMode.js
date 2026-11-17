@@ -176,6 +176,9 @@ export class BallLabMode extends TennisMode {
     this.ball.dispose()
     this.pedestal.geometry.dispose()
     this.pedestal.material.dispose()
+    // 恢复场地天空背景，避免污染其它模式
+    this.scene.background = new THREE.Color(0x87ceeb)
+    this.scene.fog = new THREE.FogExp2(0x87ceeb, 0.0072)
     super.dispose()
   }
 }
