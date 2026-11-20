@@ -68,6 +68,12 @@ const routes = [
         meta: { public: true, immersive: true }
       },
       {
+        path: 'library',
+        name: 'library',
+        component: () => import('../views/LibraryView.vue'),
+        meta: { public: true, immersive: true }
+      },
+      {
         path: 'sportmath',
         name: 'sportmath',
         component: () => import('../views/SportMathView.vue'),

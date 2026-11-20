@@ -77,6 +77,17 @@ export const SITE_MODULES = [
     children: []
   },
   {
+    id: 'library',
+    name: '图书文献',
+    en: 'LIBRARY',
+    icon: '📚',
+    route: '/library',
+    hint: '书架 · PDF/EPUB 在线阅读',
+    children: [
+      { name: '图书文献', route: '/library', desc: '本地书库在线阅读：蜻蜓图鉴、动物百科、网球、历史漫画' }
+    ]
+  },
+  {
     id: 'games',
     name: '游戏大厅',
     en: 'GAMES',

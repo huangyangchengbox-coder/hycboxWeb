@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "echarts": "^5.5.1",
+    "epubjs": "^0.3.93",
     "lil-gui": "^0.21.0",
     "maplibre-gl": "^4.7.1",
     "three": "^0.184.0",
