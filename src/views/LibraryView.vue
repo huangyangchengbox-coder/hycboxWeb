@@ -58,7 +58,7 @@
       </div>
 
       <p class="foot">
-        书籍文件位于本地书库（BOOK_DIR），经 <code>/book-files/</code> 流式读取，不打包进站点仓库。
+        书籍经 <code>/book-files/</code> 流式读取（开发走 vite 中间件，线上由 nginx 静态服务提供，支持 Range 按需加载），文件不打包进站点仓库。
       </p>
     </aside>
 
@@ -171,8 +171,8 @@ async function open(book) {
   router.replace({ query: { ...route.query, book: book.id } })
   const ok = await probe(bookUrl.value)
   if (!ok) {
-    error.value = '书籍文件不可达：本页面通过本地书库中间件（/book-files/）读取文件，' +
-      '请确认书籍目录存在且 dev server 正在运行；生产环境需在 nginx 配置对应的静态目录。'
+    error.value = '书籍文件不可达：文件经 /book-files/ 流式读取，请确认书籍目录存在；' +
+      '开发环境需 vite dev server 运行，线上环境需书库已上传至服务器静态目录。'
     return
   }
   if (book.format === 'epub') {

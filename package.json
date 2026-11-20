@@ -11,6 +11,7 @@
     "build:v2": "npm run build:games && vite build --mode v2",
     "preview": "vite preview",
     "deploy": "node deploy/deploy-web.cjs",
+    "deploy:books": "node deploy/deploy-books.cjs",
     "deploy:trial": "node deploy/deploy-web.cjs --trial",
     "deploy:v2": "node deploy/deploy-web.cjs --v2"
   },
