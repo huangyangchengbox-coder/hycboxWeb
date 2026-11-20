@@ -80,6 +80,24 @@ const routes = [
         meta: { public: true, immersive: true }
       },
       {
+        path: 'math',
+        name: 'math',
+        component: () => import('../views/MathView.vue'),
+        meta: { public: true, immersive: true }
+      },
+      {
+        path: 'chem',
+        name: 'chem',
+        component: () => import('../views/ChemView.vue'),
+        meta: { public: true, immersive: true }
+      },
+      {
+        path: 'sky',
+        name: 'sky',
+        component: () => import('../views/SkyView.vue'),
+        meta: { public: true, immersive: true }
+      },
+      {
         path: 'saltline',
         name: 'saltline',
         component: () => import('../views/SaltlineView.vue'),

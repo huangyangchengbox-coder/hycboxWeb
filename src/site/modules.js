@@ -1,7 +1,7 @@
 /**
- * 站点一级导航：六个模块。
+ * 站点一级导航。
  * children 里的 route 都对应 router 里已注册的页面。
- * 新增页面时在这里挂一条，导航和游戏厅的「站内世界」都会自动同步。
+ * 新增页面时在这里挂一条，顶部导航会自动同步。
  */
 export const SITE_MODULES = [
   {
@@ -25,8 +25,27 @@ export const SITE_MODULES = [
       { name: '宇宙探索', route: '/cosmos', desc: '程序化天体、轨道运动、镜头飞行' },
       { name: '旋转黑洞', route: '/kerr', desc: '克尔度规下的吸积盘与光线弯曲' },
       { name: '光谱', route: '/spectra', desc: '光的分解与色彩实验' },
-      { name: '公式像素', route: '/formula', desc: '从公式到像素的四个数值实验' }
+      { name: '公式像素', route: '/formula', desc: '从公式到像素的四个数值实验' },
+      { name: '天象', route: '/sky', desc: '地日月三球仪：月相、日食、四季、二十四节气' }
     ]
+  },
+  {
+    id: 'math',
+    name: '数学',
+    en: 'MATH',
+    icon: '📐',
+    route: '/math',
+    hint: '分形 · 曲面 · 变换',
+    children: []
+  },
+  {
+    id: 'chem',
+    name: '化学',
+    en: 'CHEM',
+    icon: '⚗️',
+    route: '/chem',
+    hint: '元素 · 成键 · 反应',
+    children: []
   },
   {
     id: 'life',
