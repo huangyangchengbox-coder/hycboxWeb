@@ -21,10 +21,10 @@ const fractalFragment = `
   varying vec2 vUv;
 
   vec3 palette(float t) {
-    t = fract(t);
-    if (uPalette < 0.5) return mix(vec3(0.02, 0.05, 0.12), vec3(0.35, 0.85, 0.95), t);
-    if (uPalette < 1.5) return mix(vec3(0.15, 0.02, 0.0), vec3(1.0, 0.55, 0.1), t);
-    return mix(vec3(0.02, 0.08, 0.05), vec3(0.55, 1.0, 0.7), t);
+    vec3 shift = uPalette < 0.5 ? vec3(0.00, 0.18, 0.42)
+      : uPalette < 1.5 ? vec3(0.08, 0.55, 0.72)
+      : vec3(0.33, 0.12, 0.52);
+    return 0.55 + 0.45 * cos(6.28318 * (t + shift));
   }
 
   void main() {
@@ -45,7 +45,7 @@ const fractalFragment = `
     if (escaped < 0.5) gl_FragColor = vec4(0.015, 0.02, 0.04, 1.0);
     else {
       float smoothN = n + 1.0 - log2(log2(max(dot(z, z), 1.0001)));
-      gl_FragColor = vec4(palette(clamp(smoothN / 16.0, 0.0, 1.0)), 1.0);
+      gl_FragColor = vec4(palette(smoothN * 0.045), 1.0);
     }
   }
 `
@@ -198,9 +198,15 @@ export class MathScene {
     this.linearGroup.visible = mode === 'linear'
     this.controls.enabled = !this.quad.visible
     if (mode === 'surface') this.camera.position.set(8.2, 6.4, 8.6)
-    if (mode === 'linear') this.camera.position.set(0.2, this.cubeOn ? 4.5 : 7.5, this.cubeOn ? 7 : 0.2)
-    if (this.classic.visible) this.camera.position.set(2.4, 1.8, 4.2)
-    this.controls.target.set(0, mode === 'surface' ? 0.4 : 0, 0)
+    if (mode === 'linear') this.camera.position.set(this.cubeOn ? 2.4 : 2.6, this.cubeOn ? 2.2 : 3.1, 3.6)
+    if (this.classic.visible) {
+      const koch = this.fractalKind === 'koch'
+      this.camera.position.set(koch ? 0 : 1.6, koch ? 0.55 : 1.5, koch ? 3.85 : 3.3)
+      this.controls.target.set(0, koch ? 0.15 : 0, 0)
+    } else {
+      this.controls.target.set(0, mode === 'surface' ? 0.4 : 0, 0)
+    }
+    this.controls.update()
   }
 
   setFractalKind(kind) {
@@ -296,6 +302,7 @@ export class MathScene {
   }
 
   buildClassic(kind) {
+    this.classic.rotation.set(0, 0, 0)
     while (this.classic.children.length) {
       const child = this.classic.children.pop()
       child.geometry?.dispose()
@@ -426,12 +433,12 @@ export class MathScene {
   }
 
   buildLinear() {
-    this.lineMat = new THREE.LineBasicMaterial({ color: 0x8aa0b8 })
+    this.lineMat = new THREE.LineBasicMaterial({ color: 0xd5e6f5 })
     this.grid = new THREE.LineSegments(new THREE.BufferGeometry(), this.lineMat)
     this.linearGroup.add(this.grid)
     this.square = new THREE.Mesh(
       new THREE.BufferGeometry(),
-      new THREE.MeshBasicMaterial({ color: 0x7dffe8, transparent: true, opacity: 0.28, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({ color: 0x7dffe8, transparent: true, opacity: 0.42, side: THREE.DoubleSide })
     )
     this.linearGroup.add(this.square)
     this.eigenLines = new THREE.LineSegments(
@@ -501,7 +508,7 @@ export class MathScene {
   }
 
   frame() {
-    if (this.classic.visible) this.classic.rotation.y += 0.004
+    if (this.classic.visible && this.fractalKind === 'sierpinski') this.classic.rotation.y += 0.004
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
   }

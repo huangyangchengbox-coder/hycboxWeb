@@ -1,7 +1,15 @@
 <template>
   <div class="lab" style="--lab-accent:#7dffe8">
     <canvas ref="canvasRef" class="lab-canvas"></canvas>
-    <canvas v-show="modeId === 'fourier' || modeId === 'prob'" ref="plotRef" class="plot-layer"></canvas>
+    <div v-show="modeId === 'fourier' || modeId === 'prob'" class="plot-layer">
+      <canvas ref="plotRef"></canvas>
+    </div>
+    <div v-if="modeId === 'quiz'" class="plot-layer quiz-stage">
+      <div class="lab-kicker">QUIZ</div>
+      <h2>{{ quizDone ? '这一轮结束' : currentQuiz.q }}</h2>
+      <p v-if="!quizDone">{{ quizIndex + 1 }} / {{ quiz.length }}　选项在右侧。</p>
+      <p v-else>答对 {{ quizScore }} / {{ quiz.length }}。</p>
+    </div>
     <WorldMenu />
 
     <header class="lab-top">
@@ -384,12 +392,15 @@ function drawSlice() {
 function drawPlot(time) {
   const canvas = plotRef.value
   if (!canvas) return
+  const w = canvas.clientWidth
+  const h = canvas.clientHeight
+  if (w < 2 || h < 2) return
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
-  const w = canvas.clientWidth || 640
-  const h = canvas.clientHeight || 420
-  if (canvas.width !== Math.floor(w * dpr)) {
-    canvas.width = Math.floor(w * dpr)
-    canvas.height = Math.floor(h * dpr)
+  const bw = Math.floor(w * dpr)
+  const bh = Math.floor(h * dpr)
+  if (canvas.width !== bw || canvas.height !== bh) {
+    canvas.width = bw
+    canvas.height = bh
   }
   const ctx = canvas.getContext('2d')
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -409,11 +420,12 @@ function drawGalton(ctx, w, h) {
   const left = 40
   const top = 30
   const pegW = (w - 80) / rows
+  const rowGap = Math.max(12, Math.min(28, (h * 0.5) / rows))
   ctx.fillStyle = 'rgba(255,255,255,0.35)'
   for (let row = 0; row < rows; row += 1) {
     for (let col = 0; col <= row; col += 1) {
       const x = w / 2 + (col - row / 2) * pegW
-      const y = top + row * 18
+      const y = top + row * rowGap
       ctx.beginPath()
       ctx.arc(x, y, 2.2, 0, Math.PI * 2)
       ctx.fill()
@@ -425,7 +437,7 @@ function drawGalton(ctx, w, h) {
     const row = Math.min(rows - 1, ball.step)
     const shown = Math.round(ball.col * row / rows)
     const x = w / 2 + (shown - row / 2) * pegW
-    const y = top + ball.y * 18
+    const y = top + ball.y * rowGap
     ctx.beginPath()
     ctx.arc(x, y, 3.2, 0, Math.PI * 2)
     ctx.fill()
@@ -433,12 +445,12 @@ function drawGalton(ctx, w, h) {
   const max = Math.max(1, ...galton.bins)
   const base = h - 28
   galton.bins.forEach((count, index) => {
-    const bh = (count / max) * 120
+    const bh = (count / max) * Math.min(180, h * 0.26)
     const x = left + ((w - 80) * index) / rows
     ctx.fillStyle = 'rgba(125,255,232,0.75)'
     ctx.fillRect(x, base - bh, (w - 80) / rows - 3, bh)
     const theory = binomPmf(rows, index) * galton.total
-    const th = (theory / max) * 120
+    const th = (theory / max) * Math.min(180, h * 0.26)
     ctx.fillStyle = '#ffe08a'
     ctx.fillRect(x, base - th, (w - 80) / rows - 3, 2)
   })
@@ -461,8 +473,8 @@ function drawPi(ctx, w, h) {
 }
 
 function drawNormal(ctx, w, h) {
-  const xOf = (x) => w / 2 + x * 48
-  const yOf = (p) => h - 30 - p * 220
+  const xOf = (x) => w / 2 + x * w * 0.09
+  const yOf = (p) => h - 36 - p * h * 0.55
   ctx.fillStyle = 'rgba(125,255,232,0.18)'
   for (const band of [1, 2, 3]) {
     ctx.globalAlpha = 0.25
