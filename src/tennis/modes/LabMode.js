@@ -19,6 +19,8 @@ export class LabMode extends TennisMode {
     this.speed = 1
     this.surfaceId = 'hard'
     this.sweetWorld = new THREE.Vector3()
+    this.contactWorld = new THREE.Vector3()
+    this.liveSweet = new THREE.Vector3()
     this.flight = [{ x: 0, y: 1, z: 0, t: 0 }]
     this.flightTime = 1
     this.bounceEvents = []
@@ -202,6 +204,9 @@ export class LabMode extends TennisMode {
     this.shot = shot
     this.ballObj.group.scale.set(1, 1, 1)
     this.player.group.position.set(shot.place.x, 0, shot.place.z)
+    this.applyPose(shot.contactAt)
+    this.player.group.updateMatrixWorld(true)
+    this.racket.sweetSpot.getWorldPosition(this.contactWorld)
     const releaseT = Math.min(1, shot.contactAt + 0.09 / shot.duration)
     this.applyPose(releaseT)
     this.player.head.rotation.y = 0
@@ -272,8 +277,8 @@ export class LabMode extends TennisMode {
         target: new THREE.Vector3(0, 0, -2)
       },
       racket: {
-        pos: new THREE.Vector3(this.sweetWorld.x + 1.3, this.sweetWorld.y + 0.45, this.sweetWorld.z + 1.1),
-        target: this.sweetWorld.clone()
+        pos: new THREE.Vector3(this.contactWorld.x + 1.3, this.contactWorld.y + 0.45, this.contactWorld.z + 1.1),
+        target: this.contactWorld.clone()
       }
     }
   }
@@ -293,7 +298,7 @@ export class LabMode extends TennisMode {
     const age = swingT - this.shot.contactAt
     if (age >= 0 && age < 0.22) {
       this.flash.visible = true
-      this.flash.position.copy(this.sweetWorld)
+      this.flash.position.copy(this.contactWorld)
       this.flash.quaternion.copy(this.stage.camera.quaternion)
       const k = age / 0.22
       this.flash.scale.setScalar(1 + k * 4)
@@ -331,23 +336,33 @@ export class LabMode extends TennisMode {
 
     const contactTime = shot.contactAt * shot.duration
     const pocket = 0.09
+    const meet = 0.18
     let flown = 0
+    this.player.group.updateMatrixWorld(true)
+    this.racket.sweetSpot.getWorldPosition(this.liveSweet)
 
-    if (seconds < contactTime - 0.12) {
-      const k = seconds / Math.max(contactTime - 0.12, 0.001)
+    if (seconds < contactTime - meet) {
+      const k = seconds / Math.max(contactTime - meet, 0.001)
       const from = shot.approach
+      const to = this.contactWorld
       this.ballObj.group.position.set(
-        from.x + (this.sweetWorld.x - from.x) * k,
-        from.y + (this.sweetWorld.y - from.y) * k,
-        from.z + (this.sweetWorld.z - from.z) * k
+        from.x + (to.x - from.x) * k,
+        from.y + (to.y - from.y) * k,
+        from.z + (to.z - from.z) * k
       )
       this.trail.clear()
       this.arc.clear()
       this.ballObj.group.scale.set(1, 1, 1)
+    } else if (seconds < contactTime) {
+      const u = (seconds - (contactTime - meet)) / meet
+      const e = u * u * (3 - 2 * u)
+      this.ballObj.group.position.lerpVectors(this.contactWorld, this.liveSweet, e)
+      this.trail.clear()
+      this.arc.clear()
+      this.ballObj.group.scale.set(1, 1, 1)
     } else if (seconds <= contactTime + pocket) {
-      this.player.group.updateMatrixWorld(true)
-      this.racket.sweetSpot.getWorldPosition(this.ballObj.group.position)
-      const k = (seconds - (contactTime - pocket * 0.4)) / (pocket * 1.4)
+      this.ballObj.group.position.copy(this.liveSweet)
+      const k = (seconds - contactTime) / pocket
       const squeeze = Math.sin(clamp(k, 0, 1) * Math.PI)
       this.ballObj.group.scale.set(1 - squeeze * 0.18, 1 + squeeze * 0.1, 1 - squeeze * 0.18)
       this.trail.clear()

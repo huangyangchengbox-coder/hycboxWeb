@@ -479,6 +479,7 @@ export class TopspinServeMode extends SliceServeMode {
       this.magnusArrow.position.copy(pos)
     }
 
+    this.pinRacketToBall(t)
     this.updateRibbon(t)
     this.emitState(t)
   }
@@ -548,12 +549,6 @@ export class TopspinServeMode extends SliceServeMode {
       target: new THREE.Vector3(9.2, 1.25, 7.4)
     }
     return presets
-  }
-
-  dispose() {
-    disposeTree(this.gripRoot)
-    this.remove(this.gripRoot)
-    super.dispose()
   }
 }
 

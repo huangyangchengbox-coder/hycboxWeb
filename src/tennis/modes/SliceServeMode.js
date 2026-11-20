@@ -3,6 +3,7 @@ import { buildCourt } from '../court.js'
 import { buildBall } from '../ball.js'
 import { TennisMode, disposeTree } from '../mode.js'
 import { sliceStageInfo, sliceCoords, SLICE_STAGE_EDGES, SLICE_STAGE_ANCHORS } from '../sliceguide.js'
+import { shiftRootOnto, strikeWeight } from '../contact.js'
 
 /**
  * 切削发球生物力学实验室。
@@ -108,8 +109,11 @@ export class SliceServeMode extends TennisMode {
     this.buildPlayer()
     this.buildBalls()
     this.buildGuides()
-    this.rebuild()
-    this.applyFrame(0)
+    // 子类会重写 rebuild，并且用到子类自己的字段。父类构造期间调用会在品牌检查上抛错，场景直接出不来。
+    if (new.target === SliceServeMode) {
+      this.rebuild()
+      this.applyFrame(0)
+    }
   }
 
   // ---------- 场景构建 ----------
@@ -505,8 +509,29 @@ export class SliceServeMode extends TennisMode {
       this.magnusArrow.position.copy(pos)
     }
 
+    this.pinRacketToBall(t)
     this.updateRibbon(t)
     this.emitState(t)
+  }
+
+  /**
+   * 击球窗口内把身体平移到拍面中心与来球重合。
+   * 目标是击球点（不是飞走之后的球），随挥阶段权重收回，人回到站位。
+   */
+  pinRacketToBall(t) {
+    const p = this.player
+    const C = this.C
+    if (!p?.racket || !C) return
+    const contact = this.serveKind === 'flat' ? C.flatContact : C.sliceContact
+    p.racket.position.set(0, 0, 0)
+    this.wrapper.updateMatrixWorld(true)
+    const strings = this._strings || (this._strings = new THREE.Vector3())
+    strings.set(0, 0.46, 0)
+    p.racket.localToWorld(strings)
+    const target = this._meet || (this._meet = new THREE.Vector3())
+    target.set(contact.x, contact.y, contact.z)
+    this.wrapper.localToWorld(target)
+    shiftRootOnto(p.root, strings, target, strikeWeight(t, 0.56, 0.16, 0.12))
   }
 
   /** 拍头拖尾：挥拍窗口 (0.34-0.85) 内采样 tip/throat 世界坐标构建丝带。 */

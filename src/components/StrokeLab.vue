@@ -473,19 +473,45 @@ function drawFhKin(t) {
     ctx.fill()
   }
 
-  // 击球点
-  const impactX = cx + 68 * sc
-  const impactY = cy + 28 * sc
-  const isImpact = Math.abs(phase - 0.58) < 0.08
-  ctx.fillStyle = isImpact ? '#d8f34a' : 'rgba(216,243,74,0.35)'
+  // 球沿挥拍路线进拍面中心，击球相位与拍头重合，然后沿拍面方向离开
+  const hitPhase = 0.58
+  const hitHip = -0.65 + Math.sin(hitPhase * Math.PI * 1.15) * 1.25
+  const hitSh = hitHip - Math.sin(hitPhase * Math.PI) * 0.65
+  const hitArm = hitSh - 0.35 + Math.pow(hitPhase, 1.8) * 2.1
+  const hitRac = hitArm - Math.sin(Math.min(1, hitPhase * 1.4) * Math.PI) * 1.28
+  const hitHandX = cx + Math.cos(hitSh) * 40 * sc + Math.cos(hitArm) * 52 * sc
+  const hitHandY = cy + Math.sin(hitSh) * 40 * sc + Math.sin(hitArm) * 52 * sc
+  const hitX = hitHandX + Math.cos(hitRac) * 52 * sc
+  const hitY = hitHandY + Math.sin(hitRac) * 52 * sc
+  const fromX = hitX + 84 * sc
+  const fromY = hitY + 36 * sc
+  let ballX
+  let ballY
+  if (phase <= hitPhase) {
+    const u = phase / hitPhase
+    const e = u * u * (3 - 2 * u)
+    ballX = fromX + (hitX - fromX) * e
+    ballY = fromY + (hitY - fromY) * e
+  } else {
+    const u = (phase - hitPhase) / (1 - hitPhase)
+    ballX = hitX + Math.cos(hitRac) * 96 * sc * u
+    ballY = hitY + Math.sin(hitRac) * 96 * sc * u
+  }
+  const isImpact = Math.abs(phase - hitPhase) < 0.05
+  ctx.fillStyle = isImpact ? '#f7fff2' : '#d8f34a'
   ctx.beginPath()
-  ctx.arc(impactX, impactY, (isImpact ? 8 : 5) * sc, 0, Math.PI * 2)
+  ctx.arc(ballX, ballY, (isImpact ? 8 : 6) * sc, 0, Math.PI * 2)
   ctx.fill()
-
-  arrow(ctx, impactX, impactY, impactX + 35 * sc, impactY - 42 * sc, '#d8f34a', 2, 7)
+  if (isImpact) {
+    ctx.strokeStyle = '#d8f34a'
+    ctx.lineWidth = 2 * sc
+    ctx.beginPath()
+    ctx.arc(ballX, ballY, 13 * sc, 0, Math.PI * 2)
+    ctx.stroke()
+  }
   ctx.fillStyle = '#9ca3af'
   ctx.font = `${10 * sc}px ui-monospace, monospace`
-  ctx.fillText('击球点', impactX - 22 * sc, impactY + 18 * sc)
+  ctx.fillText('击球点', hitX - 18 * sc, hitY + 20 * sc)
   ctx.restore()
 }
 
@@ -1106,11 +1132,13 @@ defineExpose({ fh, bh, setPlaying, setSlow, tab: tabId })
   overflow: hidden;
   background: rgba(3, 14, 18, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  min-height: 190px;
-  flex: 1;
+  height: 220px;
+  flex: none;
 }
 
 .canvas-wrap canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;

@@ -83,7 +83,7 @@ export class FootworkMode extends TennisMode {
     let hitIndex = kfs.findIndex((k) => k.stepType === 'hit')
     if (hitIndex < 0) hitIndex = Math.floor(kfs.length * 0.65)
 
-    const dash = (from, to, color) => {
+    const dash = (from, color) => {
       const pts = from.map((k) => new THREE.Vector3(k.x, 0.06, this.toWorldZ(k.y)))
       if (pts.length < 2) return
       const geo = new THREE.BufferGeometry().setFromPoints(pts)
@@ -101,7 +101,7 @@ export class FootworkMode extends TennisMode {
     }
 
     dash(kfs.slice(0, hitIndex + 1), 0x22d3ee)
-    dash(kfs.slice(hitIndex), 0xfbbf24)
+    dash(kfs.slice(Math.max(0, hitIndex)), 0xfbbf24)
 
     // 击球点
     const hitKf = kfs[hitIndex]
@@ -202,9 +202,19 @@ export class FootworkMode extends TennisMode {
     this.racket.hoopGroup.rotation.set(0, s.stepType === 'hit' ? -0.5 : 0, 0)
     this.racket.setPocket(0)
 
-    // 球
+    // 球沿场景路线走；临近击球时收到拍面甜区，避免球停在脚边、拍子挥空
     const ball = this.ballAt(p)
     this.ballObj.group.position.set(ball.x, ball.height, this.toWorldZ(ball.y))
+    this.player.group.updateMatrixWorld(true)
+    const sweet = this.liveSweet || (this.liveSweet = new THREE.Vector3())
+    this.racket.sweetSpot.getWorldPosition(sweet)
+    const tHit = hitTimeOf(this.scenario)
+    const near = Math.abs(p - tHit)
+    if (near < 0.08) {
+      const w = 1 - near / 0.08
+      const e = w * w * (3 - 2 * w)
+      this.ballObj.group.position.lerp(sweet, e)
+    }
 
     this.refreshMarks()
 
