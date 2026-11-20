@@ -62,7 +62,7 @@
       </p>
     </aside>
 
-    <!-- 阅读器 -->
+    <!-- 详情 / 下载面板 -->
     <section v-else class="reader">
       <header class="bar">
         <button type="button" class="back" @click="close">← 书架</button>
@@ -70,42 +70,44 @@
           <h2>{{ current.title }}</h2>
           <p>{{ current.author || '佚名' }} · {{ current.format.toUpperCase() }} · {{ current.sizeMB }} MB</p>
         </div>
-        <div class="tools">
-          <template v-if="current.format === 'epub'">
-            <select v-if="toc.length" class="toc" @change="jumpTo($event.target.value)">
-              <option value="">目录…</option>
-              <option v-for="item in toc" :key="item.href" :value="item.href">{{ item.label.trim() }}</option>
-            </select>
-            <button type="button" @click="fontSizeDown">A−</button>
-            <button type="button" @click="fontSizeUp">A+</button>
-            <button type="button" @click="epubPrev">上一页</button>
-            <button type="button" @click="epubNext">下一页</button>
-            <span v-if="progress" class="progress">{{ Math.round(progress * 100) }}%</span>
-          </template>
-          <a v-if="current.format === 'pdf'" class="ext" :href="bookUrl" target="_blank" rel="noopener">新标签打开 ↗</a>
-        </div>
       </header>
 
       <div v-if="error" class="state error">{{ error }}</div>
 
-      <!-- PDF：浏览器原生查看器（支持 Range 按需加载大部头） -->
-      <iframe
-        v-else-if="current.format === 'pdf' && ready"
-        class="pdf-frame"
-        :src="bookUrl"
-        title="PDF 阅读器"
-      ></iframe>
+      <div v-else class="download-panel">
+        <div class="dl-cover" :style="{ background: coverStyle(current) }">
+          <span class="glyph">{{ catOf(current).icon }}</span>
+          <span class="fmt">{{ current.format.toUpperCase() }}</span>
+        </div>
 
-      <!-- EPUB：epub.js 渲染 -->
-      <div v-else-if="current.format === 'epub' && ready" class="epub-host" ref="epubHost"></div>
+        <div class="dl-info">
+          <h3>{{ current.title }}</h3>
+          <p class="dl-author">{{ current.author || '佚名' }}</p>
+          <dl class="dl-meta">
+            <div><dt>分类</dt><dd>{{ catOf(current).name }}</dd></div>
+            <div><dt>格式</dt><dd>{{ current.format.toUpperCase() }}</dd></div>
+            <div><dt>大小</dt><dd>{{ current.sizeMB }} MB</dd></div>
+          </dl>
 
-      <div v-else class="state">加载中…</div>
+          <div class="dl-actions">
+            <a
+              class="dl-btn primary"
+              :href="bookUrl"
+              :download="current.fileName"
+              rel="noopener"
+            >下载到本地</a>
+            <button type="button" class="dl-btn" @click="copyLink">{{ copied ? '已复制 ✓' : '复制直链' }}</button>
+            <a class="dl-btn ghost" :href="bookUrl" target="_blank" rel="noopener">新标签打开 ↗</a>
+          </div>
+          <p class="dl-hint">已下载原文件用本地阅读器打开。在线预览暂未开启。</p>
+        </div>
+      </div>
     </section>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { BOOK_CATEGORIES, BOOK_SHELF } from '../books/manifest.js'
 
@@ -118,11 +120,8 @@ const keyword = ref('')
 const categoryId = ref('all')
 const formatId = ref('all')
 const current = ref(null)
-const ready = ref(false)
 const error = ref('')
-const epubHost = ref(null)
-const toc = ref([])
-const progress = ref(0)
+const copied = ref(false)
 
 const totalGB = computed(() => (books.reduce((s, b) => s + b.sizeMB, 0) / 1024).toFixed(1))
 
@@ -148,10 +147,6 @@ const bookUrl = computed(() => current.value
 
 // ---- 打开 / 关闭 ----
 
-let epubBook = null
-let epubRendition = null
-let epubFontSize = 100
-
 /** 先用 1 字节 Range 探测文件可达（比 HEAD 便宜，顺带验证 Range 支持）。 */
 async function probe(url) {
   try {
@@ -164,83 +159,33 @@ async function probe(url) {
 
 async function open(book) {
   current.value = book
-  ready.value = false
   error.value = ''
-  progress.value = 0
-  toc.value = []
   router.replace({ query: { ...route.query, book: book.id } })
   const ok = await probe(bookUrl.value)
   if (!ok) {
     error.value = '书籍文件不可达：文件经 /book-files/ 流式读取，请确认书籍目录存在；' +
       '开发环境需 vite dev server 运行，线上环境需书库已上传至服务器静态目录。'
-    return
-  }
-  if (book.format === 'epub') {
-    if (book.sizeMB > 150
-      && !window.confirm(`《${book.title}》有 ${book.sizeMB} MB，EPUB 需整体载入内存，打开可能需要等待且占用较大。继续？`)) {
-      close()
-      return
-    }
-    await openEpub()
-  } else {
-    ready.value = true
   }
 }
 
-async function openEpub() {
+/** 复制直链，方便贴到下载工具里。 */
+async function copyLink() {
+  const url = new URL(bookUrl.value, window.location.origin).href
   try {
-    const ePub = (await import('epubjs')).default
-    epubBook = ePub(bookUrl.value)
-    await epubBook.ready
-    const nav = epubBook.navigation
-    toc.value = nav ? (nav.toc || []) : []
-    epubRendition = epubBook.renderTo(epubHost.value, {
-      width: '100%',
-      height: '100%',
-      spread: 'auto'
-    })
-    epubRendition.themes.fontSize(`${epubFontSize}%`)
-    epubRendition.on('relocated', (loc) => {
-      if (loc && loc.start) progress.value = loc.start.percentage || 0
-    })
-    await epubRendition.display()
-    ready.value = true
-  } catch (e) {
-    console.error(e)
-    error.value = `EPUB 打开失败：${e.message || e}`
+    await navigator.clipboard.writeText(url)
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 1600)
+  } catch {
+    window.prompt('复制下面的链接：', url)
   }
 }
 
 function close() {
-  destroyEpub()
   current.value = null
-  ready.value = false
   error.value = ''
   const query = { ...route.query }
   delete query.book
   router.replace({ query })
-}
-
-function destroyEpub() {
-  try { epubRendition?.destroy() } catch { /* ignore */ }
-  try { epubBook?.destroy() } catch { /* ignore */ }
-  epubRendition = null
-  epubBook = null
-  toc.value = []
-}
-
-// ---- EPUB 工具 ----
-
-function epubNext() { epubRendition?.next() }
-function epubPrev() { epubRendition?.prev() }
-function jumpTo(href) { if (href) epubRendition?.display(href) }
-function fontSizeUp() {
-  epubFontSize = Math.min(180, epubFontSize + 10)
-  epubRendition?.themes.fontSize(`${epubFontSize}%`)
-}
-function fontSizeDown() {
-  epubFontSize = Math.max(70, epubFontSize - 10)
-  epubRendition?.themes.fontSize(`${epubFontSize}%`)
 }
 
 // ---- 深链与生命周期 ----
@@ -253,24 +198,9 @@ onMounted(() => {
 
 watch(() => route.query.book, (id) => {
   if (!id && current.value) {
-    destroyEpub()
     current.value = null
-    ready.value = false
+    error.value = ''
   }
-})
-
-function onKey(event) {
-  if (!current.value || current.value.format !== 'epub') return
-  const tag = document.activeElement?.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-  if (event.key === 'ArrowRight') { event.preventDefault(); epubNext() }
-  if (event.key === 'ArrowLeft') { event.preventDefault(); epubPrev() }
-}
-
-onMounted(() => window.addEventListener('keydown', onKey))
-onUnmounted(() => {
-  window.removeEventListener('keydown', onKey)
-  destroyEpub()
 })
 </script>
 
@@ -477,44 +407,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
 }
-.tools button,
-.tools .ext {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 7px;
-  padding: 5px 10px;
-  color: #d5ebe0;
-  cursor: pointer;
-  font-size: 12.5px;
-  text-decoration: none;
-}
-.tools button:hover,
-.tools .ext:hover { border-color: rgba(216, 243, 74, 0.5); }
-.tools .toc {
-  max-width: 180px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 7px;
-  padding: 5px 7px;
-  color: #d5ebe0;
-  font-size: 12px;
-}
-.progress {
-  font-size: 12px;
-  color: #eaff8a;
-  min-width: 38px;
-  text-align: right;
-}
-.pdf-frame {
-  flex: 1;
-  border: 0;
-  background: #1a1f26;
-}
-.epub-host {
-  flex: 1;
-  min-height: 0;
-  background: #f5f2ea;
-}
 .state {
   flex: 1;
   display: flex;
@@ -532,8 +424,137 @@ onUnmounted(() => {
   margin: 0 auto;
 }
 
+/* ---- 下载面板 ---- */
+.download-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 28px;
+  flex-wrap: wrap;
+}
+
+.dl-cover {
+  position: relative;
+  width: 160px;
+  height: 224px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  flex: 0 0 auto;
+}
+
+.dl-cover .glyph {
+  font-size: 52px;
+  opacity: 0.9;
+}
+
+.dl-cover .fmt {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #eaff8a;
+}
+
+.dl-info {
+  max-width: 420px;
+  min-width: 260px;
+}
+
+.dl-info h3 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  line-height: 1.35;
+  color: #f2fbf2;
+}
+
+.dl-author {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  color: rgba(213, 235, 224, 0.6);
+}
+
+.dl-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dl-meta dt {
+  font-size: 10.5px;
+  color: rgba(213, 235, 224, 0.5);
+}
+
+.dl-meta dd {
+  margin: 1px 0 0;
+  font-size: 13px;
+  color: #f2fbf2;
+}
+
+.dl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dl-btn {
+  display: inline-block;
+  padding: 9px 16px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: #d5ebe0;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dl-btn:hover {
+  border-color: rgba(216, 243, 74, 0.55);
+  background: rgba(216, 243, 74, 0.1);
+}
+
+.dl-btn.primary {
+  background: #d8f34a;
+  border-color: #d8f34a;
+  color: #10241b;
+  font-weight: 700;
+}
+
+.dl-btn.primary:hover {
+  background: #e8ff6e;
+}
+
+.dl-btn.ghost {
+  color: rgba(213, 235, 224, 0.72);
+}
+
+.dl-hint {
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  color: rgba(213, 235, 224, 0.45);
+}
+
 @media (max-width: 760px) {
   .shelf { width: 100%; border-right: 0; }
   .cards { grid-template-columns: 1fr 1fr; }
+  .download-panel { gap: 18px; padding: 18px; }
+  .dl-cover { width: 110px; height: 154px; }
+  .dl-cover .glyph { font-size: 36px; }
 }
 </style>
