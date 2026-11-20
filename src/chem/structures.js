@@ -120,7 +120,7 @@ function burn() {
   return {
     id: 'burn',
     name: '氢气燃烧',
-    equation: '2H₂ + O₂ → 2H₂O',
+    equation: '2H₂(g) + O₂(g) → 2H₂O(g)',
     note: '放热。旧的 H–H、O=O 断开，组成新的 O–H。原子仍是 4 个氢和 2 个氧。',
     counts: [['H', 4], ['O', 2]],
     atoms,
@@ -140,7 +140,7 @@ function neutralize() {
   return {
     id: 'neutral',
     name: '中和',
-    equation: 'HCl + NaOH → NaCl + H₂O',
+    equation: 'HCl(aq) + NaOH(aq) → NaCl(aq) + H₂O(l)',
     note: '酸里的 H⁺ 和碱里的 OH⁻ 组成水，剩下钠离子和氯离子。拖到后半段时，把 pH 想成从酸性走到接近 7。',
     counts: [['H', 2], ['Cl', 1], ['Na', 1], ['O', 1]],
     atoms,
@@ -173,7 +173,7 @@ function rust() {
   return {
     id: 'rust',
     name: '铁生锈',
-    equation: '4Fe + 3O₂ → 2Fe₂O₃',
+    equation: '4Fe(s) + 3O₂(g) → 2Fe₂O₃(s)',
     note: '慢反应。画面把时间加快了很多。铁和氧都还在，只是从单质变成了氧化物。',
     counts: [['Fe', 4], ['O', 6]],
     atoms,
@@ -225,7 +225,7 @@ function photosynthesis() {
   return {
     id: 'photo',
     name: '光合作用',
-    equation: '6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂',
+    equation: '6CO₂(g) + 6H₂O(l) → C₆H₁₂O₆ + 6O₂(g)',
     note: '叶绿体里发生的原子重组。葡萄糖的立体结构这里做了简化，原子种类和数目与方程式一致：6 碳、12 氢、18 氧。',
     counts: [['C', 6], ['H', 12], ['O', 18]],
     atoms,
@@ -349,14 +349,18 @@ function iSafe(i) {
 }
 
 export const CRYSTALS = [
-  { id: 'nacl', name: '氯化钠', text: '钠和氯交替排列。滑块让晶胞向外长，离子键没有方向，所以它长成块。' },
-  { id: 'diamond', name: '金刚石', text: '每个碳连四个碳，键角约 109.5°，整块是一个刚性的网，所以很硬。' },
-  { id: 'graphite', name: '石墨', text: '层内是牢固的六边形，层与层之间只有很弱的力。滑块把层拉开：铅笔能写字，靠的就是层滑开。' },
-  { id: 'ice', name: '冰', text: '水分子靠氢键搭成有空洞的架子。空洞让冰的密度小于液态水，所以冰会浮。这是骨架示意，不是完整晶胞。' }
+  { id: 'nacl', name: '氯化钠', formula: 'NaCl', text: '钠和氯交替排列。滑块让晶胞向外长，离子键没有方向，所以它长成块。' },
+  { id: 'diamond', name: '金刚石', formula: 'C', text: '每个碳连四个碳，键角约 109.5°，整块是一个刚性的网，所以很硬。' },
+  { id: 'graphite', name: '石墨', formula: 'C', text: '层内是牢固的六边形，层与层之间只有很弱的力。滑块把层拉开：铅笔能写字，靠的就是层滑开。' },
+  { id: 'ice', name: '冰', formula: 'H₂O', text: '水分子靠氢键搭成有空洞的架子。空洞让冰的密度小于液态水，所以冰会浮。这是骨架示意，不是完整晶胞。' }
 ]
 
 export function bondStory(delta) {
-  if (delta < 0.4) return { name: '非极性共价', text: '两边拉电子的能力差不多，共用的电子待在中间。' }
-  if (delta < 1.7) return { name: '极性共价', text: '电子更靠近电负性大的一边，键有了正负两端。水就是这样。' }
-  return { name: '离子键', text: '电子几乎完全到了电负性大的原子上，两边变成离子，靠静电吸在一起。' }
+  if (delta < 0.4) {
+    return { name: '非极性共价', examples: ['H₂', 'Cl₂', 'O₂'], text: '两边拉电子的能力差不多，共用的电子待在中间。' }
+  }
+  if (delta < 1.7) {
+    return { name: '极性共价', examples: ['H₂O', 'HCl', 'NH₃'], text: '电子更靠近电负性大的一边，键有了正负两端。水就是这样。' }
+  }
+  return { name: '离子键', examples: ['Na⁺ Cl⁻', 'Mg²⁺ O²⁻'], text: '电子几乎完全到了电负性大的原子上，两边变成离子，靠静电吸在一起。' }
 }

@@ -11,6 +11,13 @@
       <p class="lab-hint">{{ active.hint }}</p>
     </header>
 
+    <div v-if="stageFormulas.length" class="formula-stage">
+      <div class="formula-caption">{{ stageCaption }}</div>
+      <div class="formula-line">
+        <FormulaText v-for="item in stageFormulas" :key="item" :text="item" />
+      </div>
+    </div>
+
     <nav class="lab-nav">
       <button
         v-for="mode in modes"
@@ -75,6 +82,10 @@
           <dt>壳层电子</dt><dd>{{ current.shellText }}</dd>
         </dl>
         <p>{{ current.note }}</p>
+        <div v-if="commonFormulas.length" class="formula-row">
+          <span>常见化学式</span>
+          <FormulaText v-for="item in commonFormulas" :key="item" :text="item" />
+        </div>
         <p class="note">玻尔模型只表示电子分层计数，不是运行轨道。原子量是常见近似值。104 号以后用元素符号。</p>
       </template>
 
@@ -90,7 +101,7 @@
       </template>
 
       <template v-else-if="modeId === 'shape'">
-        <div class="lab-kicker">{{ shape.formula }}</div>
+        <FormulaText class="eq" :text="shape.formula" />
         <h2>{{ shape.name }}</h2>
         <p>{{ shape.why }}</p>
         <div class="chips">
@@ -107,7 +118,7 @@
       <template v-else-if="modeId === 'react'">
         <div class="lab-kicker">{{ pose.name }}</div>
         <h2>{{ reaction.name }}</h2>
-        <p class="eq">{{ reaction.equation }}</p>
+        <p class="eq"><FormulaText :text="reaction.equation" /></p>
         <div class="chips">
           <button v-for="item in reactions" :key="item.id" type="button" class="chip" :class="{ on: item.id === reactionId }" @click="reactionId = item.id">{{ item.name }}</button>
         </div>
@@ -124,7 +135,7 @@
       </template>
 
       <template v-else>
-        <div class="lab-kicker">LATTICE</div>
+        <FormulaText class="eq" :text="crystal.formula" />
         <h2>{{ crystal.name }}</h2>
         <p>{{ crystal.text }}</p>
         <div class="chips">
@@ -145,6 +156,8 @@ import { useRoute, useRouter } from 'vue-router'
 import WorldMenu from '../components/WorldMenu.vue'
 import { CHEM_QUIZ, MODES } from '../chem/catalog.js'
 import { ELEMENTS } from '../chem/elements.js'
+import { COMMON_FORMULAS } from '../chem/formula.js'
+import FormulaText from '../chem/FormulaText.vue'
 import { bondStory, buildCrystal, CRYSTALS, reactionFrame, REACTIONS, SHAPES } from '../chem/structures.js'
 import { ChemScene } from '../chem/ChemScene.js'
 import '../styles/lab.css'
@@ -188,6 +201,21 @@ const reaction = computed(() => reactions.find((item) => item.id === reactionId.
 const pose = computed(() => reactionFrame(reaction.value, reactionT.value))
 const crystal = computed(() => crystals.find((item) => item.id === crystalId.value) || crystals[0])
 const currentQuiz = computed(() => quiz[quizIndex.value])
+const commonFormulas = computed(() => COMMON_FORMULAS[current.value.z] || [])
+const stageFormulas = computed(() => {
+  if (modeId.value === 'shape') return [shape.value.formula]
+  if (modeId.value === 'react') return [reaction.value.equation]
+  if (modeId.value === 'crystal') return [crystal.value.formula]
+  if (modeId.value === 'bond') return story.value.examples
+  return []
+})
+const stageCaption = computed(() => {
+  if (modeId.value === 'shape') return shape.value.name
+  if (modeId.value === 'react') return reaction.value.name
+  if (modeId.value === 'crystal') return crystal.value.name
+  if (modeId.value === 'bond') return story.value.name
+  return ''
+})
 
 function dimmed(el) {
   if (query.value) {
@@ -364,8 +392,59 @@ onUnmounted(() => {
 }
 
 .eq {
-  font-variant-numeric: tabular-nums;
+  display: block;
+  margin: 0.1rem 0 0.2rem;
+  font-size: 15px;
   letter-spacing: 0.02em;
+}
+
+.formula-stage {
+  position: absolute;
+  z-index: 2;
+  left: 196px;
+  right: 348px;
+  top: 118px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.28rem;
+  pointer-events: none;
+}
+
+.formula-caption {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: rgba(215, 180, 255, 0.85);
+}
+
+.formula-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem 0.7rem;
+}
+
+.formula-line :deep(.chem-formula) {
+  padding: 0.28rem 0.8rem;
+  border-radius: 12px;
+  background: rgba(8, 12, 20, 0.78);
+  border: 1px solid rgba(215, 180, 255, 0.32);
+  font-size: clamp(18px, 2.2vw, 30px);
+}
+
+.formula-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.7rem;
+  margin: 0.35rem 0 0.5rem;
+  font-size: 16px;
+}
+
+.formula-row > span {
+  width: 100%;
+  color: rgba(244, 251, 255, 0.48);
+  font-size: 12px;
 }
 
 @media (max-width: 860px) {
@@ -374,6 +453,12 @@ onUnmounted(() => {
     right: 8px;
     top: 96px;
     bottom: 42vh;
+  }
+
+  .formula-stage {
+    left: 8px;
+    right: 8px;
+    top: 96px;
   }
 
   .show-table .lab-canvas {

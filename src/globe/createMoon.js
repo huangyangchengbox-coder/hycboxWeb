@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { CONSTANTS } from './constants.js'
+import { loadTexture } from './loadTexture.js'
 
 export function updateMoon(moonMesh, sunMesh, camera, settings) {
   const ma = settings.angle;
@@ -20,10 +21,9 @@ export async function createMoon(textureLoader, maxAnisotropy = 1) {
   const geoHigh = new THREE.SphereGeometry(radius, segmentsHigh, segmentsHigh);
   const geoMed = new THREE.SphereGeometry(radius, segmentsMed, segmentsMed);
   const geoLow = new THREE.SphereGeometry(radius, segmentsLow, segmentsLow);
-  const map = await textureLoader.loadAsync(CONSTANTS.TEXTURES.MOON_ALBEDO);
-  map.colorSpace = THREE.SRGBColorSpace;
+  const map = await loadTexture(textureLoader, CONSTANTS.TEXTURES.MOON_ALBEDO, { srgb: true, fallback: '#c5c1b8' });
   map.anisotropy = maxAnisotropy;
-  const displacementMap = await textureLoader.loadAsync(CONSTANTS.TEXTURES.MOON_DISPLACEMENT);
+  const displacementMap = await loadTexture(textureLoader, CONSTANTS.TEXTURES.MOON_DISPLACEMENT, { fallback: '#808080' });
   displacementMap.anisotropy = maxAnisotropy;
   const material = new THREE.MeshStandardMaterial({
     map,

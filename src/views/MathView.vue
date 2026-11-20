@@ -12,6 +12,8 @@
     </div>
     <WorldMenu />
 
+    <FormulaPlay class="math-formula" :frame="formulaNow" />
+
     <header class="lab-top">
       <div>
         <div class="lab-kicker">MATH</div>
@@ -170,6 +172,8 @@ import { useRoute, useRouter } from 'vue-router'
 import WorldMenu from '../components/WorldMenu.vue'
 import { JULIA_PRESETS, MATH_QUIZ, MODES } from '../mathviz/catalog.js'
 import { compileExpr } from '../mathviz/expr.js'
+import FormulaPlay from '../mathviz/FormulaPlay.vue'
+import { formulaFrame } from '../mathviz/formulaShow.js'
 import { drawFourier, gibbsOvershoot, playTone, stopTone } from '../mathviz/fourier.js'
 import { eigen2, MATRIX_PRESETS } from '../mathviz/linalg.js'
 import { MathScene } from '../mathviz/MathScene.js'
@@ -231,6 +235,7 @@ const pi = createPiSampler()
 let scene = null
 let plotTimer = 0
 let piTimer = 0
+let clockTimer = 0
 
 const active = computed(() => modes.find((item) => item.id === modeId.value) || modes[0])
 const currentQuiz = computed(() => quiz[quizIndex.value])
@@ -239,6 +244,34 @@ const surfaceName = computed(() => (customFn.value ? '自定义曲面' : surface
 const eigen = computed(() => eigen2(matrix.a, matrix.b, matrix.c, matrix.d))
 const waveName = computed(() => waves.find((item) => item.id === waveId.value)?.name || '方波')
 const overshoot = computed(() => (waveId.value === 'square' ? gibbsOvershoot(terms.value) : 0))
+const clock = ref(0)
+const formulaNow = computed(() => formulaFrame({
+  mode: modeId.value,
+  t: clock.value,
+  kind: fractalKind.value,
+  cRe: juliaRe.value,
+  cIm: juliaIm.value,
+  surfaceId: surfaceId.value,
+  expression: expression.value,
+  custom: Boolean(customFn.value),
+  a: coeff.a,
+  b: coeff.b,
+  c: coeff.c,
+  sliceX: sliceX.value,
+  slope: slope.value,
+  height: heightAt,
+  matrix,
+  eigen: eigen.value,
+  waveId: waveId.value,
+  terms: terms.value,
+  probTab: probTab.value,
+  mu: mu.value,
+  sigma: sigma.value,
+  piInside: pi.inside,
+  piTotal: pi.total,
+  piEstimate: pi.estimate,
+  quizIndex: quizIndex.value
+}))
 
 function heightAt(x, y) {
   const fn = customFn.value || surfacePreset.value.fn
@@ -550,13 +583,44 @@ onMounted(() => {
     plotTimer = requestAnimationFrame(loop)
   }
   plotTimer = requestAnimationFrame(loop)
+  const started = performance.now()
+  clockTimer = window.setInterval(() => {
+    clock.value = (performance.now() - started) / 1000
+  }, 80)
 })
 
 onUnmounted(() => {
   cancelAnimationFrame(plotTimer)
+  window.clearInterval(clockTimer)
   window.clearInterval(piTimer)
   stopTone()
   scene?.dispose()
   scene = null
 })
 </script>
+
+<style scoped>
+.plot-layer {
+  bottom: 118px;
+}
+
+.math-formula {
+  position: absolute;
+  z-index: 2;
+  left: 196px;
+  right: 348px;
+  bottom: 14px;
+}
+
+@media (max-width: 860px) {
+  .plot-layer {
+    bottom: calc(46vh + 84px);
+  }
+
+  .math-formula {
+    left: 8px;
+    right: 8px;
+    bottom: 46vh;
+  }
+}
+</style>

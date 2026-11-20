@@ -6,15 +6,16 @@ import {
 } from 'three/tsl'
 import { MeshBasicNodeMaterial, MeshPhysicalNodeMaterial } from 'three/webgpu'
 import { CONSTANTS } from './constants.js'
+import { loadTexture } from './loadTexture.js'
 
 export async function createEarth(loader, sunDirUniform, moonPosUniform, maxAnisotropy = 1) {
   const group = new THREE.Group();
   const [colorMapTex, specularMapTex, normalMapTex, cloudsMapTex, nightMapTex] = await Promise.all([
-    loader.loadAsync(CONSTANTS.TEXTURES.ALBEDO),
-    loader.loadAsync(CONSTANTS.TEXTURES.SPECULAR),
-    loader.loadAsync(CONSTANTS.TEXTURES.NORMAL),
-    loader.loadAsync(CONSTANTS.TEXTURES.CLOUDS),
-    loader.loadAsync(CONSTANTS.TEXTURES.NIGHT)
+    loadTexture(loader, CONSTANTS.TEXTURES.ALBEDO, { srgb: true, fallback: '#1d4e89' }),
+    loadTexture(loader, CONSTANTS.TEXTURES.SPECULAR, { fallback: '#000000' }),
+    loadTexture(loader, CONSTANTS.TEXTURES.NORMAL, { fallback: '#8080ff' }),
+    loadTexture(loader, CONSTANTS.TEXTURES.CLOUDS, { srgb: true, fallback: '#000000' }),
+    loadTexture(loader, CONSTANTS.TEXTURES.NIGHT, { srgb: true, fallback: '#000000' })
   ]);
   colorMapTex.colorSpace = THREE.SRGBColorSpace;
   cloudsMapTex.colorSpace = THREE.SRGBColorSpace;

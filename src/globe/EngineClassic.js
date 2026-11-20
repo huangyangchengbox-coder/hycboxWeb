@@ -5,6 +5,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CONSTANTS, CINEMATIC_LOCATIONS } from './constants.js'
+import { loadTexture } from './loadTexture.js'
 import { createMoon, updateMoon } from './createMoon.js'
 import {
   createMoonExploreState,
@@ -19,10 +20,10 @@ export async function createEarthClassic(loader, maxAnisotropy = 1) {
   const group = new THREE.Group()
   const segs = Math.min(96, CONSTANTS.SEGMENTS)
   const [albedo, specular, clouds, night] = await Promise.all([
-    loader.loadAsync(CONSTANTS.TEXTURES.ALBEDO),
-    loader.loadAsync(CONSTANTS.TEXTURES.SPECULAR),
-    loader.loadAsync(CONSTANTS.TEXTURES.CLOUDS),
-    loader.loadAsync(CONSTANTS.TEXTURES.NIGHT)
+    loadTexture(loader, CONSTANTS.TEXTURES.ALBEDO, { srgb: true, fallback: '#1d4e89' }),
+    loadTexture(loader, CONSTANTS.TEXTURES.SPECULAR, { fallback: '#000000' }),
+    loadTexture(loader, CONSTANTS.TEXTURES.CLOUDS, { srgb: true, fallback: '#000000' }),
+    loadTexture(loader, CONSTANTS.TEXTURES.NIGHT, { srgb: true, fallback: '#000000' })
   ])
   ;[albedo, clouds, night].forEach((t) => {
     t.colorSpace = THREE.SRGBColorSpace
@@ -210,7 +211,7 @@ export class EngineClassic {
     this.scene.add(this.moonMesh)
 
     if (onProgress) onProgress('Loading Environment Map (PNG)')
-    const stars = await this.textureLoader.loadAsync(CONSTANTS.TEXTURES.STARS)
+    const stars = await loadTexture(this.textureLoader, CONSTANTS.TEXTURES.STARS, { srgb: true, fallback: '#020308' })
     if (this.isDisposed) return
     stars.mapping = THREE.EquirectangularReflectionMapping
     stars.colorSpace = THREE.SRGBColorSpace

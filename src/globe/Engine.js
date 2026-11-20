@@ -11,6 +11,7 @@ import { film } from 'three/examples/jsm/tsl/display/FilmNode.js'
 import GUI from 'lil-gui'
 import Stats from 'three/examples/jsm/libs/stats.module.js'
 import { CONSTANTS, CINEMATIC_LOCATIONS } from './constants.js'
+import { loadTexture } from './loadTexture.js'
 import { createEarth } from './createEarth.js'
 import { createMoon, updateMoon } from './createMoon.js'
 import {
@@ -279,9 +280,7 @@ export class Engine {
     this.scene.add(this.moonMesh);
     this.moonMesh.position.set(0, 0, -100);
     if (onProgress) onProgress("Loading Environment Map (PNG)");
-    const starsTexture = await this.textureLoader.loadAsync(
-      CONSTANTS.TEXTURES.STARS
-    );
+    const starsTexture = await loadTexture(this.textureLoader, CONSTANTS.TEXTURES.STARS, { srgb: true, fallback: '#020308' });
     if (this.isDisposed) return;
     starsTexture.mapping = THREE.EquirectangularReflectionMapping;
     starsTexture.colorSpace = THREE.SRGBColorSpace;

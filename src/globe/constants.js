@@ -34,8 +34,13 @@ function getInitialResolutionScale() {
 }
 
 const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
-/** 默认 2K；?hd=1 用 8K */
+/** 默认少分段；?hd=1 提高球体细分。贴图一律走本站，避免外链跳转被 CORS 拦住。 */
 const use2k = !(params && params.get('hd') === '1')
+
+function globeAsset(file) {
+  const base = import.meta.env?.BASE_URL || '/web/'
+  return `${base}globe/${file}`
+}
 
 export const CONSTANTS = {
   // 仅作能力探测参考；实际渲染由 canUseWebGPU() 决定（HTTP 下通常无 WebGPU）
@@ -44,26 +49,14 @@ export const CONSTANTS = {
   ATMOSPHERE_RADIUS: 10.2,
   SEGMENTS: use2k ? 64 : 256,
   TEXTURES: {
-    ALBEDO: use2k
-      ? 'https://www.dsp-studio.ro/globe/2k_earth_daymap.jpg'
-      : 'https://www.dsp-studio.ro/globe/8k_earth_daymap.jpg',
-    NIGHT: use2k
-      ? 'https://www.dsp-studio.ro/globe/2k_earth_nightmap.jpg'
-      : 'https://www.dsp-studio.ro/globe/8k_earth_nightmap.jpg',
-    SPECULAR: use2k
-      ? 'https://www.dsp-studio.ro/globe/2k_earth_specular_map.jpg'
-      : 'https://www.dsp-studio.ro/globe/8k_earth_specular_map.jpg',
-    NORMAL: 'https://www.dsp-studio.ro/globe/8k_earth_normal_map.jpg',
-    CLOUDS: use2k
-      ? 'https://www.dsp-studio.ro/globe/2k_earth_clouds.jpg'
-      : 'https://www.dsp-studio.ro/globe/8k_earth_clouds.jpg',
-    STARS: use2k
-      ? 'https://www.dsp-studio.ro/globe/starmap_2k.jpg'
-      : 'https://www.dsp-studio.ro/globe/starmap_8k.jpg',
-    MOON_ALBEDO: use2k
-      ? 'https://www.dsp-studio.ro/globe/2k_moon.jpg'
-      : 'https://www.dsp-studio.ro/globe/8k_moon.jpg',
-    MOON_DISPLACEMENT: 'https://www.dsp-studio.ro/globe/ldem_4.png'
+    ALBEDO: globeAsset('earth_atmos_2048.jpg'),
+    NIGHT: globeAsset('earth_lights_2048.png'),
+    SPECULAR: globeAsset('earth_specular_2048.jpg'),
+    NORMAL: globeAsset('earth_normal_2048.jpg'),
+    CLOUDS: globeAsset('earth_clouds_1024.png'),
+    STARS: globeAsset('starmap.jpg'),
+    MOON_ALBEDO: globeAsset('moon_1024.jpg'),
+    MOON_DISPLACEMENT: globeAsset('moon_displacement.png')
   },
   GUI: {
     // 主页默认隐藏调参面板；?settings=true 显示
