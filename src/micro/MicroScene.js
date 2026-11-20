@@ -99,8 +99,8 @@ export class MicroScene {
     this.dna = createDnaRig()
     this.cell = createCellRig()
     this.virus = createVirusRig()
-    this.divide = createDivisionRig({ onState: hooks.onDivision })
-    this.aging = createAgingRig({ onState: hooks.onAging })
+    this.divide = createDivisionRig({ onState: this.hooks.onDivision })
+    this.aging = createAgingRig({ onState: this.hooks.onAging })
     this.bodyCells = createHumanCellRig()
     this.scaleGroup = this.#buildScale()
     this.scene.add(

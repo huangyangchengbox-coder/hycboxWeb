@@ -156,19 +156,21 @@ watch(autoplay, (on) => {
   }, 2600)
 })
 
+const VIEWS = ['timeline', 'mechanism', 'extinction']
+
+// 同一个页面内切换 ?view= 时要跟着换页签，否则从菜单点过来不会变。
+// 必须放在 setup 顶层，onMounted 里创建的 watch 不会随组件卸载自动清理。
+watch(
+  () => route.query.view,
+  (next) => {
+    const target = typeof next === 'string' && VIEWS.includes(next) ? next : 'timeline'
+    if (target !== view.value) view.value = target
+  }
+)
+
 onMounted(() => {
   const initialView = typeof route.query.view === 'string' ? route.query.view : 'timeline'
-  const valid = ['timeline', 'mechanism', 'extinction']
-  if (valid.includes(initialView)) view.value = initialView
-
-  // 同一个页面内切换 ?view= 时要跟着换页签，否则从菜单点过来不会变
-  watch(
-    () => route.query.view,
-    (next) => {
-      const target = typeof next === 'string' && valid.includes(next) ? next : 'timeline'
-      if (target !== view.value) view.value = target
-    }
-  )
+  if (VIEWS.includes(initialView)) view.value = initialView
 
   scene = new LifeScene(canvasRef.value, milestones)
   scene.onSelect = ({ index, item, total }) => {
