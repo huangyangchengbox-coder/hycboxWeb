@@ -86,6 +86,8 @@ export const SHOTS = [
     contact: { x: 0.9, y: 1.05, z: -9.55 },
     velocity: { x: 1.2, y: 4.2, z: 15.4 },
     spin: 1800,
+    incoming: 68,
+    forceNote: '拍面略关、由下向上刷：法向分量把球压进拍线（F_N 大），切向分量沿拍面刷出上旋，出球带前冲下坠。',
     keys: [
       { t: 0, pose: pose({ bodyX: -0.05, torsoY: -0.08, legR: 0.08 }) },
       { t: 0.36, pose: pose({ bodyX: -0.12, torsoY: -0.68, shX: -0.22, shY: -1.18, shZ: -0.55, leftY: -0.95, leftZ: -0.1, legR: 0.2 }) },
@@ -109,6 +111,8 @@ export const SHOTS = [
     contact: { x: -0.75, y: 1.02, z: -9.5 },
     velocity: { x: 0.3, y: 5.2, z: 16 },
     spin: 1400,
+    incoming: 62,
+    forceNote: '双手固定拍面、向前平送：法向力为主，切向速度小，旋转比正手少，弹道更低平。',
     flex: 0.85,
     keys: [
       { t: 0, pose: pose({ bodyX: 0.06, torsoY: 0.2, shY: 0.4, leftY: -0.2, leftZ: 0.55 }) },
@@ -134,6 +138,8 @@ export const SHOTS = [
     approach: { x: 0.35, y: 0.4, z: -12.15 },
     velocity: { x: 1.2, y: 1.8, z: 22.8 },
     spin: 900,
+    incoming: 6,
+    forceNote: '抛球几乎静止，出球速度几乎全靠拍头速度：法向相对速度 = 拍速，所以发球是"用拍子撞球"而不是"借力"。',
     bounce: 0.7,
     flex: 1.15,
     keys: [
@@ -160,6 +166,8 @@ export const SHOTS = [
     approach: { x: 0.2, y: 1.15, z: 5 },
     velocity: { x: 2.16, y: 3.12, z: 9.43 },
     spin: 500,
+    incoming: 58,
+    forceNote: '来球本身很快，截击靠"挡"不靠"挥"：拍面固定、行程极短，入射速度贡献了大部分法向冲量。',
     bounce: 0.55,
     duration: 1.6,
     flex: 0.35,
@@ -186,6 +194,8 @@ export const SHOTS = [
     approach: { x: 0.1, y: 3.4, z: -2 },
     velocity: { x: 1.19, y: 1.57, z: 15.82 },
     spin: 700,
+    incoming: 25,
+    forceNote: '高压的球从高处落下，入射方向朝下：拍面下压，法向力把球"按"向对方场地，切向分量很小。',
     bounce: 0.58,
     flex: 1.2,
     keys: [
@@ -210,7 +220,9 @@ export const SHOTS = [
     place: { x: 0.3, z: -10.6 },
     contact: { x: 0.7, y: 1.15, z: -9.6 },
     velocity: { x: 1.37, y: 4.16, z: 15.26 },
-    spin: -1700,    bounce: 0.42,
+    spin: -1700,
+    incoming: 58,
+    forceNote: '拍面打开、由上向下切：切向速度方向朝下，摩擦把球"往回转"，形成下旋（ω 反向），落地后弹跳低而前冲少。',    bounce: 0.42,
     flex: 0.7,
     keys: [
       { t: 0, pose: pose({ torsoY: -0.12, shX: -0.15, shZ: 0.05 }) },
@@ -235,6 +247,8 @@ export const SHOTS = [
     contact: { x: 0.85, y: 0.95, z: -9.5 },
     velocity: { x: 0.9, y: 5.6, z: 14.2 },
     spin: 3200,
+    incoming: 64,
+    forceNote: '拍头由低到高急速刷过球背：切向速度远大于球速，摩擦把球"卷"起来，3200 rpm 上旋让球过网后急坠。',
     bounce: 0.74,
     flex: 1.25,
     keys: [
@@ -261,6 +275,8 @@ export const SHOTS = [
     approach: { x: 0.1, y: 1.4, z: 4 },
     velocity: { x: 1.44, y: 4.2, z: 10.4 },
     spin: -900,
+    incoming: 50,
+    forceNote: '拍面充分打开、触球即"卸力"：法向速度被拍线吸收，出球速度大幅下降，摩擦只制造少量下旋让球落地后不跳。',
     bounce: 0.35,
     flex: 0.45,
     keys: [

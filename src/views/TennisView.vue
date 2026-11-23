@@ -36,6 +36,59 @@
       </div>
       <p>{{ shot.desc }}</p>
       <p class="phase">动作阶段：{{ phaseName }}</p>
+
+      <section v-if="labForce" class="force-card">
+        <header class="force-head">
+          <b>击球瞬间受力</b>
+          <span>接触 {{ labForce.contactMs.toFixed(0) }} ms</span>
+        </header>
+
+        <div class="force-line">
+          <span class="dot v"></span>
+          <span>入射 v</span>
+          <b>{{ labForce.vIn.toFixed(0) }}</b>
+          <em>km/h</em>
+          <span class="side">拍头 {{ labForce.vRacket.toFixed(0) }} · 出球 {{ labForce.vOut.toFixed(0) }}</span>
+        </div>
+
+        <div class="split">
+          <i class="vn" :style="{ width: splitVn + '%' }"></i>
+          <i class="vt" :style="{ width: 100 - splitVn + '%' }"></i>
+        </div>
+        <div class="force-legend">
+          <span><i style="background: #38bdf8"></i>法向 v⊥ {{ labForce.vn.toFixed(0) }}</span>
+          <span><i style="background: #22d3ee"></i>切向 v∥ {{ labForce.vt.toFixed(0) }}</span>
+        </div>
+
+        <div class="force-split">
+          <i class="fn" :style="{ width: splitFn + '%' }"></i>
+          <i class="fr" :style="{ width: 100 - splitFn + '%' }"></i>
+        </div>
+        <div class="force-legend">
+          <span><i style="background: #ef4444"></i>F_N {{ labForce.fn.toFixed(0) }} N</span>
+          <span><i style="background: #facc15"></i>F_r {{ labForce.fr.toFixed(0) }} N</span>
+        </div>
+
+        <div class="force-nums">
+          <div><b>{{ labForce.f.toFixed(0) }} N</b><span>合力 F</span></div>
+          <div><b>{{ labForce.rpmOut.toFixed(0) }}</b><span>转速 ω (rpm)</span></div>
+          <div><b>μ {{ labForce.muNeed.toFixed(2) }}</b><span>所需摩擦</span></div>
+        </div>
+
+        <p class="force-note">{{ labForce.note }}</p>
+        <p v-if="labForce.slip" class="force-slip">
+          ⚠ 打滑：所需摩擦 μ {{ labForce.muNeed.toFixed(2) }} 超过拍线上限 {{ labForce.muMax }}，
+          实际转速被截断到 {{ labForce.rpmOut.toFixed(0) }} rpm。
+        </p>
+        <p v-else class="force-ok">
+          拍线上限 μ {{ labForce.muMax }}，需要 {{ labForce.muNeed.toFixed(2) }} 就够——拍面咬得住球。
+        </p>
+
+        <div class="chips force-chips">
+          <button type="button" class="chip" :class="{ on: labMu === 0.55 }" @click="setLabMu(0.55)">标准新线 μ 0.55</button>
+          <button type="button" class="chip" :class="{ on: labMu === 0.05 }" @click="setLabMu(0.05)">湿球旧线 μ 0.05</button>
+        </div>
+      </section>
       <ol>
         <li v-for="point in shot.points" :key="point">{{ point }}</li>
       </ol>
@@ -721,6 +774,7 @@
       <button type="button" @click="scene?.setCamera('behind')">后视</button>
       <button type="button" @click="scene?.setCamera('top')">俯视</button>
       <button type="button" @click="scene?.setCamera('racket')">拍面特写</button>
+      <button type="button" :class="{ on: labForceOn }" @click="toggleLabForce">🎯 击球受力</button>
     </footer>
 
     <footer v-else-if="modeId === 'balllab'" class="dock dock-thin">
@@ -960,6 +1014,34 @@ const phaseName = ref('准备引拍')
 const surfaceId = ref('hard')
 const scrubbing = ref(false)
 const labNet = reactive({ hit: false, text: '' })
+const labForceOn = ref(true)
+const labMu = ref(0.55)
+const labForce = reactive({
+  vIn: 0,
+  vRacket: 0,
+  vOut: 0,
+  vn: 0,
+  vt: 0,
+  fn: 0,
+  fr: 0,
+  f: 0,
+  muNeed: 0,
+  muMax: 0.55,
+  rpmOut: 0,
+  rpmSet: 0,
+  slip: false,
+  spinKind: 'topspin',
+  contactMs: 4,
+  note: ''
+})
+const splitVn = computed(() => {
+  const total = labForce.vn + labForce.vt
+  return total > 0.01 ? (labForce.vn / total) * 100 : 50
+})
+const splitFn = computed(() => {
+  const total = labForce.fn + labForce.fr
+  return total > 0.01 ? (labForce.fn / total) * 100 : 50
+})
 const spinData = reactive({ rpm: 2500, surfaceId: 'hard', showForces: true, lanes: [], surf: SURFACES.hard })
 const servePlaying = ref(true)
 const modelPlaying = ref(true)
@@ -1174,6 +1256,20 @@ function chooseShot(id) {
   if (scene instanceof LabMode) scene.setPlaying(true)
 }
 
+function toggleLabForce() {
+  if (!(scene instanceof LabMode)) return
+  labForceOn.value = scene.setForce(!scene.forceOn)
+}
+
+function setLabMu(mu) {
+  labMu.value = mu
+  if (scene instanceof LabMode) {
+    scene.setStringMu(mu)
+    scene.setForce(true)
+    labForceOn.value = true
+  }
+}
+
 function chooseMode(id) {
   modeId.value = id
   const next = createMode(id)
@@ -1222,6 +1318,11 @@ function wire(node) {
       } else {
         labNet.text = ''
       }
+    }
+    node.onForce = (data) => {
+      Object.assign(labForce, data)
+      labForceOn.value = node.forceOn
+      labMu.value = data.muMax
     }
   }
   if (node instanceof GripMode) {
@@ -2014,6 +2115,152 @@ ol {
 .net.hit {
   background: rgba(245, 158, 11, 0.2);
   color: #ffd79a;
+}
+
+/* 击球瞬间受力卡 */
+.force-card {
+  margin: 10px 0 6px;
+  padding: 10px 11px;
+  border: 1px solid rgba(216, 243, 74, 0.26);
+  border-radius: 12px;
+  background: linear-gradient(160deg, rgba(216, 243, 74, 0.08), rgba(5, 25, 25, 0.32));
+}
+
+.force-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.force-head b {
+  font-size: 13px;
+  color: #d8f34a;
+}
+
+.force-head span {
+  font-size: 11px;
+  color: #9fbcae;
+}
+
+.force-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #d5ebe0;
+}
+
+.force-line b {
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.force-line em {
+  font-style: normal;
+  font-size: 10px;
+  color: #9fbcae;
+}
+
+.force-line .side {
+  margin-left: auto;
+  font-size: 10px;
+  color: #9fbcae;
+}
+
+.force-line .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #eafff2;
+}
+
+.split,
+.force-split {
+  display: flex;
+  height: 6px;
+  margin: 7px 0 4px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.split i,
+.force-split i {
+  display: block;
+  height: 100%;
+}
+
+.split .vn { background: #38bdf8; }
+.split .vt { background: #22d3ee; }
+.force-split .fn { background: #ef4444; }
+.force-split .fr { background: #facc15; }
+
+.force-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #b9d4c7;
+}
+
+.force-legend i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+
+.force-nums {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 9px 0 6px;
+}
+
+.force-nums div {
+  padding: 6px 4px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  text-align: center;
+}
+
+.force-nums b {
+  display: block;
+  font-size: 13px;
+  color: #f2fbf2;
+}
+
+.force-nums span {
+  font-size: 10px;
+  color: #9fbcae;
+}
+
+.force-note {
+  margin: 6px 0 4px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: #cfe6d9;
+}
+
+.force-ok,
+.force-slip {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.force-ok { color: #8fe3ad; }
+.force-slip { color: #ffd79a; }
+
+.force-chips {
+  margin: 8px 0 0;
+  gap: 5px;
+}
+
+.force-chips .chip {
+  font-size: 10.5px;
+  padding: 4px 7px;
 }
 
 .slider {

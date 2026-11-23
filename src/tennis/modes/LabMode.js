@@ -5,6 +5,7 @@ import { buildPlayer } from '../player.js'
 import { buildRacket } from '../racket.js'
 import { buildBall, buildBlob, buildRings, buildTrail } from '../ball.js'
 import { BALL, rpmToRad, simulateTrajectory } from '../physics.js'
+import { BallForceRig, CONTACT_MODEL, solveContact } from '../ballforce.js'
 import { TennisMode } from '../mode.js'
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
@@ -21,6 +22,11 @@ export class LabMode extends TennisMode {
     this.sweetWorld = new THREE.Vector3()
     this.contactWorld = new THREE.Vector3()
     this.liveSweet = new THREE.Vector3()
+    this.contactNormal = new THREE.Vector3(0, 0, 1)
+    this.forceOn = true
+    this.forceProfile = null
+    this.stringMu = CONTACT_MODEL.mu
+    this._faceQuat = new THREE.Quaternion()
     this.flight = [{ x: 0, y: 1, z: 0, t: 0 }]
     this.flightTime = 1
     this.bounceEvents = []
@@ -86,6 +92,9 @@ export class LabMode extends TennisMode {
     this.courtMark.rotation.x = -Math.PI / 2
     this.courtMark.position.y = 0.014
     this.add(this.courtMark)
+
+    this.forceRig = new BallForceRig()
+    this.add(this.forceRig.group)
   }
 
   surface() {
@@ -200,6 +209,72 @@ export class LabMode extends TennisMode {
     this.swingPoints = points
   }
 
+  /** 击球点处的拍头速度（m/s），取拍头轨迹在触球时刻的中央差分。 */
+  racketVelocity(t0) {
+    const pts = this.swingPoints
+    if (!pts || pts.length < 2) return new THREE.Vector3()
+    let i = 0
+    while (i < pts.length - 2 && pts[i + 1].t < t0) i += 1
+    const a = pts[Math.max(0, i - 1)]
+    const b = pts[Math.min(pts.length - 1, i + 2)]
+    const dt = Math.max(1e-4, (b.t - a.t) * this.shot.duration)
+    const v = new THREE.Vector3(b.x - a.x, b.y - a.y, b.z - a.z).divideScalar(dt)
+    return v.length() > 55 ? v.setLength(55) : v
+  }
+
+  /** 解算击球瞬间的受力分解，并把结果交给 3D 图层与右侧面板。 */
+  solveForce() {
+    const shot = this.shot
+    const approach = shot.approach || { x: 0, y: 1.7, z: 6 }
+    const dir = new THREE.Vector3(
+      this.contactWorld.x - approach.x,
+      this.contactWorld.y - approach.y,
+      this.contactWorld.z - approach.z
+    )
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0.2, 1)
+    const inVel = dir.normalize().multiplyScalar((shot.incoming ?? 60) / 3.6)
+    const racketVel = this.racketVelocity(shot.contactAt)
+    const profile = solveContact({
+      inVel,
+      racketVel,
+      normal: this.contactNormal,
+      rpm: shot.spin || 0,
+      mu: this.stringMu
+    })
+    this.forceProfile = profile
+    this.forceRig.update({ origin: this.contactWorld, normal: this.contactNormal, profile })
+    this.onForce?.({
+      vIn: inVel.length() * 3.6,
+      vRacket: racketVel.length() * 3.6,
+      vOut: Math.hypot(shot.velocity.x, shot.velocity.y, shot.velocity.z) * 3.6,
+      vn: profile.vn * 3.6,
+      vt: profile.vt * 3.6,
+      fn: profile.FN,
+      fr: profile.Fr,
+      f: profile.F,
+      muNeed: profile.muNeed,
+      muMax: this.stringMu,
+      rpmOut: profile.rpmOut,
+      rpmSet: Math.abs(shot.spin || 0),
+      slip: profile.slip,
+      spinKind: profile.spinKind,
+      contactMs: profile.contactMs,
+      note: shot.forceNote || ''
+    })
+  }
+
+  /** 受力矢量开关：打开时直接停在触球帧，方便观察。 */
+  setForce(value) {
+    this.forceOn = Boolean(value)
+    if (this.forceOn) {
+      const contactT = this.shot.contactAt * this.shot.duration
+      this.progress = contactT / this.clockSeconds()
+      this.playing = false
+    }
+    this.applyProgress(this.progress)
+    return this.forceOn
+  }
+
   applyShot(shot, snapCamera) {
     this.shot = shot
     this.ballObj.group.scale.set(1, 1, 1)
@@ -207,12 +282,17 @@ export class LabMode extends TennisMode {
     this.applyPose(shot.contactAt)
     this.player.group.updateMatrixWorld(true)
     this.racket.sweetSpot.getWorldPosition(this.contactWorld)
+    // 击球瞬间的拍面法线（局部 +Z），保证指向出球方向（+z 朝球网）
+    this.racket.hoopGroup.getWorldQuaternion(this._faceQuat)
+    this.contactNormal.set(0, 0, 1).applyQuaternion(this._faceQuat).normalize()
+    if (this.contactNormal.z < 0) this.contactNormal.multiplyScalar(-1)
     const releaseT = Math.min(1, shot.contactAt + 0.09 / shot.duration)
     this.applyPose(releaseT)
     this.player.head.rotation.y = 0
     this.player.group.updateMatrixWorld(true)
     this.racket.sweetSpot.getWorldPosition(this.sweetWorld)
     this.computeSwingPath()
+    this.solveForce()
     this.simulate(shot)
 
     const first = this.bounceEvents[0]
@@ -239,8 +319,20 @@ export class LabMode extends TennisMode {
   }
 
   setShot(id) {
+    const keepForce = this.forceOn
     this.applyShot(shotById(id), false)
     this.playing = true
+    if (keepForce) {
+      this.progress = (this.shot.contactAt * this.shot.duration) / this.clockSeconds()
+      this.applyProgress(this.progress)
+    }
+  }
+
+  /** 拍线摩擦系数：0.55 标准新线 / 0.05 湿球旧线（演示打滑）。 */
+  setStringMu(mu) {
+    this.stringMu = mu
+    this.solveForce()
+    this.applyProgress(this.progress)
   }
 
   setPlaying(value) {
@@ -338,6 +430,7 @@ export class LabMode extends TennisMode {
     const pocket = 0.09
     const meet = 0.18
     let flown = 0
+    this.forceRig.setVisible(this.forceOn && Math.abs(seconds - contactTime) <= 0.15)
     this.player.group.updateMatrixWorld(true)
     this.racket.sweetSpot.getWorldPosition(this.liveSweet)
 
@@ -417,6 +510,7 @@ export class LabMode extends TennisMode {
     this.arc.dispose()
     this.swingTrace.dispose()
     this.rings.dispose()
+    this.forceRig.dispose()
     this.court.dispose()
     super.dispose()
   }
