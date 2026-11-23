@@ -71,6 +71,27 @@
         </div>
       </div>
 
+      <div class="canvas-card">
+        <div class="card-head">
+          <span class="fig coral">FIG 1.3 · 击球瞬间 · 速度与力的分解</span>
+          <span class="h2">v → v⊥ + v∥，F_N + F_r → F，摩擦冲量把切向滑动变成转速</span>
+        </div>
+        <div class="chart-wrap"><ContactForceChart :cases="fhContact" :height="190" /></div>
+        <div class="vec-key bottom">
+          <span class="k-white">→ v 入射相对速度</span>
+          <span class="k-blue">↘ v⊥ 压进拍线</span>
+          <span class="k-teal">↗ v∥ 沿拍面刷过</span>
+          <span class="k-red">F_N 拍线弹性</span>
+          <span class="k-gold">F_r 拍线咬球</span>
+          <span class="k-violet">ω 出球转速</span>
+        </div>
+        <p class="caption">
+          <b>为什么刷球角越大转速越高：</b>拍头线速度固定时，切向分量 <i>v∥ = v·sin α</i> 随刷球角 α 增大，
+          拍线要提供的摩擦冲量 <i>J_t = ⅖mRω</i> 也随之增大；只要不超过上限 <i>μJ_N</i>，
+          切向速度就全部被「卷」成上旋，图下方实时给出所需 μ。
+        </p>
+      </div>
+
       <div class="cards">
         <article v-for="card in FH_CARDS" :key="card.tag" class="math-card">
           <span class="tag">{{ card.tag }}</span>
@@ -153,6 +174,27 @@
         </div>
       </div>
 
+      <div class="canvas-card">
+        <div class="card-head">
+          <span class="fig coral">FIG 2.3 · 击球瞬间 · 速度与力的分解</span>
+          <span class="h2">{{ bhType === '1hbh' ? '单反：拍头仰角小、切向分量少，上旋弱但穿透强' : '双反：拍面更稳、法向分量占主导，平击穿透' }}</span>
+        </div>
+        <div class="chart-wrap"><ContactForceChart :cases="bhContact" :height="190" /></div>
+        <div class="vec-key bottom">
+          <span class="k-white">→ v 入射相对速度</span>
+          <span class="k-blue">↘ v⊥ 压进拍线</span>
+          <span class="k-teal">↗ v∥ 沿拍面刷过</span>
+          <span class="k-red">F_N 拍线弹性</span>
+          <span class="k-gold">F_r 拍线咬球</span>
+          <span class="k-violet">ω 出球转速</span>
+        </div>
+        <p class="caption">
+          <b>反手为什么打不出正手那样的转速：</b>单反以肩为支点做全臂展圆弧，拍头速度不低，但拍面在触球时更接近垂直、
+          刷球角小，切向分量 <i>v∥</i> 只占总速度的一小部分；双反用闭合三角锁住拍面，法向分量 <i>F_N</i> 占比更高，
+          球速穿透力强、旋转却是三类击球里最低的。
+        </p>
+      </div>
+
       <div class="cards">
         <article v-for="card in BH_CARDS" :key="card.tag" class="math-card">
           <span class="tag">{{ card.tag }}</span>
@@ -198,6 +240,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import ContactForceChart from './ContactForceChart.vue'
 import {
   BH_CARDS,
   BH_DEFAULTS,
@@ -215,7 +258,16 @@ const TABS = [
   { id: 'compare', name: '几何对比矩阵' }
 ]
 
-const tabId = ref('forehand')
+const props = defineProps({
+  /** 由外层路由模式决定默认打开哪个模块：致命正手 / 弹道反手 */
+  modeTab: { type: String, default: 'forehand' }
+})
+
+const tabId = ref(props.modeTab === 'backhand' ? 'backhand' : 'forehand')
+
+watch(() => props.modeTab, (value) => {
+  tabId.value = value === 'backhand' ? 'backhand' : 'forehand'
+})
 
 const emit = defineEmits(['stats'])
 
@@ -239,6 +291,50 @@ const bhLaunch = ref(BH_DEFAULTS.launch)
 const bhYaw = ref(BH_DEFAULTS.yaw)
 const bhTypeList = [BH_TYPES['1hbh'], BH_TYPES['2hbh']]
 const bh = computed(() => computeBackhand({ type: bhType.value, power: bhPower.value, launch: bhLaunch.value, yaw: bhYaw.value }))
+
+/**
+ * 触球瞬间的输入：拍头速度沿刷球仰角方向，拍面角度随刷球角变化。
+ * 正手刷得越陡，拍面关得越多（法线朝前下方偏）；反手按出射仰角给一个接近垂直的拍面。
+ */
+const fhContact = computed(() => {
+  const r = fh.value
+  const alpha = (r.brush * Math.PI) / 180
+  const v = r.speed / 3.6
+  const tilt = ((-6 + (r.brush - 32) * 0.35) * Math.PI) / 180
+  return [
+    {
+      id: 'fh',
+      label: `正手触球 · 拍头 ${r.speed} km/h · 刷球 ${r.brush}°`,
+      color: '#d8f34a',
+      inVel: [0, -1.6, -68 / 3.6],
+      racketVel: [0, v * Math.sin(alpha), v * Math.cos(alpha)],
+      normal: [0, Math.sin(tilt), Math.cos(tilt)],
+      rpm: r.rpm
+    }
+  ]
+})
+
+const bhContact = computed(() => {
+  const r = bh.value
+  const cfg = r.cfg
+  const rpm = Math.round(1200 + cfg.spinAcc * 330)
+  const v = r.power / 3.6
+  // 单反走 C 型大圆弧，拍头仰角更陡；双反是扁平贯穿线，仰角最小
+  const isOne = bhType.value === '1hbh'
+  const alpha = ((r.launch * (isOne ? 0.85 : 0.55) + (isOne ? 6 : 2)) * Math.PI) / 180
+  const tilt = (((r.launch - 12) * (isOne ? 0.6 : 0.4)) * Math.PI) / 180
+  return [
+    {
+      id: bhType.value,
+      label: `${cfg.name}触球 · 拍头 ${r.power} km/h · 出射 ${r.launch.toFixed(1)}°`,
+      color: cfg.color,
+      inVel: [0, -1.4, -62 / 3.6],
+      racketVel: [0, v * Math.sin(alpha), v * Math.cos(alpha)],
+      normal: [0, Math.sin(tilt), Math.cos(tilt)],
+      rpm
+    }
+  ]
+})
 
 const bhStats = computed(() => [
   { label: '有效力臂半径', value: bh.value.radius.toFixed(2), unit: ' m', note: bh.value.cfg.radiusDesc, color: '#5ec8ff' },
@@ -1197,6 +1293,30 @@ defineExpose({ fh, bh, setPlaying, setSlow, tab: tabId })
 .vec-key b {
   color: #e6f4ec;
 }
+
+.vec-key.bottom {
+  position: static;
+  left: auto;
+  right: auto;
+  background: transparent;
+  padding: 0;
+  gap: 2px 10px;
+  font-size: 8.5px;
+  letter-spacing: 0;
+}
+
+.chart-wrap {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.vec-key .k-white { color: #eafff2; }
+.vec-key .k-blue { color: #38bdf8; }
+.vec-key .k-teal { color: #22d3ee; }
+.vec-key .k-red { color: #ef4444; }
+.vec-key .k-gold { color: #facc15; }
+.vec-key .k-violet { color: #c084fc; }
 
 .caption {
   margin: 0;

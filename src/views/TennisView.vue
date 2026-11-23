@@ -622,6 +622,18 @@
       </div>
       <p class="note">{{ spinData.surf?.note }}。弹跳参数为教学示意值，非 ITF 实测。</p>
       <p class="note">转速参考：职业顶尖正手 3000+ rpm，业余多在 1000–2000 rpm。</p>
+
+      <h3 class="sec-title">接触瞬间：同一来球，三种刷法</h3>
+      <ContactForceChart :cases="spinContact" :height="360" stack dense />
+      <p class="note cfc-legend">
+        <b class="lg-v">▬ v</b> <b class="lg-vn">▬ v⊥ 压进拍线</b> <b class="lg-vt">▬ v∥ 刷过拍面</b>
+        <b class="lg-fn">▬ F_N</b> <b class="lg-fr">▬ F_r</b> <b class="lg-om">◠ ω</b>
+      </p>
+      <p class="note">
+        三颗球的来球速度与拍头速度完全相同，区别只在刷球方向：上旋拍头由低往高走，摩擦把球向上「卷」；
+        下旋由高往低切，摩擦反向，球倒转。把上面的转速拉到 0，ω 弧消失、F_r 归零——
+        没有切向摩擦就没有旋转。
+      </p>
     </aside>
 
     <!-- C 球场与规则 -->
@@ -940,6 +952,7 @@
     <StrokeLab
       v-if="modeId === 'forehand' || modeId === 'backhand'"
       ref="strokeLabRef"
+      :mode-tab="modeId === 'backhand' ? 'backhand' : 'forehand'"
       @stats="onStrokeStats"
     />
 
@@ -968,6 +981,7 @@ import ServeMathPanel from '../components/ServeMathPanel.vue'
 import FootworkDemo from '../components/FootworkDemo.vue'
 import StanceMap from '../components/StanceMap.vue'
 import StrokeLab from '../components/StrokeLab.vue'
+import ContactForceChart from '../components/ContactForceChart.vue'
 import BallBounceChart from '../components/BallBounceChart.vue'
 import { MODES, SHOTS, shotById } from '../tennis/catalog.js'
 import { SURFACES } from '../tennis/court.js'
@@ -1043,6 +1057,34 @@ const splitFn = computed(() => {
   return total > 0.01 ? (labForce.fn / total) * 100 : 50
 })
 const spinData = reactive({ rpm: 2500, surfaceId: 'hard', showForces: true, lanes: [], surf: SURFACES.hard })
+
+/**
+ * 旋转科学里的「接触瞬间」对比：来球 60 km/h、拍头速度 110 km/h 全部相同，
+ * 只有刷球方向与拍面角度不同 —— 摩擦方向翻转，出球旋向随之翻转。
+ */
+const spinContact = computed(() => {
+  const rpm = spinData.rpm || 0
+  const v = 110 / 3.6
+  const inVel = [0, -0.8, -60 / 3.6]
+  const mk = (id, label, color, brushDeg, tiltDeg, spin) => {
+    const a = (brushDeg * Math.PI) / 180
+    const t = (tiltDeg * Math.PI) / 180
+    return {
+      id,
+      label,
+      color,
+      inVel,
+      racketVel: [0, v * Math.sin(a), v * Math.cos(a)],
+      normal: [0, Math.sin(t), Math.cos(t)],
+      rpm: spin
+    }
+  }
+  return [
+    mk('top', '上旋 · 拍头由低往高刷', '#ff8a4c', 42, -7, rpm),
+    mk('flat', '平击 · 平推穿过球心', '#f2fbf2', 8, 0, 0),
+    mk('slice', '下旋 · 拍头由高往低切', '#5ec8ff', -22, 16, -rpm)
+  ]
+})
 const servePlaying = ref(true)
 const modelPlaying = ref(true)
 const footScenarios = SCENARIOS
@@ -2014,6 +2056,20 @@ onUnmounted(() => {
   font-size: 12px;
   line-height: 1.6;
 }
+
+.cfc-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  font-size: 10px;
+}
+
+.lg-v { color: #eafff2; font-weight: 400; }
+.lg-vn { color: #38bdf8; font-weight: 400; }
+.lg-vt { color: #22d3ee; font-weight: 400; }
+.lg-fn { color: #ef4444; font-weight: 400; }
+.lg-fr { color: #facc15; font-weight: 400; }
+.lg-om { color: #c084fc; font-weight: 400; }
 
 button {
   border: 1px solid #46685a;
