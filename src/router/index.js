@@ -98,6 +98,12 @@ const routes = [
         meta: { public: true, immersive: true }
       },
       {
+        path: 'solarsystem',
+        name: 'solarsystem',
+        component: () => import('../views/SolarSystemView.vue'),
+        meta: { public: true, immersive: true }
+      },
+      {
         path: 'saltline',
         name: 'saltline',
         component: () => import('../views/SaltlineView.vue'),

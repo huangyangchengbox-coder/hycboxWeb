@@ -26,7 +26,8 @@ export const SITE_MODULES = [
       { name: '旋转黑洞', route: '/kerr', desc: '克尔度规下的吸积盘与光线弯曲' },
       { name: '光谱', route: '/spectra', desc: '光的分解与色彩实验' },
       { name: '公式像素', route: '/formula', desc: '从公式到像素的四个数值实验' },
-      { name: '天象', route: '/sky', desc: '地日月三球仪：月相、日食、四季、二十四节气' }
+      { name: '天象', route: '/sky', desc: '地日月三球仪：月相、日食、四季、二十四节气' },
+      { name: '太阳系漫游', route: '/solarsystem', desc: '交互式 3D 太阳系：行星聚焦、比例切换、第一人称漫游' }
     ]
   },
   {
