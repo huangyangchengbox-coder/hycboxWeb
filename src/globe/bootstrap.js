@@ -188,16 +188,34 @@ export function mountGlobeApp({
   intervals.push(setInterval(updateTimes, 1000))
   intervals.push(tickInterval)
 
-  // HTTP / 无 WebGPU 时走经典 WebGL，避免 wgslFn 着色器校验失败
-  const useCinematic = canUseWebGPU()
-  let activeEngine = useCinematic ? new Engine(canvas) : new EngineClassic(canvas)
-  activeEngine.onLocationsUpdate = handleLocationsUpdate
-  activeEngine.onMoonChange = onMoonChange || null
-  console.info(`[globe] renderer mode: ${useCinematic ? 'WebGPU cinematic' : 'WebGL classic'}`)
+  let activeEngine = null
+  let useCinematic = false
+
+  function bindEngine(engine) {
+    engine.onLocationsUpdate = handleLocationsUpdate
+    engine.onMoonChange = onMoonChange || null
+    return engine
+  }
+
+  // 加载超时兜底：WebGPU 引擎在 WebGL2 后端下 compileAsync 可能永不 resolve，
+  // 宁可退回稳定的经典 WebGL，也不能让用户永远卡在启动画面。
+  function initWithTimeout(engine, ms) {
+    return Promise.race([
+      engine.init(onProgress),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('engine init timeout')), ms))
+    ])
+  }
 
   const startEngine = async () => {
+    // ?cinematic=1 可强制走 WebGPU 电影级引擎（调试用）；默认走实测 adapter 的结果
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+    const forceCinematic = params?.get('cinematic') === '1'
+    useCinematic = forceCinematic || (await canUseWebGPU())
+    activeEngine = bindEngine(useCinematic ? new Engine(canvas) : new EngineClassic(canvas))
+    console.info(`[globe] renderer mode: ${useCinematic ? 'WebGPU cinematic' : 'WebGL classic'}`)
+
     try {
-      await activeEngine.init(onProgress)
+      await initWithTimeout(activeEngine, 20000)
       onLoad()
     } catch (err) {
       console.error('Engine init error:', err)
@@ -208,11 +226,9 @@ export function mountGlobeApp({
         } catch (_) {
           /* ignore */
         }
-        activeEngine = new EngineClassic(canvas)
-        activeEngine.onLocationsUpdate = handleLocationsUpdate
-        activeEngine.onMoonChange = onMoonChange || null
+        activeEngine = bindEngine(new EngineClassic(canvas))
         try {
-          await activeEngine.init(onProgress)
+          await initWithTimeout(activeEngine, 20000)
         } catch (e2) {
           console.error('Classic engine init error:', e2)
         }
@@ -229,7 +245,9 @@ export function mountGlobeApp({
   }
 
   return {
-    engine: activeEngine,
+    get engine() {
+      return activeEngine
+    },
     dispose,
     enterMoon: () => activeEngine?.enterMoon?.(),
     exitMoon: (instant) => activeEngine?.exitMoon?.(instant)

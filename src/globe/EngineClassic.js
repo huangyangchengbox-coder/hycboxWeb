@@ -98,8 +98,24 @@ export async function createEarthClassic(loader, maxAnisotropy = 1) {
 }
 
 /** 检测是否可用真实 WebGPU（HTTP IP 通常不可用，需 HTTPS/localhost） */
-export function canUseWebGPU() {
-  return typeof navigator !== 'undefined' && !!navigator.gpu
+/**
+ * 真正拿到 adapter 才算 WebGPU 可用。
+ * 现代 Chrome 的 navigator.gpu 几乎总是存在，但仍然可能返回 "No available adapters."；
+ * 此时若误选 WebGPU 引擎，three 会退回 WebGL2 后端，compileAsync 可能永不结束，
+ * 加载界面就永远停在 "Compiling Shaders (Warmup)"（95%）。
+ */
+export async function canUseWebGPU() {
+  if (typeof navigator === 'undefined' || !navigator.gpu) return false
+  try {
+    const adapter = await Promise.race([
+      navigator.gpu.requestAdapter(),
+      new Promise((resolve) => setTimeout(() => resolve(null), 2000))
+    ])
+    return !!adapter
+  } catch (error) {
+    console.warn('[globe] WebGPU adapter probe failed, falling back to WebGL', error)
+    return false
+  }
 }
 
 export class EngineClassic {
