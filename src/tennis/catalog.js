@@ -14,6 +14,7 @@ export const MODES = [
   { id: 'spin', en: 'SPIN SCIENCE', name: '旋转的科学', hint: '上旋 / 平击 / 下旋 · 三条轨迹并排对比' },
   { id: 'court', en: 'COURT & RULES', name: '球场与规则', hint: '尺寸标注 · 四种场地 · 计分演示' },
   { id: 'history', en: 'HISTORY', name: '历史长廊', hint: '1873 → 今天 · 球拍与球的进化' },
+  { id: 'matches', en: 'CLASSIC MATCHES', name: '经典战役', hint: '10 场大满贯经典 · 一键看比赛录像' },
   { id: 'gear', en: 'GEAR LAB', name: '装备解剖', hint: '球拍参数实时改几何' },
   { id: 'train', en: 'TRAINING', name: '训练挑战', hint: '判断题 · 记没记住' }
 ]

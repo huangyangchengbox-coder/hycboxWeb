@@ -970,6 +970,8 @@
       @change="onModelChange"
     />
 
+    <MatchArchive v-if="modeId === 'matches'" />
+
     <p class="disclaimer">本模块为科普与教学示意，动作参数与场地弹跳经简化，不替代专业教练指导。场地线按 ITF 尺寸。</p>
   </div>
 </template>
@@ -982,6 +984,7 @@ import FootworkDemo from '../components/FootworkDemo.vue'
 import StanceMap from '../components/StanceMap.vue'
 import StrokeLab from '../components/StrokeLab.vue'
 import ContactForceChart from '../components/ContactForceChart.vue'
+import MatchArchive from '../components/MatchArchive.vue'
 import BallBounceChart from '../components/BallBounceChart.vue'
 import { MODES, SHOTS, shotById } from '../tennis/catalog.js'
 import { SURFACES } from '../tennis/court.js'
@@ -1335,6 +1338,7 @@ function createMode(id) {
   if (id === 'grip') return new GripMode(stage)
   if (id === 'spin') return new SpinMode(stage)
   if (id === 'court') return new CourtMode(stage)
+  if (id === 'matches') return new CourtMode(stage)
   if (id === 'history') return new HistoryMode(stage)
   if (id === 'gear') return new GearMode(stage)
   if (id === 'train') return new TrainMode(stage)
