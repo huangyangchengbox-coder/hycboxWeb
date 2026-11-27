@@ -44,7 +44,10 @@
       >{{ mod.name }}</router-link>
     </div>
 
-    <div class="wm-extra"><slot /></div>
+    <div class="wm-extra">
+      <SiteClock />
+      <slot />
+    </div>
   </nav>
 </template>
 
@@ -52,6 +55,7 @@
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { SITE_MODULES, moduleOfPath } from '../site/modules.js'
+import SiteClock from './SiteClock.vue'
 
 defineProps({
   flow: { type: Boolean, default: false }
