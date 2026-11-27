@@ -53,6 +53,7 @@
             </div>
           </div>
 
+          <router-link to="/cameras" class="nav-link" active-class="active">摄像头</router-link>
           <router-link to="/hub-entries" class="nav-link" active-class="active">首页入口</router-link>
           <router-link to="/publish" class="nav-link" active-class="active">发布管理</router-link>
         </template>

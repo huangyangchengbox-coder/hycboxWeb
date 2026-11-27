@@ -182,6 +182,11 @@ const routes = [
         path: 'publish',
         name: 'publish',
         component: () => import('../views/PublishView.vue')
+      },
+      {
+        path: 'cameras',
+        name: 'cameras',
+        component: () => import('../views/CamerasView.vue')
       }
     ]
   }
